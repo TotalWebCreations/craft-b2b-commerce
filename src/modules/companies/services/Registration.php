@@ -29,30 +29,39 @@ class Registration extends Component
             );
         }
 
-        $company = new Company();
-        $company->title = $companyName;
-        $company->registrationNumber = $registrationNumber;
-        $company->taxId = $taxId;
-        $company->companyStatus = Company::STATUS_PENDING;
+        $transaction = Craft::$app->getDb()->beginTransaction();
 
-        if (!Craft::$app->getElements()->saveElement($company)) {
-            throw new InvalidArgumentException(implode(' ', $company->getFirstErrors()));
+        try {
+            $company = new Company();
+            $company->title = $companyName;
+            $company->registrationNumber = $registrationNumber;
+            $company->taxId = $taxId;
+            $company->companyStatus = Company::STATUS_PENDING;
+
+            if (!Craft::$app->getElements()->saveElement($company)) {
+                throw new InvalidArgumentException(implode(' ', $company->getFirstErrors()));
+            }
+
+            $user = new User();
+            $user->username = $email;
+            $user->email = $email;
+            $user->firstName = $firstName;
+            $user->lastName = $lastName;
+            $user->pending = true;
+
+            if (!Craft::$app->getElements()->saveElement($user)) {
+                throw new InvalidArgumentException(implode(' ', $user->getFirstErrors()));
+            }
+
+            Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+            $transaction->commit();
+        } catch (\Throwable $e) {
+            $transaction->rollBack();
+
+            throw $e;
         }
 
-        $user = new User();
-        $user->username = $email;
-        $user->email = $email;
-        $user->firstName = $firstName;
-        $user->lastName = $lastName;
-        $user->pending = true;
-
-        if (!Craft::$app->getElements()->saveElement($user)) {
-            Craft::$app->getElements()->deleteElement($company, true);
-
-            throw new InvalidArgumentException(implode(' ', $user->getFirstErrors()));
-        }
-
-        Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
         $this->notifyAdmin($company, $user);
 
         return $company;
