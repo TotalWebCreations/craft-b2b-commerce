@@ -8,7 +8,7 @@
     "authors": [
         {
             "name": "TotalWebCreations",
-            "homepage": "https://totalwebcreations.com"
+            "homepage": "https://totalwebcreations.nl"
         }
     ],
     "require": {
@@ -35,7 +35,8 @@
         "name": "B2B Commerce",
         "handle": "b2b-commerce",
         "developer": "TotalWebCreations",
-        "documentationUrl": "https://github.com/totalwebcreations/craft-b2b-commerce",
+        "developerUrl": "https://totalwebcreations.nl",
+        "documentationUrl": "https://github.com/TotalWebCreations/craft-b2b-commerce",
         "class": "totalwebcreations\\b2bcommerce\\Plugin"
     }
 }
