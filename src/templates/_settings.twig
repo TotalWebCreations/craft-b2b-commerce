@@ -1,0 +1,46 @@
+{% import '_includes/forms' as forms %}
+
+{{ forms.lightswitchField({
+    label: 'Companies'|t('b2b-commerce'),
+    instructions: 'Company accounts, roles and registration approval.'|t('b2b-commerce'),
+    name: 'enableCompanies',
+    on: settings.enableCompanies,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Quotes'|t('b2b-commerce'),
+    name: 'enableQuotes',
+    on: settings.enableQuotes,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Order approvals'|t('b2b-commerce'),
+    name: 'enableApprovals',
+    on: settings.enableApprovals,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Pay on account'|t('b2b-commerce'),
+    name: 'enableInvoicing',
+    on: settings.enableInvoicing,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Quick order'|t('b2b-commerce'),
+    name: 'enableQuickOrder',
+    on: settings.enableQuickOrder,
+}) }}
+
+{{ forms.lightswitchField({
+    label: 'Hide prices for guests'|t('b2b-commerce'),
+    instructions: 'Hide prices and disable add-to-cart for visitors without an approved company account.'|t('b2b-commerce'),
+    name: 'hidePricesForGuests',
+    on: settings.hidePricesForGuests,
+}) }}
+
+{{ forms.textField({
+    label: 'Admin notification email'|t('b2b-commerce'),
+    instructions: 'Receives a notification when a new company registers.'|t('b2b-commerce'),
+    name: 'adminNotificationEmail',
+    value: settings.adminNotificationEmail,
+}) }}
