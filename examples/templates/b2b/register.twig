@@ -1,0 +1,20 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Create a business account'|t }}</h1>
+
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/registration/register') }}
+        {{ redirectInput('b2b/register/thanks') }}
+
+        <label>{{ 'Company name'|t }} <input type="text" name="companyName" required></label>
+        <label>{{ 'Registration number'|t }} <input type="text" name="registrationNumber"></label>
+        <label>{{ 'VAT / Tax ID'|t }} <input type="text" name="taxId"></label>
+        <label>{{ 'First name'|t }} <input type="text" name="firstName" required></label>
+        <label>{{ 'Last name'|t }} <input type="text" name="lastName" required></label>
+        <label>{{ 'Email'|t }} <input type="email" name="email" required></label>
+
+        <button type="submit">{{ 'Register'|t }}</button>
+    </form>
+{% endblock %}

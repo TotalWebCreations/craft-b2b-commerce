@@ -14,12 +14,14 @@ use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
+use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use yii\base\Event;
 
 /**
  * @method static Plugin getInstance()
  * @method Settings getSettings()
  * @property-read CompanyMembers $companyMembers
+ * @property-read Registration $registration
  */
 class Plugin extends BasePlugin
 {
@@ -37,6 +39,7 @@ class Plugin extends BasePlugin
 
         $this->setComponents([
             'companyMembers' => CompanyMembers::class,
+            'registration' => Registration::class,
         ]);
 
         Event::on(
