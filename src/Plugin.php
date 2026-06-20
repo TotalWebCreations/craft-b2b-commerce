@@ -5,16 +5,21 @@ namespace totalwebcreations\b2bcommerce;
 use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
+use craft\elements\User;
+use craft\events\DefineBehaviorsEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\services\UserPermissions;
 use craft\web\UrlManager;
+use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\models\Settings;
+use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use yii\base\Event;
 
 /**
  * @method static Plugin getInstance()
  * @method Settings getSettings()
+ * @property-read CompanyMembers $companyMembers
  */
 class Plugin extends BasePlugin
 {
@@ -29,6 +34,18 @@ class Plugin extends BasePlugin
         if (Craft::$app->getRequest()->getIsConsoleRequest()) {
             $this->controllerNamespace = 'totalwebcreations\\b2bcommerce\\console\\controllers';
         }
+
+        $this->setComponents([
+            'companyMembers' => CompanyMembers::class,
+        ]);
+
+        Event::on(
+            User::class,
+            User::EVENT_DEFINE_BEHAVIORS,
+            function(DefineBehaviorsEvent $event) {
+                $event->behaviors['b2bUser'] = UserBehavior::class;
+            }
+        );
 
         Event::on(
             UrlManager::class,
