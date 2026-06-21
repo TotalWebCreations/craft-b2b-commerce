@@ -105,6 +105,14 @@ class Company extends Element
         return UrlHelper::cpUrl("b2b/companies/$this->id");
     }
 
+    protected static function defineActions(string $source): array
+    {
+        return [
+            \totalwebcreations\b2bcommerce\elements\actions\ApproveCompanies::class,
+            \totalwebcreations\b2bcommerce\elements\actions\BlockCompanies::class,
+        ];
+    }
+
     protected static function defineSources(string $context): array
     {
         $sources = [

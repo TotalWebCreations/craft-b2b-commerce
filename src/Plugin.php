@@ -7,12 +7,15 @@ use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
 use craft\elements\User;
 use craft\events\DefineBehaviorsEvent;
+use craft\events\RegisterEmailMessagesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
+use craft\services\SystemMessages;
 use craft\services\UserPermissions;
 use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\models\Settings;
+use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use yii\base\Event;
@@ -20,6 +23,7 @@ use yii\base\Event;
 /**
  * @method static Plugin getInstance()
  * @method Settings getSettings()
+ * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
  * @property-read Registration $registration
  */
@@ -38,6 +42,7 @@ class Plugin extends BasePlugin
         }
 
         $this->setComponents([
+            'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
             'registration' => Registration::class,
         ]);
@@ -57,6 +62,22 @@ class Plugin extends BasePlugin
                 $event->rules['b2b'] = ['template' => 'b2b-commerce/companies/_index'];
                 $event->rules['b2b/companies'] = ['template' => 'b2b-commerce/companies/_index'];
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
+            }
+        );
+
+        Event::on(
+            SystemMessages::class,
+            SystemMessages::EVENT_REGISTER_MESSAGES,
+            function(RegisterEmailMessagesEvent $event) {
+                $event->messages[] = [
+                    'key' => 'b2b_company_approved',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: company approved'),
+                    'subject' => 'Your business account has been approved',
+                    'body' => "Hi {{user.friendlyName}},\n\n" .
+                        "Good news — your business account for {{company.title}} has been approved. " .
+                        "You can now sign in and order at business conditions.\n\n" .
+                        "{{siteUrl}}",
+                ];
             }
         );
 
