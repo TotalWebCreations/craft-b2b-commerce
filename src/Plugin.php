@@ -66,6 +66,12 @@ class Plugin extends BasePlugin
             Order::class,
             Order::EVENT_BEFORE_ADD_LINE_ITEM,
             function(AddLineItemEvent $event) {
+                $request = Craft::$app->getRequest();
+
+                if ($request->getIsConsoleRequest() || !$request->getIsSiteRequest()) {
+                    return;
+                }
+
                 $canPurchase = $this->priceVisibility->canPurchase(
                     Craft::$app->getUser()->getIdentity()
                 );
