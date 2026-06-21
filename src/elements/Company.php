@@ -10,6 +10,8 @@ use craft\helpers\Cp;
 use craft\helpers\Db;
 use craft\helpers\UrlHelper;
 use craft\models\FieldLayout;
+use totalwebcreations\b2bcommerce\elements\actions\ApproveCompanies;
+use totalwebcreations\b2bcommerce\elements\actions\BlockCompanies;
 use totalwebcreations\b2bcommerce\elements\db\CompanyQuery;
 
 class Company extends Element
@@ -108,13 +110,19 @@ class Company extends Element
     protected static function defineActions(string $source): array
     {
         return [
-            \totalwebcreations\b2bcommerce\elements\actions\ApproveCompanies::class,
-            \totalwebcreations\b2bcommerce\elements\actions\BlockCompanies::class,
+            ApproveCompanies::class,
+            BlockCompanies::class,
         ];
     }
 
     protected static function defineSources(string $context): array
     {
+        $request = Craft::$app->getRequest();
+
+        if (!$request->getIsConsoleRequest() && !Craft::$app->getUser()->checkPermission('b2b-commerce:manageCompanies')) {
+            return [];
+        }
+
         $sources = [
             ['key' => '*', 'label' => Craft::t('b2b-commerce', 'All companies'), 'criteria' => []],
         ];

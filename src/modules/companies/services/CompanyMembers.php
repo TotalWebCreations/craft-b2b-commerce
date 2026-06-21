@@ -39,7 +39,8 @@ class CompanyMembers extends Component
             return null;
         }
 
-        return Company::find()->id($companyId)->status(null)->one();
+        // Companies are non-localized elements hosted on the primary site only, so query with site('*').
+        return Company::find()->id($companyId)->site('*')->unique()->status(null)->one();
     }
 
     public function getRoleForUser(int $userId, int $companyId): ?CompanyRole

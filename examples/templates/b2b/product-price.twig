@@ -1,4 +1,4 @@
-{# Partial: toon prijs of login-prompt, afhankelijk van B2B-prijszichtbaarheid #}
+{# Partial: show the price or a sign-in prompt, depending on B2B price visibility #}
 {% if craft.b2b.canViewPrices %}
     <span class="price">{{ variant.price|commerceCurrency }}</span>
     <form method="post">

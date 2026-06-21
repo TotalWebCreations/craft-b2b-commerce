@@ -9,14 +9,17 @@ use craft\commerce\elements\Order;
 use craft\commerce\events\AddLineItemEvent;
 use craft\elements\User;
 use craft\events\DefineBehaviorsEvent;
+use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
+use craft\services\Elements;
 use craft\services\SystemMessages;
 use craft\services\UserPermissions;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
+use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
@@ -59,6 +62,14 @@ class Plugin extends BasePlugin
             CraftVariable::EVENT_INIT,
             function(Event $event) {
                 $event->sender->set('b2b', B2bVariable::class);
+            }
+        );
+
+        Event::on(
+            Elements::class,
+            Elements::EVENT_REGISTER_ELEMENT_TYPES,
+            function(RegisterComponentTypesEvent $event) {
+                $event->types[] = Company::class;
             }
         );
 
@@ -116,11 +127,11 @@ class Plugin extends BasePlugin
                 $event->messages[] = [
                     'key' => 'b2b_company_approved',
                     'heading' => Craft::t('b2b-commerce', 'B2B: company approved'),
-                    'subject' => 'Your business account has been approved',
-                    'body' => "Hi {{user.friendlyName}},\n\n" .
+                    'subject' => Craft::t('b2b-commerce', 'Your business account has been approved'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
                         "Good news — your business account for {{company.title}} has been approved. " .
                         "You can now sign in and order at business conditions.\n\n" .
-                        "{{siteUrl}}",
+                        "{{siteUrl}}"),
                 ];
             }
         );

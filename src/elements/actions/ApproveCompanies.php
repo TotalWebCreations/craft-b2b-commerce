@@ -7,6 +7,7 @@ use craft\base\ElementAction;
 use craft\elements\db\ElementQueryInterface;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
+use yii\web\ForbiddenHttpException;
 
 class ApproveCompanies extends ElementAction
 {
@@ -15,8 +16,15 @@ class ApproveCompanies extends ElementAction
         return Craft::t('b2b-commerce', 'Approve');
     }
 
+    /**
+     * @throws ForbiddenHttpException
+     */
     public function performAction(ElementQueryInterface $query): bool
     {
+        if (!Craft::$app->getRequest()->getIsConsoleRequest() && !Craft::$app->getUser()->checkPermission('b2b-commerce:manageCompanies')) {
+            throw new ForbiddenHttpException('User is not permitted to manage companies.');
+        }
+
         $failures = 0;
 
         foreach ($query->all() as $company) {

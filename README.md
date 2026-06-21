@@ -108,23 +108,20 @@ register prompt instead of prices and cannot add products to the cart.
 
 | Setting | Key | Default | Description |
 | --- | --- | --- | --- |
-| Companies | `enableCompanies` | `true` | Enable company accounts, roles and registration approval. |
-| Quotes | `enableQuotes` | `true` | Reserved for the quotes pillar (roadmap). |
-| Order approvals | `enableApprovals` | `true` | Reserved for the order approvals pillar (roadmap). |
-| Pay on account | `enableInvoicing` | `true` | Reserved for the pay-on-account pillar (roadmap). |
-| Quick order | `enableQuickOrder` | `true` | Reserved for the quick order pillar (roadmap). |
+| Companies | `enableCompanies` | `true` | No effect yet — reserved. Company accounts are always active in this release. |
+| Quotes | `enableQuotes` | `true` | No effect yet — reserved for the quotes pillar (roadmap). |
+| Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
+| Pay on account | `enableInvoicing` | `true` | No effect yet — reserved for the pay-on-account pillar (roadmap). |
+| Quick order | `enableQuickOrder` | `true` | No effect yet — reserved for the quick order pillar (roadmap). |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
 
 ## Uninstalling
 
-Uninstalling the plugin does not drop its database tables (`b2b_companies`,
-`b2b_company_users`). If you plan to reinstall, drop those tables first, otherwise the
-install migration will fail because the tables already exist:
-
-```sql
-DROP TABLE IF EXISTS b2b_company_users, b2b_companies;
-```
+Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,
+`b2b_company_users`) and their data behind. The install migration is idempotent: if the
+tables already exist it skips creation and keeps your data, so a later reinstall picks up
+exactly where you left off — no manual SQL required.
 
 ## Roadmap
 

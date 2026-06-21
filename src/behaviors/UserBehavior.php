@@ -12,6 +12,10 @@ class UserBehavior extends Behavior
 {
     public function getB2bCompany(): ?Company
     {
+        if ($this->owner->id === null) {
+            return null;
+        }
+
         return Plugin::getInstance()->companyMembers->getCompanyForUser($this->owner->id);
     }
 }

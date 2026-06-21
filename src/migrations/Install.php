@@ -9,6 +9,10 @@ class Install extends Migration
 {
     public function safeUp(): bool
     {
+        if ($this->db->tableExists('{{%b2b_companies}}')) {
+            return true;
+        }
+
         $this->createTable('{{%b2b_companies}}', [
             'id' => $this->integer()->notNull(),
             'name' => $this->string()->notNull(),
@@ -37,6 +41,7 @@ class Install extends Migration
 
         $this->createIndex(null, '{{%b2b_companies}}', ['status']);
         $this->createIndex(null, '{{%b2b_company_users}}', ['companyId', 'userId'], true);
+        $this->createIndex(null, '{{%b2b_company_users}}', ['userId']);
 
         $this->addForeignKey(null, '{{%b2b_companies}}', ['id'], Table::ELEMENTS, ['id'], 'CASCADE');
         $this->addForeignKey(null, '{{%b2b_company_users}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
