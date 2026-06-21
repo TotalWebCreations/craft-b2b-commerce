@@ -5,6 +5,8 @@ namespace totalwebcreations\b2bcommerce;
 use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
+use craft\commerce\elements\Order;
+use craft\commerce\events\AddLineItemEvent;
 use craft\elements\User;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\RegisterEmailMessagesEvent;
@@ -12,12 +14,15 @@ use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\services\SystemMessages;
 use craft\services\UserPermissions;
+use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+use totalwebcreations\b2bcommerce\services\PriceVisibility;
+use totalwebcreations\b2bcommerce\variables\B2bVariable;
 use yii\base\Event;
 
 /**
@@ -25,6 +30,7 @@ use yii\base\Event;
  * @method Settings getSettings()
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
+ * @property-read PriceVisibility $priceVisibility
  * @property-read Registration $registration
  */
 class Plugin extends BasePlugin
@@ -44,8 +50,40 @@ class Plugin extends BasePlugin
         $this->setComponents([
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
+            'priceVisibility' => PriceVisibility::class,
             'registration' => Registration::class,
         ]);
+
+        Event::on(
+            CraftVariable::class,
+            CraftVariable::EVENT_INIT,
+            function(Event $event) {
+                $event->sender->set('b2b', B2bVariable::class);
+            }
+        );
+
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_ADD_LINE_ITEM,
+            function(AddLineItemEvent $event) {
+                $canPurchase = $this->priceVisibility->canPurchase(
+                    Craft::$app->getUser()->getIdentity()
+                );
+
+                if ($canPurchase) {
+                    return;
+                }
+
+                $message = Craft::t('b2b-commerce', 'You need an approved business account to order.');
+
+                $event->isValid = false;
+                $event->lineItem->addError('purchasableId', $message);
+
+                if ($event->sender instanceof Order) {
+                    $event->sender->addError('purchasableId', $message);
+                }
+            }
+        );
 
         Event::on(
             User::class,

@@ -1,0 +1,12 @@
+{# Partial: toon prijs of login-prompt, afhankelijk van B2B-prijszichtbaarheid #}
+{% if craft.b2b.canViewPrices %}
+    <span class="price">{{ variant.price|commerceCurrency }}</span>
+    <form method="post">
+        {{ csrfInput() }}
+        {{ actionInput('commerce/cart/update-cart') }}
+        {{ hiddenInput('purchasableId', variant.id) }}
+        <button type="submit">{{ 'Add to cart'|t }}</button>
+    </form>
+{% else %}
+    <a href="{{ url('b2b/register') }}">{{ 'Sign in or register to see prices'|t }}</a>
+{% endif %}
