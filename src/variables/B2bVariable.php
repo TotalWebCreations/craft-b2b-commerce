@@ -3,6 +3,7 @@
 namespace totalwebcreations\b2bcommerce\variables;
 
 use Craft;
+use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
 
@@ -31,5 +32,47 @@ class B2bVariable
         }
 
         return Plugin::getInstance()->companyMembers->getCompanyForUser($user->id);
+    }
+
+    /** @return array<int, array{user: User, role: string}> */
+    public function getTeamMembers(): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        $members = Plugin::getInstance()->companyMembers->getMembers($company->id);
+
+        if ($members === []) {
+            return [];
+        }
+
+        $userIds = array_column($members, 'userId');
+
+        /** @var array<int, User> $users */
+        $users = User::find()
+            ->id($userIds)
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        $rows = [];
+
+        foreach ($members as $member) {
+            $user = $users[$member['userId']] ?? null;
+
+            if ($user === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'user' => $user,
+                'role' => $member['role'],
+            ];
+        }
+
+        return $rows;
     }
 }
