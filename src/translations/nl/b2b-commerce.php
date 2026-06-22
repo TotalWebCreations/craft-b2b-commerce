@@ -35,6 +35,7 @@ return [
     'New B2B registration: {company}' => 'Nieuwe B2B-registratie: {company}',
     'B2B: company approved' => 'B2B: bedrijf goedgekeurd',
     'You need an approved business account to order.' => 'Je hebt een goedgekeurd zakelijk account nodig om te bestellen.',
+    'This order cannot be completed with the current account status.' => 'Deze bestelling kan niet worden voltooid met de huidige accountstatus.',
     'Hide prices for guests' => 'Prijzen verbergen voor gasten',
     'Hide prices and disable add-to-cart for visitors without an approved company account.' => 'Verberg prijzen en schakel bestellen uit voor bezoekers zonder goedgekeurd bedrijfsaccount.',
     'Admin notification email' => 'E-mailadres voor beheerdersnotificaties',

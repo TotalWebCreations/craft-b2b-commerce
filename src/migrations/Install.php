@@ -9,43 +9,58 @@ class Install extends Migration
 {
     public function safeUp(): bool
     {
-        if ($this->db->tableExists('{{%b2b_companies}}')) {
-            return true;
+        if (!$this->db->tableExists('{{%b2b_companies}}')) {
+            $this->createTable('{{%b2b_companies}}', [
+                'id' => $this->integer()->notNull(),
+                'name' => $this->string()->notNull(),
+                'registrationNumber' => $this->string(),
+                'taxId' => $this->string(),
+                'status' => $this->string()->notNull()->defaultValue('pending'),
+                'creditLimit' => $this->decimal(14, 4),
+                'paymentTermDays' => $this->integer(),
+                'allowInvoicePayment' => $this->boolean()->notNull()->defaultValue(false),
+                'approvalThreshold' => $this->decimal(14, 4),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+                'PRIMARY KEY([[id]])',
+            ]);
+
+            $this->createIndex(null, '{{%b2b_companies}}', ['status']);
+            $this->addForeignKey(null, '{{%b2b_companies}}', ['id'], Table::ELEMENTS, ['id'], 'CASCADE');
         }
 
-        $this->createTable('{{%b2b_companies}}', [
-            'id' => $this->integer()->notNull(),
-            'name' => $this->string()->notNull(),
-            'registrationNumber' => $this->string(),
-            'taxId' => $this->string(),
-            'status' => $this->string()->notNull()->defaultValue('pending'),
-            'creditLimit' => $this->decimal(14, 4),
-            'paymentTermDays' => $this->integer(),
-            'allowInvoicePayment' => $this->boolean()->notNull()->defaultValue(false),
-            'approvalThreshold' => $this->decimal(14, 4),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-            'PRIMARY KEY([[id]])',
-        ]);
+        if (!$this->db->tableExists('{{%b2b_company_users}}')) {
+            $this->createTable('{{%b2b_company_users}}', [
+                'id' => $this->primaryKey(),
+                'companyId' => $this->integer()->notNull(),
+                'userId' => $this->integer()->notNull(),
+                'role' => $this->string()->notNull()->defaultValue('purchaser'),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
 
-        $this->createTable('{{%b2b_company_users}}', [
-            'id' => $this->primaryKey(),
-            'companyId' => $this->integer()->notNull(),
-            'userId' => $this->integer()->notNull(),
-            'role' => $this->string()->notNull()->defaultValue('purchaser'),
-            'dateCreated' => $this->dateTime()->notNull(),
-            'dateUpdated' => $this->dateTime()->notNull(),
-            'uid' => $this->uid(),
-        ]);
+            $this->createIndex(null, '{{%b2b_company_users}}', ['companyId', 'userId'], true);
+            $this->createIndex(null, '{{%b2b_company_users}}', ['userId']);
+            $this->addForeignKey(null, '{{%b2b_company_users}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_company_users}}', ['userId'], Table::USERS, ['id'], 'CASCADE');
+        }
 
-        $this->createIndex(null, '{{%b2b_companies}}', ['status']);
-        $this->createIndex(null, '{{%b2b_company_users}}', ['companyId', 'userId'], true);
-        $this->createIndex(null, '{{%b2b_company_users}}', ['userId']);
+        if (!$this->db->tableExists('{{%b2b_order_company}}')) {
+            $this->createTable('{{%b2b_order_company}}', [
+                'orderId' => $this->integer()->notNull(),
+                'companyId' => $this->integer()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+                'PRIMARY KEY([[orderId]])',
+            ]);
 
-        $this->addForeignKey(null, '{{%b2b_companies}}', ['id'], Table::ELEMENTS, ['id'], 'CASCADE');
-        $this->addForeignKey(null, '{{%b2b_company_users}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
-        $this->addForeignKey(null, '{{%b2b_company_users}}', ['userId'], Table::USERS, ['id'], 'CASCADE');
+            $this->createIndex(null, '{{%b2b_order_company}}', ['companyId']);
+            $this->addForeignKey(null, '{{%b2b_order_company}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_order_company}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+        }
 
         return true;
     }

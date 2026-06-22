@@ -1,0 +1,111 @@
+<?php
+
+use craft\commerce\elements\Order;
+use craft\db\Query;
+use craft\elements\User;
+use totalwebcreations\b2bcommerce\enums\CompanyRole;
+use totalwebcreations\b2bcommerce\Plugin;
+
+/**
+ * Saves an empty cart order for the given customer (or a guest when null) and
+ * tracks it for hard-delete afterwards.
+ */
+function createTestOrder(?User $customer): Order
+{
+    $order = new Order();
+    $order->number = md5(uniqid((string) mt_rand(), true));
+
+    if ($customer !== null) {
+        $order->setCustomer($customer);
+    }
+
+    if (!craftApp()->getElements()->saveElement($order)) {
+        throw new RuntimeException('Could not save test order: ' . implode(', ', $order->getFirstErrors()));
+    }
+
+    trackElement($order);
+
+    return $order;
+}
+
+/**
+ * Reports whether a b2b_order_company row exists for the given order.
+ */
+function orderCompanyRowExists(int $orderId): bool
+{
+    return (new Query())
+        ->from('{{%b2b_order_company}}')
+        ->where(['orderId' => $orderId])
+        ->exists();
+}
+
+/**
+ * Runs the callback while pretending to be a front-end (non-console) request,
+ * restoring the console flag afterwards.
+ */
+function asSiteRequest(callable $callback): void
+{
+    $request = Craft::$app->getRequest();
+    $request->setIsConsoleRequest(false);
+
+    try {
+        $callback();
+    } finally {
+        $request->setIsConsoleRequest(true);
+    }
+}
+
+it('links a completed order to the customer company and resolves it back', function () {
+    $user = createTestUser('ordercompany_' . uniqid() . '@example.test');
+    $company = createTestCompany('approved');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+    $order = createTestOrder($user);
+    expect($order->markAsComplete())->toBeTrue();
+
+    expect(orderCompanyRowExists($order->id))->toBeTrue()
+        ->and($order->b2bCompany)->not->toBeNull()
+        ->and($order->b2bCompany->id)->toBe($company->id);
+});
+
+it('refuses to complete an order for a blocked customer on a site request', function () {
+    $user = createTestUser('blockedorder_' . uniqid() . '@example.test');
+    $company = createTestCompany('blocked');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => true]);
+
+    $order = createTestOrder($user);
+    $refused = false;
+
+    try {
+        asSiteRequest(function () use ($order, &$refused) {
+            try {
+                $order->markAsComplete();
+            } catch (Throwable) {
+                $refused = true;
+            }
+        });
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => false]);
+    }
+
+    $completedInDb = (new Query())
+        ->from('{{%commerce_orders}}')
+        ->where(['id' => $order->id, 'isCompleted' => true])
+        ->exists();
+
+    expect($refused)->toBeTrue()
+        ->and($completedInDb)->toBeFalse()
+        ->and(orderCompanyRowExists($order->id))->toBeFalse()
+        ->and($order->getErrors('customerId'))->not->toBeEmpty();
+});
+
+it('completes a guest order without linking a company or erroring', function () {
+    $order = createTestOrder(null);
+
+    expect($order->markAsComplete())->toBeTrue()
+        ->and(orderCompanyRowExists($order->id))->toBeFalse()
+        ->and($order->b2bCompany)->toBeNull();
+});

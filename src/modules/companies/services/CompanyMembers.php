@@ -44,6 +44,12 @@ class CompanyMembers extends Component
         return Company::find()->id($companyId)->site('*')->unique()->status(null)->one();
     }
 
+    public function getCompanyById(int $id): ?Company
+    {
+        // Companies are non-localized elements hosted on the primary site only, so query with site('*').
+        return Company::find()->id($id)->site('*')->unique()->status(null)->one();
+    }
+
     public function getRoleForUser(int $userId, int $companyId): ?CompanyRole
     {
         $role = (new Query())

@@ -19,11 +19,13 @@ use craft\services\SystemMessages;
 use craft\services\UserPermissions;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
+use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
+use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
 use totalwebcreations\b2bcommerce\variables\B2bVariable;
@@ -34,12 +36,13 @@ use yii\base\Event;
  * @method Settings getSettings()
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
+ * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read PriceVisibility $priceVisibility
  * @property-read Registration $registration
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.0';
+    public string $schemaVersion = '1.0.1';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -62,6 +65,7 @@ class Plugin extends BasePlugin
         $this->setComponents([
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
+            'orderCompanyLink' => OrderCompanyLink::class,
             'priceVisibility' => PriceVisibility::class,
             'registration' => Registration::class,
         ]);
@@ -79,6 +83,14 @@ class Plugin extends BasePlugin
             User::EVENT_DEFINE_BEHAVIORS,
             function(DefineBehaviorsEvent $event) {
                 $event->behaviors['b2bUser'] = UserBehavior::class;
+            }
+        );
+
+        Event::on(
+            Order::class,
+            Order::EVENT_DEFINE_BEHAVIORS,
+            function(DefineBehaviorsEvent $event) {
+                $event->behaviors['b2bOrder'] = OrderBehavior::class;
             }
         );
     }
@@ -147,6 +159,14 @@ class Plugin extends BasePlugin
                 if ($event->sender instanceof Order) {
                     $event->sender->addError('purchasableId', $message);
                 }
+            }
+        );
+
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                $this->orderCompanyLink->handleBeforeCompleteOrder($event);
             }
         );
     }
