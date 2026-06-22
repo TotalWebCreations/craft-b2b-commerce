@@ -186,6 +186,16 @@ class Plugin extends BasePlugin
                         "You can now sign in and order at business conditions.\n\n" .
                         "{{siteUrl}}"),
                 ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_member_added',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: added to a company'),
+                    'subject' => Craft::t('b2b-commerce', 'You have been added to a business account'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "You have been added to the business account for {{company.title}}. " .
+                        "You can now sign in and order at business conditions.\n\n" .
+                        "{{siteUrl}}"),
+                ];
             }
         );
     }

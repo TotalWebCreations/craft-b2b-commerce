@@ -50,4 +50,11 @@ return [
     'Quick order' => 'Snel bestellen',
     '{name} ({email}) registered company "{company}". Review it in the control panel: {url}' => '{name} ({email}) heeft bedrijf "{company}" geregistreerd. Beoordeel het in het control panel: {url}',
     'B2B Commerce requires Craft CMS Pro, because business accounts rely on multiple users. The current edition only supports a single user and cannot run the B2B flows.' => 'B2B Commerce vereist Craft CMS Pro, omdat zakelijke accounts afhankelijk zijn van meerdere gebruikers. De huidige editie ondersteunt slechts één gebruiker en kan de B2B-flows niet uitvoeren.',
+    'Only approved companies can invite members.' => 'Alleen goedgekeurde bedrijven kunnen leden uitnodigen.',
+    'This person already belongs to a company.' => 'Deze persoon hoort al bij een bedrijf.',
+    'This user is not a member of this company.' => 'Deze gebruiker is geen lid van dit bedrijf.',
+    'A company must keep at least one admin.' => 'Een bedrijf moet minstens één beheerder houden.',
+    'B2B: added to a company' => 'B2B: toegevoegd aan een bedrijf',
+    'You have been added to a business account' => 'Je bent toegevoegd aan een zakelijk account',
+    "Hi {{user.friendlyName}},\n\nYou have been added to the business account for {{company.title}}. You can now sign in and order at business conditions.\n\n{{siteUrl}}" => "Hallo {{user.friendlyName}},\n\nJe bent toegevoegd aan het zakelijke account voor {{company.title}}. Je kunt nu inloggen en bestellen tegen zakelijke voorwaarden.\n\n{{siteUrl}}",
 ];
