@@ -13,11 +13,13 @@ class Settings extends Model
     public bool $enableQuickOrder = true;
     public bool $hidePricesForGuests = false;
     public string $adminNotificationEmail = '';
+    public string $honeypotFieldName = 'b2b_website';
 
     public function defineRules(): array
     {
         return [
             ['adminNotificationEmail', 'email'],
+            ['honeypotFieldName', 'required'],
         ];
     }
 }

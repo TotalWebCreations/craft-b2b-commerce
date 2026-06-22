@@ -56,3 +56,11 @@
     name: 'adminNotificationEmail',
     value: settings.adminNotificationEmail,
 }) }}
+
+{{ forms.textField({
+    label: 'Honeypot field name'|t('b2b-commerce'),
+    instructions: 'Name of the hidden anti-spam field on the registration form. Bots that fill it get a success response but nothing is created. Change it if it clashes with a real field, then update your registration template to match.'|t('b2b-commerce'),
+    name: 'honeypotFieldName',
+    value: settings.honeypotFieldName,
+    required: true,
+}) }}

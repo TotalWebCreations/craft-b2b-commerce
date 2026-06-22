@@ -7,12 +7,15 @@ use craft\elements\User;
 use craft\helpers\App;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
+use totalwebcreations\b2bcommerce\events\RegisterEvent;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\InvalidArgumentException;
 
 class Registration extends Component
 {
+    public const EVENT_BEFORE_REGISTER = 'beforeRegister';
+
     public function register(
         string $companyName,
         ?string $registrationNumber,
@@ -21,6 +24,22 @@ class Registration extends Component
         string $lastName,
         string $email,
     ): Company {
+        $event = new RegisterEvent();
+        $event->companyName = $companyName;
+        $event->registrationNumber = $registrationNumber;
+        $event->taxId = $taxId;
+        $event->firstName = $firstName;
+        $event->lastName = $lastName;
+        $event->email = $email;
+
+        $this->trigger(self::EVENT_BEFORE_REGISTER, $event);
+
+        if (!$event->isValid) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'Registration could not be completed.')
+            );
+        }
+
         $existingUser = User::find()->email($email)->status(null)->one();
 
         if ($existingUser !== null) {

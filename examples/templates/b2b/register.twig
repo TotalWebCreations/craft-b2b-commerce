@@ -16,6 +16,16 @@
         <label>{{ 'Last name'|t }} <input type="text" name="lastName" required></label>
         <label>{{ 'Email'|t }} <input type="email" name="email" required></label>
 
+        {# Honeypot field: a real visitor never sees or fills this. Bots that fill
+           it get a success response but nothing is created. The field name must
+           match the `honeypotFieldName` plugin setting (default `b2b_website`). #}
+        {% set honeypotFieldName = craft.app.plugins.getPlugin('b2b-commerce').settings.honeypotFieldName %}
+        <div style="position:absolute;left:-9999px;" aria-hidden="true">
+            <label>{{ 'Leave this field empty'|t }}
+                <input type="text" name="{{ honeypotFieldName }}" tabindex="-1" autocomplete="off">
+            </label>
+        </div>
+
         <button type="submit">{{ 'Register'|t }}</button>
     </form>
 {% endblock %}

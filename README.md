@@ -115,6 +115,42 @@ register prompt instead of prices and cannot add products to the cart.
 | Quick order | `enableQuickOrder` | `true` | No effect yet — reserved for the quick order pillar (roadmap). |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
+| Honeypot field name | `honeypotFieldName` | `'b2b_website'` | Name of the hidden anti-spam field on the registration form. See [Security notes](#security-notes). |
+
+### Security notes
+
+- **Honeypot** — the registration form includes a hidden field (default name
+  `b2b_website`) that real visitors never fill. When a submission arrives with that
+  field filled, the controller returns the normal success response but creates
+  nothing, so bots learn nothing. Rename the field via the `honeypotFieldName`
+  setting if it clashes with a real field, and keep your registration template in
+  sync (the example template reads the setting automatically).
+- **Before-register event** — the registration service fires a cancelable
+  `RegisterEvent` before doing anything else, so you can plug in extra checks
+  (rate limiting, disposable-email blocking, CAPTCHA verification). Set
+  `$event->isValid = false` to cancel; the service then throws with a generic
+  message and creates nothing:
+
+  ```php
+  use yii\base\Event;
+  use totalwebcreations\b2bcommerce\events\RegisterEvent;
+  use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+
+  Event::on(
+      Registration::class,
+      Registration::EVENT_BEFORE_REGISTER,
+      function (RegisterEvent $event) {
+          if (str_ends_with($event->email, '@blocked.example')) {
+              $event->isValid = false;
+          }
+      }
+  );
+  ```
+- **Email enumeration** — registration reports "An account with this email address
+  already exists." when the email is taken. This leaks whether an email is
+  registered, an accepted tradeoff for a B2B flow where clear feedback to genuine
+  business users outweighs the low enumeration risk of a manually reviewed,
+  invite-style signup.
 
 ## Templating
 

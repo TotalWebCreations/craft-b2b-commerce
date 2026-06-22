@@ -17,6 +17,12 @@ class RegistrationController extends Controller
         $this->requirePostRequest();
         $request = Craft::$app->getRequest();
 
+        $honeypotFieldName = Plugin::getInstance()->getSettings()->honeypotFieldName;
+
+        if ((string)$request->getBodyParam($honeypotFieldName) !== '') {
+            return $this->successResponse();
+        }
+
         try {
             Plugin::getInstance()->registration->register(
                 companyName: (string)$request->getRequiredBodyParam('companyName'),
@@ -30,6 +36,11 @@ class RegistrationController extends Controller
             return $this->asFailure($exception->getMessage());
         }
 
+        return $this->successResponse();
+    }
+
+    private function successResponse(): Response
+    {
         return $this->asSuccess(Craft::t('b2b-commerce', 'Thanks! Your registration is pending review. You will receive an email once your account is approved.'));
     }
 }
