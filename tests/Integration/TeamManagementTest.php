@@ -109,7 +109,23 @@ it('rejects inviting a user who already belongs to a company', function () {
         'Taken',
         'User',
         CompanyRole::Purchaser,
-    ))->toThrow(InvalidArgumentException::class);
+    ))->toThrow(InvalidArgumentException::class, 'This person already belongs to a company.');
+});
+
+it('rejects inviting an email that already belongs to the same company', function () {
+    $company = approvedCompany();
+    $email = 'invite_same_' . uniqid() . '@example.test';
+    $existing = createTestUser($email);
+
+    Plugin::getInstance()->companyMembers->addUserToCompany($existing->id, $company->id, CompanyRole::Purchaser);
+
+    expect(fn () => Plugin::getInstance()->companyMembers->inviteMember(
+        $company,
+        $email,
+        'Same',
+        'User',
+        CompanyRole::Approver,
+    ))->toThrow(InvalidArgumentException::class, 'This person already belongs to a company.');
 });
 
 it('rejects inviting on a company that is not approved', function () {
@@ -122,7 +138,7 @@ it('rejects inviting on a company that is not approved', function () {
         'Nope',
         'User',
         CompanyRole::Purchaser,
-    ))->toThrow(InvalidArgumentException::class);
+    ))->toThrow(InvalidArgumentException::class, 'Only approved companies can invite members.');
 });
 
 it('changes the role of a member', function () {
@@ -137,13 +153,25 @@ it('changes the role of a member', function () {
     expect(membershipRole($company->id, $member->id))->toBe(CompanyRole::Approver->value);
 });
 
+it('promotes a purchaser to admin even when there is only one admin', function () {
+    $company = approvedCompany();
+    $admin = createTestUser('promote_admin_' . uniqid() . '@example.test');
+    $member = createTestUser('promote_member_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($admin->id, $company->id, CompanyRole::Admin);
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    Plugin::getInstance()->companyMembers->changeRole($company, $member->id, CompanyRole::Admin);
+
+    expect(membershipRole($company->id, $member->id))->toBe(CompanyRole::Admin->value);
+});
+
 it('refuses to demote the last admin', function () {
     $company = approvedCompany();
     $admin = createTestUser('last_admin_' . uniqid() . '@example.test');
     Plugin::getInstance()->companyMembers->addUserToCompany($admin->id, $company->id, CompanyRole::Admin);
 
     expect(fn () => Plugin::getInstance()->companyMembers->changeRole($company, $admin->id, CompanyRole::Purchaser))
-        ->toThrow(InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class, 'A company must keep at least one admin.');
 
     expect(membershipRole($company->id, $admin->id))->toBe(CompanyRole::Admin->value);
 });
@@ -154,7 +182,7 @@ it('refuses to remove the last admin', function () {
     Plugin::getInstance()->companyMembers->addUserToCompany($admin->id, $company->id, CompanyRole::Admin);
 
     expect(fn () => Plugin::getInstance()->companyMembers->removeMember($company, $admin->id))
-        ->toThrow(InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class, 'A company must keep at least one admin.');
 
     expect(membershipRole($company->id, $admin->id))->toBe(CompanyRole::Admin->value);
 });
@@ -164,7 +192,7 @@ it('refuses to remove a user who is not a member', function () {
     $stranger = createTestUser('stranger_' . uniqid() . '@example.test');
 
     expect(fn () => Plugin::getInstance()->companyMembers->removeMember($company, $stranger->id))
-        ->toThrow(InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class, 'This user is not a member of this company.');
 });
 
 it('removes a member and deletes the membership row', function () {
