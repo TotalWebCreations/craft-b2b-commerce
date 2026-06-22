@@ -60,6 +60,11 @@ class OrderCompanyLink extends Component
 
         $message = Craft::t('b2b-commerce', 'This order cannot be completed with the current account status.');
 
+        // The error MUST be set on an order attribute (customerId) before throwing: Commerce's
+        // CartController catches the exception and _returnCart() only skips re-saving the
+        // half-completed order because its $cart->validate($attributes, false) call (clearErrors
+        // false, vendor CartController.php ~line 652/588) fails on this persisted error and
+        // short-circuits the save. Without an attribute error, the completed order would persist.
         $order->addError('customerId', $message);
 
         // Order::EVENT_BEFORE_COMPLETE_ORDER is not cancelable (markAsComplete() ignores the event

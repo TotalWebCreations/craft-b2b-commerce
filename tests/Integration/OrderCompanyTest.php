@@ -102,6 +102,44 @@ it('refuses to complete an order for a blocked customer on a site request', func
         ->and($order->getErrors('customerId'))->not->toBeEmpty();
 });
 
+it('pins the storefront abort coupling relied on by the checkout controller', function () {
+    $user = createTestUser('abortcoupling_' . uniqid() . '@example.test');
+    $company = createTestCompany('blocked');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => true]);
+
+    $order = createTestOrder($user);
+    $refused = false;
+
+    try {
+        asSiteRequest(function () use ($order, &$refused) {
+            try {
+                $order->markAsComplete();
+            } catch (Throwable) {
+                $refused = true;
+            }
+        });
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => false]);
+    }
+
+    $completedInDb = (new Query())
+        ->from('{{%commerce_orders}}')
+        ->where(['id' => $order->id, 'isCompleted' => true])
+        ->exists();
+
+    // Replicates the production coupling: the backstop error lives on the customerId attribute
+    // with the exact EN message, validate(null, clearErrors: false) still fails on it (the
+    // _returnCart short-circuit condition), and the order was never persisted as completed.
+    expect($refused)->toBeTrue()
+        ->and($order->getErrors('customerId'))
+        ->toBe(['This order cannot be completed with the current account status.'])
+        ->and($order->validate(null, false))->toBeFalse()
+        ->and($completedInDb)->toBeFalse();
+});
+
 it('completes a guest order without linking a company or erroring', function () {
     $order = createTestOrder(null);
 
