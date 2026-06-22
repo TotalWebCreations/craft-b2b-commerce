@@ -33,7 +33,7 @@ return [
     'You need an approved business account to order.' => 'Je hebt een goedgekeurd zakelijk account nodig om te bestellen.',
     'Hide prices for guests' => 'Prijzen verbergen voor gasten',
     'Hide prices and disable add-to-cart for visitors without an approved company account.' => 'Verberg prijzen en schakel bestellen uit voor bezoekers zonder goedgekeurd bedrijfsaccount.',
-    'Admin notification email' => 'E-mailadres voor adminnotificaties',
+    'Admin notification email' => 'E-mailadres voor beheerdersnotificaties',
     'Receives a notification when a new company registers.' => 'Ontvangt een notificatie wanneer een nieuw bedrijf zich registreert.',
     'Company accounts are always active in this release; this toggle takes effect in an upcoming release.' => 'Bedrijfsaccounts zijn in deze release altijd actief; deze schakelaar wordt van kracht in een toekomstige release.',
     'Reserved for an upcoming release — this setting has no effect yet.' => 'Gereserveerd voor een toekomstige release — deze instelling heeft nog geen effect.',
@@ -44,4 +44,5 @@ return [
     'Pay on account' => 'Op rekening',
     'Quick order' => 'Snel bestellen',
     '{name} ({email}) registered company "{company}". Review it in the control panel: {url}' => '{name} ({email}) heeft bedrijf "{company}" geregistreerd. Beoordeel het in het control panel: {url}',
+    'B2B Commerce requires Craft CMS Pro, because business accounts rely on multiple users. The current edition only supports a single user and cannot run the B2B flows.' => 'B2B Commerce vereist Craft CMS Pro, omdat zakelijke accounts afhankelijk zijn van meerdere gebruikers. De huidige editie ondersteunt slechts één gebruiker en kan de B2B-flows niet uitvoeren.',
 ];

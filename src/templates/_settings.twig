@@ -1,5 +1,13 @@
 {% import '_includes/forms' as forms %}
 
+{% if belowPro %}
+    <div class="readable">
+        <blockquote class="note warning">
+            {{ 'B2B Commerce requires Craft CMS Pro, because business accounts rely on multiple users. The current edition only supports a single user and cannot run the B2B flows.'|t('b2b-commerce') }}
+        </blockquote>
+    </div>
+{% endif %}
+
 {{ forms.lightswitchField({
     label: 'Companies'|t('b2b-commerce'),
     instructions: 'Company accounts are always active in this release; this toggle takes effect in an upcoming release.'|t('b2b-commerce'),

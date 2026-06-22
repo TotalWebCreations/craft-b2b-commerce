@@ -76,7 +76,7 @@ class Registration extends Component
             return;
         }
 
-        Craft::$app->getMailer()
+        $sent = Craft::$app->getMailer()
             ->compose()
             ->setTo($to)
             ->setSubject(Craft::t('b2b-commerce', 'New B2B registration: {company}', ['company' => $company->title]))
@@ -87,5 +87,9 @@ class Registration extends Component
                 'url' => $company->getCpEditUrl(),
             ]))
             ->send();
+
+        if (!$sent) {
+            Craft::warning("Failed to send registration notification to {$to}", 'b2b-commerce');
+        }
     }
 }

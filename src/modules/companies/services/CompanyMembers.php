@@ -33,6 +33,7 @@ class CompanyMembers extends Component
             ->select('companyId')
             ->from('{{%b2b_company_users}}')
             ->where(['userId' => $userId])
+            ->orderBy(['id' => SORT_ASC])
             ->scalar();
 
         if (!$companyId) {
@@ -57,10 +58,15 @@ class CompanyMembers extends Component
     /** @return array<int, array{userId: int, role: string}> */
     public function getMembers(int $companyId): array
     {
-        return (new Query())
+        $rows = (new Query())
             ->select(['userId', 'role'])
             ->from('{{%b2b_company_users}}')
             ->where(['companyId' => $companyId])
             ->all();
+
+        return array_map(
+            fn(array $row): array => ['userId' => (int) $row['userId'], 'role' => $row['role']],
+            $rows
+        );
     }
 }

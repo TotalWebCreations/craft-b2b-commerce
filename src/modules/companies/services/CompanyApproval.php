@@ -51,17 +51,23 @@ class CompanyApproval extends Component
                 continue;
             }
 
-            Craft::$app->getUsers()->sendActivationEmail($user);
+            if (!Craft::$app->getUsers()->sendActivationEmail($user)) {
+                Craft::warning("Failed to send activation email to {$user->email}", 'b2b-commerce');
+            }
         }
     }
 
     private function notifyMembers(Company $company, string $messageKey): void
     {
         foreach ($this->getMemberUsers($company) as $user) {
-            Craft::$app->getMailer()
+            $sent = Craft::$app->getMailer()
                 ->composeFromKey($messageKey, ['company' => $company, 'user' => $user])
                 ->setTo($user)
                 ->send();
+
+            if (!$sent) {
+                Craft::warning("Failed to send `{$messageKey}` email to {$user->email}", 'b2b-commerce');
+            }
         }
     }
 

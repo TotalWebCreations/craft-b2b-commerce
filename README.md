@@ -116,6 +116,24 @@ register prompt instead of prices and cannot add products to the cart.
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
 
+## Templating
+
+The plugin registers a `craft.b2b` variable for use in your frontend templates. The
+signed-in user's company is available through `craft.b2b.company`, which returns the
+`Company` element (or `null` when the visitor is not linked to a company):
+
+```twig
+{% set company = craft.b2b.company %}
+
+{% if company %}
+    <p>{{ 'Ordering on behalf of'|t }} {{ company.title }}</p>
+{% endif %}
+```
+
+Use `company.title` as the canonical accessor for the company name — it is the element's
+title attribute and is always populated. Price visibility helpers are exposed the same
+way: `craft.b2b.canViewPrices` and `craft.b2b.canPurchase`.
+
 ## Uninstalling
 
 Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,

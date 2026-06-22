@@ -8,6 +8,7 @@ use craft\base\Plugin as BasePlugin;
 use craft\commerce\elements\Order;
 use craft\commerce\events\AddLineItemEvent;
 use craft\elements\User;
+use craft\enums\CmsEdition;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
@@ -50,6 +51,14 @@ class Plugin extends BasePlugin
             $this->controllerNamespace = 'totalwebcreations\\b2bcommerce\\console\\controllers';
         }
 
+        $this->registerComponents();
+        $this->attachCpHandlers();
+        $this->attachCommerceHandlers();
+        $this->attachSystemMessages();
+    }
+
+    private function registerComponents(): void
+    {
         $this->setComponents([
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
@@ -66,6 +75,17 @@ class Plugin extends BasePlugin
         );
 
         Event::on(
+            User::class,
+            User::EVENT_DEFINE_BEHAVIORS,
+            function(DefineBehaviorsEvent $event) {
+                $event->behaviors['b2bUser'] = UserBehavior::class;
+            }
+        );
+    }
+
+    private function attachCpHandlers(): void
+    {
+        Event::on(
             Elements::class,
             Elements::EVENT_REGISTER_ELEMENT_TYPES,
             function(RegisterComponentTypesEvent $event) {
@@ -73,6 +93,34 @@ class Plugin extends BasePlugin
             }
         );
 
+        Event::on(
+            UrlManager::class,
+            UrlManager::EVENT_REGISTER_CP_URL_RULES,
+            function(RegisterUrlRulesEvent $event) {
+                $event->rules['b2b'] = ['template' => 'b2b-commerce/companies/_index'];
+                $event->rules['b2b/companies'] = ['template' => 'b2b-commerce/companies/_index'];
+                $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
+            }
+        );
+
+        Event::on(
+            UserPermissions::class,
+            UserPermissions::EVENT_REGISTER_PERMISSIONS,
+            function(RegisterUserPermissionsEvent $event) {
+                $event->permissions[] = [
+                    'heading' => Craft::t('b2b-commerce', 'B2B Commerce'),
+                    'permissions' => [
+                        'b2b-commerce:manageCompanies' => [
+                            'label' => Craft::t('b2b-commerce', 'Manage companies'),
+                        ],
+                    ],
+                ];
+            }
+        );
+    }
+
+    private function attachCommerceHandlers(): void
+    {
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_ADD_LINE_ITEM,
@@ -101,25 +149,10 @@ class Plugin extends BasePlugin
                 }
             }
         );
+    }
 
-        Event::on(
-            User::class,
-            User::EVENT_DEFINE_BEHAVIORS,
-            function(DefineBehaviorsEvent $event) {
-                $event->behaviors['b2bUser'] = UserBehavior::class;
-            }
-        );
-
-        Event::on(
-            UrlManager::class,
-            UrlManager::EVENT_REGISTER_CP_URL_RULES,
-            function(RegisterUrlRulesEvent $event) {
-                $event->rules['b2b'] = ['template' => 'b2b-commerce/companies/_index'];
-                $event->rules['b2b/companies'] = ['template' => 'b2b-commerce/companies/_index'];
-                $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
-            }
-        );
-
+    private function attachSystemMessages(): void
+    {
         Event::on(
             SystemMessages::class,
             SystemMessages::EVENT_REGISTER_MESSAGES,
@@ -132,21 +165,6 @@ class Plugin extends BasePlugin
                         "Good news — your business account for {{company.title}} has been approved. " .
                         "You can now sign in and order at business conditions.\n\n" .
                         "{{siteUrl}}"),
-                ];
-            }
-        );
-
-        Event::on(
-            UserPermissions::class,
-            UserPermissions::EVENT_REGISTER_PERMISSIONS,
-            function(RegisterUserPermissionsEvent $event) {
-                $event->permissions[] = [
-                    'heading' => Craft::t('b2b-commerce', 'B2B Commerce'),
-                    'permissions' => [
-                        'b2b-commerce:manageCompanies' => [
-                            'label' => Craft::t('b2b-commerce', 'Manage companies'),
-                        ],
-                    ],
                 ];
             }
         );
@@ -173,6 +191,7 @@ class Plugin extends BasePlugin
     {
         return Craft::$app->getView()->renderTemplate('b2b-commerce/_settings', [
             'settings' => $this->getSettings(),
+            'belowPro' => Craft::$app->edition->value < CmsEdition::Pro->value,
         ]);
     }
 }

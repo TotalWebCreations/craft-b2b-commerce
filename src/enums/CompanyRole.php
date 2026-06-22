@@ -15,6 +15,6 @@ enum CompanyRole: string
 
     public function canApproveOrders(): bool
     {
-        return $this !== self::Purchaser;
+        return in_array($this, [self::Admin, self::Approver], true);
     }
 }
