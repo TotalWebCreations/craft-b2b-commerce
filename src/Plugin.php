@@ -23,6 +23,7 @@ use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\models\Settings;
+use totalwebcreations\b2bcommerce\modules\companies\services\CompanyAddresses;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
@@ -34,6 +35,7 @@ use yii\base\Event;
 /**
  * @method static Plugin getInstance()
  * @method Settings getSettings()
+ * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
  * @property-read OrderCompanyLink $orderCompanyLink
@@ -63,6 +65,7 @@ class Plugin extends BasePlugin
     private function registerComponents(): void
     {
         $this->setComponents([
+            'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
             'orderCompanyLink' => OrderCompanyLink::class,

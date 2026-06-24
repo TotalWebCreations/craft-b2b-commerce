@@ -3,6 +3,7 @@
 namespace totalwebcreations\b2bcommerce\variables;
 
 use Craft;
+use craft\elements\Address;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -74,5 +75,17 @@ class B2bVariable
         }
 
         return $rows;
+    }
+
+    /** @return array<int, Address> */
+    public function getCompanyAddresses(): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        return Plugin::getInstance()->companyAddresses->getAddresses($company->id);
     }
 }

@@ -1,0 +1,69 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Address book'|t('b2b-commerce') }}</h1>
+
+    {# craft.b2b.companyAddresses returns the Address elements owned by the current user's company. #}
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Label'|t('b2b-commerce') }}</th>
+                <th>{{ 'Name'|t('b2b-commerce') }}</th>
+                <th>{{ 'Address'|t('b2b-commerce') }}</th>
+                <th></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for address in craft.b2b.companyAddresses %}
+                <tr>
+                    <td>{{ address.title }}</td>
+                    <td>{{ address.fullName }}</td>
+                    <td>{{ address.addressLine1 }}, {{ address.postalCode }} {{ address.locality }} ({{ address.countryCode }})</td>
+                    <td>
+                        {# Edit form: pre-fills the shared save form below by reloading with an id. #}
+                        <a href="{{ url('b2b/addresses', { edit: address.id }) }}">{{ 'Edit'|t('b2b-commerce') }}</a>
+                    </td>
+                    <td>
+                        {# Delete form: removes the address from the company address book. #}
+                        <form method="post" accept-charset="UTF-8">
+                            {{ csrfInput() }}
+                            {{ actionInput('b2b-commerce/addresses/delete') }}
+                            {{ hiddenInput('addressId', address.id) }}
+                            <button type="submit">{{ 'Delete'|t('b2b-commerce') }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# Resolve the address currently being edited from the ?edit query param, if any. #}
+    {% set editId = craft.app.request.getQueryParam('edit') %}
+    {% set editing = null %}
+    {% for address in craft.b2b.companyAddresses %}
+        {% if editId and address.id == editId %}
+            {% set editing = address %}
+        {% endif %}
+    {% endfor %}
+
+    <h2>{{ editing ? 'Edit address'|t('b2b-commerce') : 'Add an address'|t('b2b-commerce') }}</h2>
+
+    {# Save form: creates a new address when addressId is empty, otherwise updates the owned one. #}
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/addresses/save') }}
+        {{ hiddenInput('addressId', editing ? editing.id : '') }}
+
+        <label>{{ 'Label'|t('b2b-commerce') }} <input type="text" name="title" value="{{ editing ? editing.title }}"></label>
+        <label>{{ 'Name'|t('b2b-commerce') }} <input type="text" name="fullName" value="{{ editing ? editing.fullName }}"></label>
+        <label>{{ 'Address line 1'|t('b2b-commerce') }} <input type="text" name="addressLine1" value="{{ editing ? editing.addressLine1 }}"></label>
+        <label>{{ 'Address line 2'|t('b2b-commerce') }} <input type="text" name="addressLine2" value="{{ editing ? editing.addressLine2 }}"></label>
+        <label>{{ 'Postal code'|t('b2b-commerce') }} <input type="text" name="postalCode" value="{{ editing ? editing.postalCode }}"></label>
+        <label>{{ 'City'|t('b2b-commerce') }} <input type="text" name="locality" value="{{ editing ? editing.locality }}"></label>
+        <label>{{ 'State / province'|t('b2b-commerce') }} <input type="text" name="administrativeArea" value="{{ editing ? editing.administrativeArea }}"></label>
+        <label>{{ 'Country code'|t('b2b-commerce') }} <input type="text" name="countryCode" value="{{ editing ? editing.countryCode : 'NL' }}" required></label>
+
+        <button type="submit">{{ 'Save'|t('b2b-commerce') }}</button>
+    </form>
+{% endblock %}

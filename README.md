@@ -170,6 +170,39 @@ Use `company.title` as the canonical accessor for the company name — it is the
 title attribute and is always populated. Price visibility helpers are exposed the same
 way: `craft.b2b.canViewPrices` and `craft.b2b.canPurchase`.
 
+### Address book
+
+Companies own a shared address book. Every stored address is a native Craft `Address`
+element owned by the `Company`, so the whole team sees the same list. Read it with
+`craft.b2b.companyAddresses` (an array of `Address` elements, empty when the visitor has no
+company). Company admins manage the list through the
+`b2b-commerce/addresses/save` and `b2b-commerce/addresses/delete` actions — see
+`examples/templates/b2b/addresses/index.twig` for a full add/edit/delete form.
+
+To use a stored address in checkout, copy its fields onto the cart. Orders keep their own
+address copies, so you post the individual fields to `commerce/cart/update-cart` rather than
+referencing the shared address by id:
+
+```twig
+{% set address = craft.b2b.companyAddresses|first %}
+
+<form method="post">
+    {{ csrfInput() }}
+    {{ actionInput('commerce/cart/update-cart') }}
+
+    {# Copy the shared address onto the order's own shipping address. #}
+    {{ hiddenInput('shippingAddress[fullName]', address.fullName) }}
+    {{ hiddenInput('shippingAddress[addressLine1]', address.addressLine1) }}
+    {{ hiddenInput('shippingAddress[addressLine2]', address.addressLine2) }}
+    {{ hiddenInput('shippingAddress[postalCode]', address.postalCode) }}
+    {{ hiddenInput('shippingAddress[locality]', address.locality) }}
+    {{ hiddenInput('shippingAddress[administrativeArea]', address.administrativeArea) }}
+    {{ hiddenInput('shippingAddress[countryCode]', address.countryCode) }}
+
+    <button type="submit">{{ 'Use this address'|t }}</button>
+</form>
+```
+
 ## Uninstalling
 
 Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,

@@ -3,15 +3,12 @@
 namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
-use craft\web\Controller;
-use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
-use yii\web\ForbiddenHttpException;
 use yii\web\Response;
 
-class TeamController extends Controller
+class TeamController extends BaseTeamController
 {
     public function actionInvite(): ?Response
     {
@@ -81,28 +78,5 @@ class TeamController extends Controller
         }
 
         return $this->asSuccess(Craft::t('b2b-commerce', 'Member removed.'));
-    }
-
-    private function requireTeamAdmin(): Company
-    {
-        $user = Craft::$app->getUser()->getIdentity();
-
-        if ($user === null) {
-            throw new ForbiddenHttpException();
-        }
-
-        $company = $user->b2bCompany;
-
-        if ($company === null) {
-            throw new ForbiddenHttpException();
-        }
-
-        $role = Plugin::getInstance()->companyMembers->getRoleForUser($user->id, $company->id);
-
-        if ($role?->canManageTeam() !== true) {
-            throw new ForbiddenHttpException();
-        }
-
-        return $company;
     }
 }
