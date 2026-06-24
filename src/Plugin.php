@@ -227,6 +227,32 @@ class Plugin extends BasePlugin
         return Craft::$app->getView()->renderTemplate('b2b-commerce/_settings', [
             'settings' => $this->getSettings(),
             'belowPro' => Craft::$app->edition->value < CmsEdition::Pro->value,
+            'companyFieldLayout' => Craft::$app->getFields()->getLayoutByType(Company::class),
         ]);
+    }
+
+    public function afterSaveSettings(): void
+    {
+        $this->saveCompanyFieldLayout();
+
+        parent::afterSaveSettings();
+    }
+
+    private function saveCompanyFieldLayout(): void
+    {
+        $request = Craft::$app->getRequest();
+
+        if ($request->getIsConsoleRequest()) {
+            return;
+        }
+
+        if ($request->getBodyParam('settings.fieldLayout') === null) {
+            return;
+        }
+
+        $fieldLayout = Craft::$app->getFields()->assembleLayoutFromPost('settings');
+        $fieldLayout->type = Company::class;
+
+        Craft::$app->getFields()->saveLayout($fieldLayout);
     }
 }

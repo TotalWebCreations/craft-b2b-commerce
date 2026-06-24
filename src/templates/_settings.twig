@@ -64,3 +64,13 @@
     value: settings.honeypotFieldName,
     required: true,
 }) }}
+
+<hr>
+
+<h2>{{ 'Company fields'|t('b2b-commerce') }}</h2>
+
+<p class="light">{{ 'Add custom fields to the company edit screen.'|t('b2b-commerce') }}</p>
+
+{{ forms.fieldLayoutDesignerField({
+    fieldLayout: companyFieldLayout,
+}) }}

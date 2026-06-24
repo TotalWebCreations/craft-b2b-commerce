@@ -99,4 +99,6 @@ return [
     'No members yet.' => 'Nog geen leden.',
     'No orders yet.' => 'Nog geen orders.',
     'Company not found.' => 'Bedrijf niet gevonden.',
+    'Company fields' => 'Bedrijfsvelden',
+    'Add custom fields to the company edit screen.' => 'Voeg aangepaste velden toe aan het bewerkscherm van bedrijven.',
 ];

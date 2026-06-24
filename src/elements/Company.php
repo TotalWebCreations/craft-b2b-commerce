@@ -95,7 +95,8 @@ class Company extends Element
 
     public function getFieldLayout(): ?FieldLayout
     {
-        return parent::getFieldLayout() ?? new FieldLayout(['type' => static::class]);
+        return Craft::$app->getFields()->getLayoutByType(static::class)
+            ?? new FieldLayout(['type' => static::class]);
     }
 
     public function getPostEditUrl(): ?string
