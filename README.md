@@ -11,7 +11,10 @@ B2B Commerce is organised around five pillars:
 1. **Company accounts** — *available now.* Companies are first-class elements with
    their own control panel section, statuses (pending, approved, blocked), roles
    (admin, purchaser, approver) and permissions. Businesses register from the
-   frontend and are approved by a store manager in the control panel.
+   frontend and are approved by a store manager in the control panel. Company admins
+   manage their own team and a shared address book from the frontend, completed orders
+   are linked to their company, and the control panel offers per-company member and
+   order overviews plus a configurable custom-field layout.
 2. **Quotes** — *on the roadmap.* Request-for-quote flow with a status lifecycle and
    order adjuster.
 3. **Order approvals** — *on the roadmap.* Spending thresholds with an approve/decline
@@ -31,6 +34,18 @@ This first release focuses on pillar 1. It ships:
 - An **approval flow** using element actions (Approve / Block) in the control panel.
   Approving a company activates its members and sends them the
   `B2B: company approved` system message.
+- **Frontend team management** for company admins: invite colleagues, change roles and
+  remove members, guarded so a company always keeps at least one admin. Invited people
+  receive the `B2B: added to a company` (existing users) or an activation email (new
+  users).
+- A **shared company address book**: native Craft `Address` elements owned by the
+  company, so the whole team sees and reuses the same addresses.
+- **Order–company linking**: a completed order is linked to the buyer's company, and a
+  checkout backstop refuses completion for guests and unapproved/blocked accounts when
+  price hiding is on.
+- **Control panel company pages**: per-company member and order overviews.
+- A **configurable custom-field layout** for companies, editable from the plugin
+  settings.
 - **Price visibility**: optionally hide prices and block add-to-cart for guests and
   unapproved accounts.
 - **Dutch translations** for all control panel and frontend strings.
@@ -69,6 +84,9 @@ This gives you:
 - `b2b/register.twig` — the company registration form.
 - `b2b/product-price.twig` — a price/add-to-cart partial that respects price
   visibility.
+- `b2b/team/index.twig` — a team management page for company admins (invite, change
+  role, remove).
+- `b2b/addresses/index.twig` — a shared address book with an add/edit/delete form.
 
 ### 2. Configure the settings
 
@@ -170,6 +188,34 @@ Use `company.title` as the canonical accessor for the company name — it is the
 title attribute and is always populated. Price visibility helpers are exposed the same
 way: `craft.b2b.canViewPrices` and `craft.b2b.canPurchase`.
 
+### Team management
+
+`craft.b2b.teamMembers` returns the current user's colleagues as an array of rows, each a
+`{ user, role }` pair (empty when the visitor has no company). Company admins manage the
+team through the `b2b-commerce/team/invite`, `b2b-commerce/team/change-role` and
+`b2b-commerce/team/remove` actions. The service guards role changes and removals so a
+company always keeps at least one admin. See `examples/templates/b2b/team/index.twig` for
+a complete member list with invite, role-change and remove forms:
+
+```twig
+<ul>
+    {% for member in craft.b2b.teamMembers %}
+        <li>{{ member.user.fullName }} — {{ member.role }}</li>
+    {% endfor %}
+</ul>
+```
+
+### Orders
+
+A completed order is linked to the buyer's company. Read the company back from any order
+with `order.b2bCompany`, which returns the `Company` element (or `null` for guest orders):
+
+```twig
+{% if order.b2bCompany %}
+    <p>{{ 'Ordered by'|t }} {{ order.b2bCompany.title }}</p>
+{% endif %}
+```
+
 ### Address book
 
 Companies own a shared address book. Every stored address is a native Craft `Address`
@@ -203,12 +249,19 @@ referencing the shared address by id:
 </form>
 ```
 
+## Known limitations
+
+- **Company field layout is stored in the database, not project config.** The custom-field
+  layout you configure under **Settings → Plugins → B2B Commerce** is saved directly to the
+  database and does **not** deploy through project config. Reconfigure it per environment
+  after deploying. Project-config storage for the layout is on the roadmap.
+
 ## Uninstalling
 
 Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,
-`b2b_company_users`) and their data behind. The install migration is idempotent: if the
-tables already exist it skips creation and keeps your data, so a later reinstall picks up
-exactly where you left off — no manual SQL required.
+`b2b_company_users`, `b2b_order_company`) and their data behind. The install migration is
+idempotent: if the tables already exist it skips creation and keeps your data, so a later
+reinstall picks up exactly where you left off — no manual SQL required.
 
 ## Roadmap
 
