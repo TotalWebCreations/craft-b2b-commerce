@@ -171,7 +171,23 @@ class Plugin extends BasePlugin
             Order::class,
             Order::EVENT_BEFORE_COMPLETE_ORDER,
             function(Event $event) {
-                $this->orderCompanyLink->handleBeforeCompleteOrder($event);
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->orderCompanyLink->enforcePurchasePolicy($event->sender);
+            }
+        );
+
+        Event::on(
+            Order::class,
+            Order::EVENT_AFTER_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->orderCompanyLink->linkCompany($event->sender);
             }
         );
     }

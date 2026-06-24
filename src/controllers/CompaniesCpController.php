@@ -63,7 +63,7 @@ class CompaniesCpController extends Controller
             ->column();
 
         $orders = $orderIds !== []
-            ? Order::find()->id($orderIds)->status(null)->orderBy(['dateOrdered' => SORT_DESC])->all()
+            ? Order::find()->id($orderIds)->isCompleted(true)->status(null)->orderBy(['dateOrdered' => SORT_DESC])->all()
             : [];
 
         return $this->renderTemplate('b2b-commerce/companies/_orders', [

@@ -9,23 +9,10 @@ use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
-use yii\base\Event;
 use yii\base\Exception;
 
 class OrderCompanyLink extends Component
 {
-    public function handleBeforeCompleteOrder(Event $event): void
-    {
-        $order = $event->sender;
-
-        if (!$order instanceof Order) {
-            return;
-        }
-
-        $this->enforcePurchaseBackstop($order);
-        $this->linkCompany($order);
-    }
-
     public function getCompanyForOrder(int $orderId): ?Company
     {
         $companyId = (new Query())
@@ -41,7 +28,7 @@ class OrderCompanyLink extends Component
         return Plugin::getInstance()->companyMembers->getCompanyById((int) $companyId);
     }
 
-    private function enforcePurchaseBackstop(Order $order): void
+    public function enforcePurchasePolicy(Order $order): void
     {
         $request = Craft::$app->getRequest();
 
@@ -73,7 +60,7 @@ class OrderCompanyLink extends Component
         throw new Exception($message);
     }
 
-    private function linkCompany(Order $order): void
+    public function linkCompany(Order $order): void
     {
         $customer = $order->getCustomer();
 
