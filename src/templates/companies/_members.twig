@@ -1,0 +1,39 @@
+{% extends '_layouts/cp' %}
+
+{% set title = 'Members'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% block content %}
+    {% if members is empty %}
+        <p class="zilch">{{ 'No members yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Email'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Role'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for member in members %}
+                    <tr>
+                        <td>
+                            {% if member.user %}
+                                <a href="{{ member.user.cpEditUrl }}">{{ member.user.name ?: member.user.email }}</a>
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </td>
+                        <td>{{ member.user ? member.user.email : '' }}</td>
+                        <td>{{ member.roleLabel }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

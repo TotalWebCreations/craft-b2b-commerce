@@ -114,6 +114,8 @@ class Plugin extends BasePlugin
             function(RegisterUrlRulesEvent $event) {
                 $event->rules['b2b'] = ['template' => 'b2b-commerce/companies/_index'];
                 $event->rules['b2b/companies'] = ['template' => 'b2b-commerce/companies/_index'];
+                $event->rules['b2b/companies/<companyId:\d+>/members'] = 'b2b-commerce/companies-cp/members';
+                $event->rules['b2b/companies/<companyId:\d+>/orders'] = 'b2b-commerce/companies-cp/orders';
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
             }
         );

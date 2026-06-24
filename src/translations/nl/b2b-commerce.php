@@ -90,4 +90,13 @@ return [
     'City' => 'Plaats',
     'State / province' => 'Provincie',
     'Country code' => 'Landcode',
+    'Members' => 'Leden',
+    'Orders' => 'Orders',
+    'Order' => 'Order',
+    'Date' => 'Datum',
+    'Total' => 'Totaal',
+    'Related' => 'Gerelateerd',
+    'No members yet.' => 'Nog geen leden.',
+    'No orders yet.' => 'Nog geen orders.',
+    'Company not found.' => 'Bedrijf niet gevonden.',
 ];

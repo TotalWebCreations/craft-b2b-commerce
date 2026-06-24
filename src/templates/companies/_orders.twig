@@ -1,0 +1,37 @@
+{% extends '_layouts/cp' %}
+
+{% set title = 'Orders'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% block content %}
+    {% if orders is empty %}
+        <p class="zilch">{{ 'No orders yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Order'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Date'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <tr>
+                        <td>
+                            <a href="{{ order.cpEditUrl }}">{{ order.reference ?: order.shortNumber }}</a>
+                        </td>
+                        <td>{{ (order.dateOrdered ?? order.dateCreated) ? (order.dateOrdered ?? order.dateCreated)|datetime('short') : '' }}</td>
+                        <td>{{ order.totalPrice|currency(order.currency) }}</td>
+                        <td>{{ order.orderStatus ? order.orderStatus.name : order.status }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

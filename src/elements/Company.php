@@ -8,6 +8,7 @@ use craft\elements\User;
 use craft\enums\Color;
 use craft\helpers\Cp;
 use craft\helpers\Db;
+use craft\helpers\Html;
 use craft\helpers\UrlHelper;
 use craft\models\FieldLayout;
 use totalwebcreations\b2bcommerce\elements\actions\ApproveCompanies;
@@ -155,6 +156,7 @@ class Company extends Element
     protected function metaFieldsHtml(bool $static): string
     {
         return implode('', [
+            $this->relatedPagesFieldHtml(),
             Cp::textFieldHtml([
                 'label' => Craft::t('b2b-commerce', 'Registration number'),
                 'instructions' => Craft::t('b2b-commerce', 'Company registration number (e.g. chamber of commerce).'),
@@ -218,6 +220,28 @@ class Company extends Element
                 'value' => $this->approvalThreshold,
                 'disabled' => $static,
             ]),
+        ]);
+    }
+
+    private function relatedPagesFieldHtml(): string
+    {
+        if ($this->id === null) {
+            return '';
+        }
+
+        $links = Html::tag('ul', implode('', [
+            Html::tag('li', Html::a(
+                Craft::t('b2b-commerce', 'Members'),
+                UrlHelper::cpUrl("b2b/companies/$this->id/members"),
+            )),
+            Html::tag('li', Html::a(
+                Craft::t('b2b-commerce', 'Orders'),
+                UrlHelper::cpUrl("b2b/companies/$this->id/orders"),
+            )),
+        ]));
+
+        return Cp::fieldHtml($links, [
+            'label' => Craft::t('b2b-commerce', 'Related'),
         ]);
     }
 
