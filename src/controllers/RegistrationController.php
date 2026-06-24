@@ -19,7 +19,7 @@ class RegistrationController extends Controller
 
         $honeypotFieldName = Plugin::getInstance()->getSettings()->honeypotFieldName;
 
-        if ((string)$request->getBodyParam($honeypotFieldName) !== '') {
+        if ($this->isHoneypotTriggered($request->getBodyParam($honeypotFieldName))) {
             return $this->successResponse();
         }
 
@@ -37,6 +37,21 @@ class RegistrationController extends Controller
         }
 
         return $this->successResponse();
+    }
+
+    private function isHoneypotTriggered(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        // A non-string value (e.g. an array) only ever comes from a bot probing
+        // the form, so we treat it as a trip without casting it to a string.
+        if (!is_string($value)) {
+            return true;
+        }
+
+        return $value !== '';
     }
 
     private function successResponse(): Response

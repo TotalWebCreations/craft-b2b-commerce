@@ -68,3 +68,16 @@ it('rejects a duplicate email and does not create a second company', function ()
 
     expect($companyCountAfter)->toBe($companyCountBefore);
 });
+
+it('rejects a duplicate email case-insensitively', function () {
+    $suffix = uniqid();
+
+    registerAndTrack("Case_{$suffix}@Example.test");
+
+    $companyCountBefore = Company::find()->status(null)->count();
+
+    expect(fn () => registerAndTrack("case_{$suffix}@example.test"))
+        ->toThrow(InvalidArgumentException::class);
+
+    expect(Company::find()->status(null)->count())->toBe($companyCountBefore);
+});

@@ -40,7 +40,7 @@ class Registration extends Component
             );
         }
 
-        $existingUser = User::find()->email($email)->status(null)->one();
+        $existingUser = Plugin::getInstance()->companyMembers->findUserByEmail($email);
 
         if ($existingUser !== null) {
             throw new InvalidArgumentException(

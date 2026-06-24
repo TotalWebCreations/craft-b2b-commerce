@@ -30,6 +30,7 @@ return [
     'Registration could not be completed.' => 'Registratie kon niet worden voltooid.',
     'Honeypot field name' => 'Naam van honeypot-veld',
     'Name of the hidden anti-spam field on the registration form. Bots that fill it get a success response but nothing is created. Change it if it clashes with a real field, then update your registration template to match.' => 'Naam van het verborgen anti-spamveld op het registratieformulier. Bots die het invullen krijgen een succesrespons, maar er wordt niets aangemaakt. Wijzig het als het botst met een echt veld en pas daarna je registratietemplate aan.',
+    'The honeypot field name cannot match a real registration field.' => 'De naam van het honeypot-veld mag niet gelijk zijn aan een echt registratieveld.',
     'Thanks! Your registration is pending review. You will receive an email once your account is approved.' => 'Bedankt! Je registratie wordt beoordeeld. Je ontvangt een e-mail zodra je account is goedgekeurd.',
     'New B2B registration: {company}' => 'Nieuwe B2B-registratie: {company}',
     'B2B: company approved' => 'B2B: bedrijf goedgekeurd',

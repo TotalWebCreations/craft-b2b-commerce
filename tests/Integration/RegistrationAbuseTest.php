@@ -2,10 +2,26 @@
 
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\events\RegisterEvent;
+use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Event;
 use yii\base\InvalidArgumentException;
+
+it('rejects a honeypot field name that collides with a real registration field', function () {
+    $settings = new Settings();
+    $settings->honeypotFieldName = 'email';
+
+    expect($settings->validate(['honeypotFieldName']))->toBeFalse()
+        ->and($settings->getErrors('honeypotFieldName'))->not->toBeEmpty();
+});
+
+it('accepts a honeypot field name that does not collide with a real field', function () {
+    $settings = new Settings();
+    $settings->honeypotFieldName = 'b2b_website';
+
+    expect($settings->validate(['honeypotFieldName']))->toBeTrue();
+});
 
 it('cancels the registration and creates nothing when the event is invalidated', function () {
     $email = 'cancel_' . uniqid() . '@example.test';

@@ -24,6 +24,22 @@ function mailCount(): int
 }
 
 /**
+ * Raw contents of the most recently written .eml file in the dev mailbox.
+ */
+function newestMailBody(): string
+{
+    $files = glob(mailDir() . '/*.eml') ?: [];
+
+    if ($files === []) {
+        return '';
+    }
+
+    usort($files, fn(string $a, string $b): int => filemtime($b) <=> filemtime($a));
+
+    return (string) file_get_contents($files[0]);
+}
+
+/**
  * Reads the current role of a user within a company straight from the table.
  */
 function membershipRole(int $companyId, int $userId): ?string
@@ -76,6 +92,54 @@ it('invites an unknown email as a pending user with a membership and an activati
         ->and($user->username)->toBe($email)
         ->and(membershipRole($company->id, $user->id))->toBe(CompanyRole::Purchaser->value)
         ->and(mailCount())->toBeGreaterThan($mailBefore);
+});
+
+it('sends an activation mail, not a member-added mail, when inviting an existing pending user', function () {
+    $company = approvedCompany();
+    $email = 'invite_pending_existing_' . uniqid() . '@example.test';
+
+    $pending = new User();
+    $pending->email = $email;
+    $pending->username = 'pending_' . uniqid();
+    $pending->pending = true;
+
+    if (!craftApp()->getElements()->saveElement($pending)) {
+        throw new RuntimeException('Could not save pending user: ' . implode(', ', $pending->getFirstErrors()));
+    }
+
+    trackElement($pending);
+
+    $mailBefore = mailCount();
+
+    $user = Plugin::getInstance()->companyMembers->inviteMember(
+        $company,
+        $email,
+        'Pending',
+        'Existing',
+        CompanyRole::Purchaser,
+    );
+
+    expect($user->id)->toBe($pending->id)
+        ->and(membershipRole($company->id, $pending->id))->toBe(CompanyRole::Purchaser->value)
+        ->and(mailCount())->toBeGreaterThan($mailBefore)
+        ->and(newestMailBody())->not->toContain('added to a business account');
+});
+
+it('finds an existing free user case-insensitively when inviting', function () {
+    $company = approvedCompany();
+    $suffix = uniqid();
+    $existing = createTestUser("free_{$suffix}@example.test");
+
+    $user = Plugin::getInstance()->companyMembers->inviteMember(
+        $company,
+        "FREE_{$suffix}@EXAMPLE.test",
+        'Free',
+        'User',
+        CompanyRole::Approver,
+    );
+
+    expect($user->id)->toBe($existing->id)
+        ->and(membershipRole($company->id, $existing->id))->toBe(CompanyRole::Approver->value);
 });
 
 it('invites an existing free user by adding a membership', function () {

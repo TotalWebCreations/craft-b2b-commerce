@@ -44,33 +44,12 @@ class B2bVariable
             return [];
         }
 
-        $members = Plugin::getInstance()->companyMembers->getMembers($company->id);
-
-        if ($members === []) {
-            return [];
-        }
-
-        $userIds = array_column($members, 'userId');
-
-        /** @var array<int, User> $users */
-        $users = User::find()
-            ->id($userIds)
-            ->status(null)
-            ->indexBy('id')
-            ->all();
-
         $rows = [];
 
-        foreach ($members as $member) {
-            $user = $users[$member['userId']] ?? null;
-
-            if ($user === null) {
-                continue;
-            }
-
+        foreach (Plugin::getInstance()->companyMembers->getMemberUsers($company->id) as $member) {
             $rows[] = [
-                'user' => $user,
-                'role' => $member['role'],
+                'user' => $member['user'],
+                'role' => $member['role']->value,
             ];
         }
 

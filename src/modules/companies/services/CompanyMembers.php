@@ -26,7 +26,7 @@ class CompanyMembers extends Component
             );
         }
 
-        $existingUser = User::find()->email($email)->status(null)->one();
+        $existingUser = $this->findUserByEmail($email);
 
         if ($existingUser !== null) {
             if ($this->getCompanyForUser($existingUser->id) !== null) {
@@ -36,7 +36,7 @@ class CompanyMembers extends Component
             }
 
             $this->addUserToCompany($existingUser->id, $company->id, $role);
-            $this->notifyMemberAdded($company, $existingUser);
+            $this->notifyInvitedUser($company, $existingUser);
 
             return $existingUser;
         }
@@ -177,12 +177,79 @@ class CompanyMembers extends Component
         );
     }
 
+    /**
+     * Hydrates every membership row into its user, batched to avoid an N+1.
+     *
+     * @return array<int, array{user: User, role: CompanyRole}>
+     */
+    public function getMemberUsers(int $companyId): array
+    {
+        $members = $this->getMembers($companyId);
+
+        if ($members === []) {
+            return [];
+        }
+
+        $userIds = array_column($members, 'userId');
+
+        /** @var array<int, User> $users */
+        $users = User::find()
+            ->id($userIds)
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        $rows = [];
+
+        foreach ($members as $member) {
+            $user = $users[$member['userId']] ?? null;
+
+            if ($user === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'user' => $user,
+                'role' => CompanyRole::from($member['role']),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Resolves a user by email case-insensitively, independent of the database
+     * collation, by comparing lowercased values on both sides.
+     */
+    public function findUserByEmail(string $email): ?User
+    {
+        return User::find()
+            ->status(null)
+            ->where(['lower([[users.email]])' => mb_strtolower($email)])
+            ->one();
+    }
+
     private function countAdmins(int $companyId): int
     {
         return (int) (new Query())
             ->from('{{%b2b_company_users}}')
             ->where(['companyId' => $companyId, 'role' => CompanyRole::Admin->value])
             ->count();
+    }
+
+    private function notifyInvitedUser(Company $company, User $user): void
+    {
+        if ($user->pending) {
+            // A pending user has no password yet, so "you can now sign in" is wrong.
+            // Send the activation mail instead so they can set one and sign in.
+            if (!Craft::$app->getUsers()->sendActivationEmail($user)) {
+                Craft::warning("Failed to send activation email to {$user->email}", 'b2b-commerce');
+            }
+
+            return;
+        }
+
+        $this->notifyMemberAdded($company, $user);
     }
 
     private function notifyMemberAdded(Company $company, User $user): void

@@ -5,10 +5,8 @@ namespace totalwebcreations\b2bcommerce\controllers;
 use Craft;
 use craft\commerce\elements\Order;
 use craft\db\Query;
-use craft\elements\User;
 use craft\web\Controller;
 use totalwebcreations\b2bcommerce\elements\Company;
-use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
@@ -32,18 +30,11 @@ class CompaniesCpController extends Controller
         $company = $this->findCompany($companyId);
 
         $members = array_map(
-            function (array $row): array {
-                $user = User::find()->id($row['userId'])->status(null)->one();
-                $role = CompanyRole::tryFrom($row['role']);
-
-                return [
-                    'user' => $user,
-                    'roleLabel' => $role !== null
-                        ? Craft::t('b2b-commerce', $role->name)
-                        : $row['role'],
-                ];
-            },
-            Plugin::getInstance()->companyMembers->getMembers($company->id),
+            fn(array $row): array => [
+                'user' => $row['user'],
+                'roleLabel' => Craft::t('b2b-commerce', $row['role']->name),
+            ],
+            Plugin::getInstance()->companyMembers->getMemberUsers($company->id),
         );
 
         return $this->renderTemplate('b2b-commerce/companies/_members', [

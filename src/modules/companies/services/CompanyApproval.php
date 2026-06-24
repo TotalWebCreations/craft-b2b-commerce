@@ -74,12 +74,9 @@ class CompanyApproval extends Component
     /** @return User[] */
     private function getMemberUsers(Company $company): array
     {
-        $userIds = array_column(Plugin::getInstance()->companyMembers->getMembers($company->id), 'userId');
-
-        if ($userIds === []) {
-            return [];
-        }
-
-        return User::find()->id($userIds)->status(null)->all();
+        return array_column(
+            Plugin::getInstance()->companyMembers->getMemberUsers($company->id),
+            'user'
+        );
     }
 }
