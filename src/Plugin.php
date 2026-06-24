@@ -253,6 +253,17 @@ class Plugin extends BasePlugin
         $fieldLayout = Craft::$app->getFields()->assembleLayoutFromPost('settings');
         $fieldLayout->type = Company::class;
 
-        Craft::$app->getFields()->saveLayout($fieldLayout);
+        if (Craft::$app->getFields()->saveLayout($fieldLayout)) {
+            return;
+        }
+
+        Craft::error(
+            'Could not save the company field layout: ' . implode(' ', $fieldLayout->getErrorSummary(true)),
+            __METHOD__
+        );
+
+        Craft::$app->getSession()->setError(
+            Craft::t('b2b-commerce', 'The company field layout could not be saved.')
+        );
     }
 }

@@ -101,4 +101,5 @@ return [
     'Company not found.' => 'Bedrijf niet gevonden.',
     'Company fields' => 'Bedrijfsvelden',
     'Add custom fields to the company edit screen.' => 'Voeg aangepaste velden toe aan het bewerkscherm van bedrijven.',
+    'The company field layout could not be saved.' => 'De veldindeling voor bedrijven kon niet worden opgeslagen.',
 ];
