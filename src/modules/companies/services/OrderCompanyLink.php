@@ -41,6 +41,15 @@ class OrderCompanyLink extends Component
             return;
         }
 
+        // Never refuse an order that is already (partially) paid. Payment gateways complete paid
+        // orders out-of-band via a webhook that calls markAsComplete(); throwing here would make the
+        // completion fail and the gateway retry the webhook forever against an order it already
+        // captured. getTotalPaid() is Commerce's own paid measure: the sum of successful purchase and
+        // capture transactions minus refunds (Order::getTotalPaid, vendor Order.php:2842).
+        if ($order->getTotalPaid() > 0) {
+            return;
+        }
+
         if (Plugin::getInstance()->priceVisibility->canPurchase($order->getCustomer())) {
             return;
         }

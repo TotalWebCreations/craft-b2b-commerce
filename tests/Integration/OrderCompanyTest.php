@@ -1,6 +1,7 @@
 <?php
 
 use craft\commerce\elements\Order;
+use craft\commerce\records\Transaction as TransactionRecord;
 use craft\db\Query;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
@@ -26,6 +27,25 @@ function createTestOrder(?User $customer): Order
     trackElement($order);
 
     return $order;
+}
+
+/**
+ * Persists a successful `purchase` transaction for the order, mirroring what a payment
+ * gateway records once it has captured funds. This is exactly the state getTotalPaid()
+ * measures (sum of successful purchase/capture transactions). The transaction row is removed
+ * automatically when the order element is hard-deleted (orderId foreign key cascade).
+ */
+function recordSuccessfulPurchase(Order $order, float $amount = 100.0): void
+{
+    $record = new TransactionRecord();
+    $record->orderId = $order->id;
+    $record->type = TransactionRecord::TYPE_PURCHASE;
+    $record->status = TransactionRecord::STATUS_SUCCESS;
+    $record->amount = $amount;
+    $record->currency = 'USD';
+    $record->save(false);
+
+    $order->setTransactions(null);
 }
 
 /**
@@ -100,6 +120,42 @@ it('refuses to complete an order for a blocked customer on a site request', func
         ->and($completedInDb)->toBeFalse()
         ->and(orderCompanyRowExists($order->id))->toBeFalse()
         ->and($order->getErrors('customerId'))->not->toBeEmpty();
+});
+
+it('exempts a paid order of a blocked customer from the checkout backstop', function () {
+    $user = createTestUser('paidblocked_' . uniqid() . '@example.test');
+    $company = createTestCompany('blocked');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => true]);
+
+    $order = createTestOrder($user);
+    $threw = false;
+
+    try {
+        recordSuccessfulPurchase($order);
+
+        // Guards the webhook-retry scenario: the gateway already captured funds, so the backstop must
+        // exempt the paid order rather than throw. The backstop method is exercised directly (it is
+        // what markAsComplete() fires on EVENT_BEFORE_COMPLETE_ORDER); driving a full completion in a
+        // faked site request is unrelated console/web-response friction in the test harness.
+        expect($order->getTotalPaid())->toBeGreaterThan(0);
+
+        asSiteRequest(function () use ($order, &$threw) {
+            try {
+                $order->getCustomer();
+                Plugin::getInstance()->orderCompanyLink->enforcePurchasePolicy($order);
+            } catch (Throwable) {
+                $threw = true;
+            }
+        });
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['hidePricesForGuests' => false]);
+    }
+
+    expect($threw)->toBeFalse()
+        ->and($order->getErrors('customerId'))->toBeEmpty();
 });
 
 it('pins the storefront abort coupling relied on by the checkout controller', function () {
