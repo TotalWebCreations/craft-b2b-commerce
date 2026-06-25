@@ -20,49 +20,76 @@
         <button type="submit">{{ 'Add to cart'|t('b2b-commerce') }}</button>
     </form>
 
+    {# CSV upload alternative. A multipart form is required so the file reaches the
+       controller as an uploaded file; the controller feeds its contents through the
+       same SKU parser as the textarea above. Copy and restyle to taste. #}
+    <form id="b2b-quick-order-csv" method="post" enctype="multipart/form-data" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/quick-order/upload-csv') }}
+
+        <label>
+            {{ 'Upload a CSV file'|t('b2b-commerce') }}
+            <input type="file" name="csvFile" accept=".csv,text/csv,text/plain">
+        </label>
+
+        <button type="submit">{{ 'Upload CSV'|t('b2b-commerce') }}</button>
+    </form>
+
     {# Results and per-line errors are rendered here by the script below. #}
     <div id="b2b-quick-order-result" role="status" aria-live="polite"></div>
 
     {% js %}
         (function () {
-            var form = document.getElementById('b2b-quick-order');
             var result = document.getElementById('b2b-quick-order-result');
             var lineLabel = {{ 'Line {line}'|t('b2b-commerce', { line: '%LINE%' })|json_encode|raw }};
 
-            form.addEventListener('submit', function (event) {
-                event.preventDefault();
+            function render(data) {
                 result.textContent = '';
 
-                fetch(form.action || window.location.href, {
-                    method: 'POST',
-                    body: new FormData(form),
-                    headers: { 'Accept': 'application/json' }
-                })
-                    .then(function (response) { return response.json(); })
-                    .then(function (data) {
-                        // Show the summary message returned by the controller.
-                        if (data.message) {
-                            var summary = document.createElement('p');
-                            summary.textContent = data.message;
-                            result.appendChild(summary);
-                        }
+                // Show the summary message returned by the controller.
+                if (data.message) {
+                    var summary = document.createElement('p');
+                    summary.textContent = data.message;
+                    result.appendChild(summary);
+                }
 
-                        // Render each per-line error keyed by its original line number.
-                        if (data.errors) {
-                            var list = document.createElement('ul');
+                // Render each per-line error keyed by its original line number.
+                if (data.errors) {
+                    var list = document.createElement('ul');
 
-                            Object.keys(data.errors).forEach(function (line) {
-                                var item = document.createElement('li');
-                                item.textContent = lineLabel.replace('%LINE%', line) + ': ' + data.errors[line];
-                                list.appendChild(item);
-                            });
-
-                            if (list.childNodes.length) {
-                                result.appendChild(list);
-                            }
-                        }
+                    Object.keys(data.errors).forEach(function (line) {
+                        var item = document.createElement('li');
+                        item.textContent = lineLabel.replace('%LINE%', line) + ': ' + data.errors[line];
+                        list.appendChild(item);
                     });
-            });
+
+                    if (list.childNodes.length) {
+                        result.appendChild(list);
+                    }
+                }
+            }
+
+            function bind(form) {
+                if (!form) {
+                    return;
+                }
+
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+                    result.textContent = '';
+
+                    fetch(form.action || window.location.href, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        headers: { 'Accept': 'application/json' }
+                    })
+                        .then(function (response) { return response.json(); })
+                        .then(render);
+                });
+            }
+
+            bind(document.getElementById('b2b-quick-order'));
+            bind(document.getElementById('b2b-quick-order-csv'));
         })();
     {% endjs %}
 {% endblock %}

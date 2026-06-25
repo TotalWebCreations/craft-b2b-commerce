@@ -8,8 +8,11 @@ use craft\commerce\elements\Order;
 use craft\commerce\models\LineItem;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
+use craft\elements\User;
 use totalwebcreations\b2bcommerce\modules\quickorder\parsers\SkuLineParser;
+use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
+use yii\base\InvalidArgumentException;
 
 class QuickOrder extends Component
 {
@@ -78,6 +81,57 @@ class QuickOrder extends Component
     }
 
     /**
+     * Copies every still-available line item of a completed source order into the cart.
+     * The actor must own the source order or share its company, and the source must be
+     * completed. Unavailable or deleted purchasables surface as per-position errors.
+     *
+     * @return array{added: int, errors: array<int, string>}
+     */
+    public function reorder(Order $cart, Order $source, User $actor): array
+    {
+        if (!$source->isCompleted) {
+            throw new InvalidArgumentException(Craft::t('b2b-commerce', 'Only completed orders can be reordered.'));
+        }
+
+        if (!$this->actorMayReorder($source, $actor)) {
+            throw new InvalidArgumentException(Craft::t('b2b-commerce', 'You are not allowed to reorder this order.'));
+        }
+
+        $errors = [];
+        $added = 0;
+
+        foreach (array_values($source->getLineItems()) as $index => $lineItem) {
+            $position = $index + 1;
+            $description = $lineItem->getDescription();
+            $purchasable = $lineItem->purchasableId ? $lineItem->getPurchasable() : null;
+
+            if ($purchasable === null || !$purchasable->getIsAvailable()) {
+                $errors[$position] = Craft::t('b2b-commerce', '"{description}" is no longer available', ['description' => $description]);
+
+                continue;
+            }
+
+            $error = $this->addResolvedPurchasable($cart, (int) $lineItem->purchasableId, (int) $lineItem->qty, $description);
+
+            if ($error !== null) {
+                $errors[$position] = $error;
+
+                continue;
+            }
+
+            $added++;
+        }
+
+        if ($added > 0) {
+            Craft::$app->getElements()->saveElement($cart);
+        }
+
+        ksort($errors);
+
+        return ['added' => $added, 'errors' => $errors];
+    }
+
+    /**
      * Merges the requested quantity into the cart for the given purchasable and runs the
      * add through Commerce. Returns null on success, or a translated message when a
      * line-item veto blocks the add. The label seeds the neutral fallback message.
@@ -111,6 +165,22 @@ class QuickOrder extends Component
         }
 
         return (string) reset($firstErrors);
+    }
+
+    /**
+     * Reports whether the actor may reorder the source: they either own it, or both the
+     * order and the actor belong to the same (non-null) company.
+     */
+    private function actorMayReorder(Order $source, User $actor): bool
+    {
+        if ($source->getCustomer()?->id === $actor->id) {
+            return true;
+        }
+
+        $sourceCompanyId = $source->b2bCompany?->id;
+        $actorCompanyId = Plugin::getInstance()->companyMembers->getCompanyForUser($actor->id)?->id;
+
+        return $sourceCompanyId !== null && $sourceCompanyId === $actorCompanyId;
     }
 
     /**
