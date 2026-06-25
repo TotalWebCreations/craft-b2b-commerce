@@ -27,6 +27,7 @@
 
 require_once __DIR__ . '/Integration/bootstrap.php';
 require_once __DIR__ . '/Integration/helpers.php';
+require_once __DIR__ . '/Http/helpers.php';
 
 uses()
     ->beforeEach(function () {
@@ -38,3 +39,26 @@ uses()
     })
     ->afterEach(fn () => deleteTrackedElements())
     ->in('Integration');
+
+/*
+|--------------------------------------------------------------------------
+| Http suite
+|--------------------------------------------------------------------------
+|
+| The Http suite drives the real request pipeline against the running dev web
+| server, while arranging fixtures and asserting DB state in-process (both share
+| the same database). It boots craftApp() for the fixtures and skips cleanly
+| when either the dev site files or the web server are unreachable.
+|
+*/
+
+uses()
+    ->beforeEach(function () {
+        if (!devSiteAvailable() || !httpSiteAvailable()) {
+            test()->markTestSkipped('Dev web server (https://b2b-dev.test) is not reachable.');
+        }
+
+        craftApp();
+    })
+    ->afterEach(fn () => deleteTrackedElements())
+    ->in('Http');

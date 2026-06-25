@@ -17,6 +17,7 @@
         "craftcms/commerce": "^5.0.0"
     },
     "require-dev": {
+        "guzzlehttp/guzzle": "^7.2",
         "pestphp/pest": "^2.34"
     },
     "autoload": {
