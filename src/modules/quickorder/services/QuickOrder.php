@@ -5,6 +5,7 @@ namespace totalwebcreations\b2bcommerce\modules\quickorder\services;
 use Craft;
 use craft\commerce\db\Table;
 use craft\commerce\elements\Order;
+use craft\commerce\models\LineItem;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use totalwebcreations\b2bcommerce\modules\quickorder\parsers\SkuLineParser;
@@ -32,7 +33,6 @@ class QuickOrder extends Component
         }
 
         $purchasableIdsBySku = $this->resolvePurchasableIds($lines);
-        $lineItems = Commerce::getInstance()->getLineItems();
         $purchasables = Commerce::getInstance()->getPurchasables();
 
         $added = 0;
@@ -46,6 +46,9 @@ class QuickOrder extends Component
                 continue;
             }
 
+            // Deliberate mild N+1: each hit is loaded individually because getIsAvailable()
+            // needs a fully hydrated purchasable. Quick-order batches are small, so the extra
+            // queries are acceptable here.
             $purchasable = $purchasables->getPurchasableById($purchasableId);
 
             if ($purchasable === null || !$purchasable->getIsAvailable()) {
@@ -54,14 +57,10 @@ class QuickOrder extends Component
                 continue;
             }
 
-            $lineItem = $lineItems->resolveLineItem($cart, $purchasableId, []);
-            $lineItem->qty = $lineItem->id ? $lineItem->qty + $line['qty'] : $line['qty'];
+            $error = $this->addResolvedPurchasable($cart, $purchasableId, $line['qty'], $line['sku']);
 
-            $cart->addLineItem($lineItem);
-
-            if (!in_array($lineItem, $cart->getLineItems(), true)) {
-                $errors[$lineNumber] = $lineItem->getFirstError('purchasableId')
-                    ?? Craft::t('b2b-commerce', 'You need an approved business account to order.');
+            if ($error !== null) {
+                $errors[$lineNumber] = $error;
 
                 continue;
             }
@@ -69,11 +68,49 @@ class QuickOrder extends Component
             $added++;
         }
 
-        Craft::$app->getElements()->saveElement($cart);
+        if ($added > 0) {
+            Craft::$app->getElements()->saveElement($cart);
+        }
 
         ksort($errors);
 
         return ['added' => $added, 'errors' => $errors];
+    }
+
+    /**
+     * Merges the requested quantity into the cart for the given purchasable and runs the
+     * add through Commerce. Returns null on success, or a translated message when a
+     * line-item veto blocks the add. The label seeds the neutral fallback message.
+     */
+    private function addResolvedPurchasable(Order $cart, int $purchasableId, int $qty, string $label): ?string
+    {
+        $lineItem = Commerce::getInstance()->getLineItems()->resolveLineItem($cart, $purchasableId, []);
+        $lineItem->qty = $lineItem->id ? $lineItem->qty + $qty : $qty;
+
+        $cart->addLineItem($lineItem);
+
+        if (in_array($lineItem, $cart->getLineItems(), true)) {
+            return null;
+        }
+
+        return $this->firstLineItemError($lineItem)
+            ?? Craft::t('b2b-commerce', '"{sku}" could not be added.', ['sku' => $label]);
+    }
+
+    /**
+     * Returns the first validation error across every attribute of the line item, or null
+     * when it carries none. Used for the veto message so a blocked add reports the reason
+     * the veto actually set rather than assuming a specific attribute.
+     */
+    private function firstLineItemError(LineItem $lineItem): ?string
+    {
+        $firstErrors = $lineItem->getFirstErrors();
+
+        if ($firstErrors === []) {
+            return null;
+        }
+
+        return (string) reset($firstErrors);
     }
 
     /**

@@ -105,6 +105,7 @@ return [
     'Enter one SKU per line, optionally followed by a quantity (separated by a space, tab, comma or semicolon).' => 'Voer één SKU per regel in, eventueel gevolgd door een aantal (gescheiden door een spatie, tab, komma of puntkomma).',
     'Add to cart' => 'Toevoegen aan winkelwagen',
     'Line {line}' => 'Regel {line}',
+    '"{sku}" could not be added.' => '"{sku}" kon niet worden toegevoegd.',
     'Company fields' => 'Bedrijfsvelden',
     'Add custom fields to the company edit screen.' => 'Voeg aangepaste velden toe aan het bewerkscherm van bedrijven.',
     'The company field layout could not be saved.' => 'De veldindeling voor bedrijven kon niet worden opgeslagen.',
