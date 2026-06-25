@@ -1,0 +1,68 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Quick order'|t('b2b-commerce') }}</h1>
+
+    <p>{{ 'Enter one SKU per line, optionally followed by a quantity (separated by a space, tab, comma or semicolon).'|t('b2b-commerce') }}</p>
+
+    {# The form posts to the controller via fetch so the added count and any
+       per-line errors can be rendered without a full page reload. Copy this
+       template into your own site and restyle it to taste. #}
+    <form id="b2b-quick-order" method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/quick-order/add') }}
+
+        <label>
+            {{ 'Quick order'|t('b2b-commerce') }}
+            <textarea name="lines" rows="8" cols="40"></textarea>
+        </label>
+
+        <button type="submit">{{ 'Add to cart'|t('b2b-commerce') }}</button>
+    </form>
+
+    {# Results and per-line errors are rendered here by the script below. #}
+    <div id="b2b-quick-order-result" role="status" aria-live="polite"></div>
+
+    {% js %}
+        (function () {
+            var form = document.getElementById('b2b-quick-order');
+            var result = document.getElementById('b2b-quick-order-result');
+            var lineLabel = {{ 'Line {line}'|t('b2b-commerce', { line: '%LINE%' })|json_encode|raw }};
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                result.textContent = '';
+
+                fetch(form.action || window.location.href, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'Accept': 'application/json' }
+                })
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        // Show the summary message returned by the controller.
+                        if (data.message) {
+                            var summary = document.createElement('p');
+                            summary.textContent = data.message;
+                            result.appendChild(summary);
+                        }
+
+                        // Render each per-line error keyed by its original line number.
+                        if (data.errors) {
+                            var list = document.createElement('ul');
+
+                            Object.keys(data.errors).forEach(function (line) {
+                                var item = document.createElement('li');
+                                item.textContent = lineLabel.replace('%LINE%', line) + ': ' + data.errors[line];
+                                list.appendChild(item);
+                            });
+
+                            if (list.childNodes.length) {
+                                result.appendChild(list);
+                            }
+                        }
+                    });
+            });
+        })();
+    {% endjs %}
+{% endblock %}

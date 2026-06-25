@@ -1,6 +1,11 @@
 <?php
 
 use craft\base\ElementInterface;
+use craft\commerce\elements\Product;
+use craft\commerce\elements\Variant;
+use craft\commerce\models\ProductType;
+use craft\commerce\models\ProductTypeSite;
+use craft\commerce\Plugin as Commerce;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
 
@@ -53,6 +58,76 @@ function createTestCompany(string $status = 'approved', string $title = 'Test Co
     trackElement($company);
 
     return $company;
+}
+
+/**
+ * Returns a reusable throwaway product type, creating it on first use. Product
+ * types live in project config, so it is created once and reused across tests
+ * rather than rebuilt (and torn down) per test.
+ */
+function quickOrderProductType(): ProductType
+{
+    $handle = 'b2bQuickOrderTest';
+    $existing = Commerce::getInstance()->getProductTypes()->getProductTypeByHandle($handle);
+
+    if ($existing !== null) {
+        return $existing;
+    }
+
+    $type = new ProductType();
+    $type->name = 'B2B Quick Order Test';
+    $type->handle = $handle;
+    $type->maxVariants = 1;
+    $type->hasVariantTitleField = false;
+    $type->variantTitleFormat = '{sku}';
+
+    $siteSettings = [];
+
+    foreach (craftApp()->getSites()->getAllSites() as $site) {
+        $siteSetting = new ProductTypeSite();
+        $siteSetting->siteId = $site->id;
+        $siteSetting->hasUrls = false;
+        $siteSettings[$site->id] = $siteSetting;
+    }
+
+    $type->setSiteSettings($siteSettings);
+
+    if (!Commerce::getInstance()->getProductTypes()->saveProductType($type)) {
+        throw new RuntimeException('Could not save test product type: ' . implode(', ', $type->getErrorSummary(true)));
+    }
+
+    return $type;
+}
+
+/**
+ * Creates and saves a tracked product with a single variant carrying the given SKU.
+ */
+function createTestVariant(string $sku, float $price = 10.0, bool $enabled = true): Variant
+{
+    $product = new Product();
+    $product->typeId = quickOrderProductType()->id;
+    $product->title = 'Quick order ' . $sku;
+    $product->enabled = $enabled;
+
+    if (!craftApp()->getElements()->saveElement($product)) {
+        throw new RuntimeException('Could not save test product: ' . implode(', ', $product->getErrorSummary(true)));
+    }
+
+    trackElement($product);
+
+    $variant = new Variant();
+    $variant->sku = $sku;
+    $variant->setBasePrice($price);
+    $variant->setPrimaryOwner($product);
+    $variant->setOwner($product);
+
+    if (!craftApp()->getElements()->saveElement($variant)) {
+        throw new RuntimeException('Could not save test variant: ' . implode(', ', $variant->getErrorSummary(true)));
+    }
+
+    trackElement($variant);
+
+    return $variant;
 }
 
 /**
