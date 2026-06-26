@@ -21,10 +21,12 @@ B2B Commerce is organised around five pillars:
    flow for purchasers and approvers.
 4. **Pay on account** — *on the roadmap.* Offline "pay on account" gateway with credit
    limits and balance overviews.
-5. **Quick order** — *on the roadmap.* SKU entry, CSV import, re-ordering and order
-   lists for fast repeat purchasing.
+5. **Quick order** — *available now.* Fast repeat purchasing for approved buyers:
+   paste SKUs (one per line, Excel-style), upload a CSV, re-order a past order (your
+   own or a colleague's), and keep shared, company-wide order lists to drop into the
+   cart in one go.
 
-This first release focuses on pillar 1. It ships:
+This release delivers pillars 1 and 5. It ships:
 
 - A **Company** element with control panel management, statuses and a
   `Manage companies` permission.
@@ -48,6 +50,11 @@ This first release focuses on pillar 1. It ships:
   settings.
 - **Price visibility**: optionally hide prices and block add-to-cart for guests and
   unapproved accounts.
+- **Quick order**: a SKU textarea (Excel-style paste), CSV upload, a re-order button
+  (own and colleague orders) and shared, company-scoped **order lists**, all guarded by
+  the same purchase check as the storefront.
+- **Console commands**: `b2b-commerce/seed` to bootstrap demo data and
+  `b2b-commerce/team/assign-role` to recover a company that lost its admin.
 - **Dutch translations** for all control panel and frontend strings.
 
 ## Requirements
@@ -87,6 +94,10 @@ This gives you:
 - `b2b/team/index.twig` — a team management page for company admins (invite, change
   role, remove).
 - `b2b/addresses/index.twig` — a shared address book with an add/edit/delete form.
+- `b2b/quick-order/index.twig` — a quick order page with a SKU textarea and CSV upload.
+- `b2b/orders/_reorder-button.twig` — a re-order button partial for an order row.
+- `b2b/order-lists/index.twig` and `b2b/order-lists/_detail.twig` — shared order lists
+  with create/rename/delete and an item editor.
 
 ### 2. Configure the settings
 
@@ -130,7 +141,7 @@ register prompt instead of prices and cannot add products to the cart.
 | Quotes | `enableQuotes` | `true` | No effect yet — reserved for the quotes pillar (roadmap). |
 | Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
 | Pay on account | `enableInvoicing` | `true` | No effect yet — reserved for the pay-on-account pillar (roadmap). |
-| Quick order | `enableQuickOrder` | `true` | No effect yet — reserved for the quick order pillar (roadmap). |
+| Quick order | `enableQuickOrder` | `true` | No effect yet — the quick order features are always available to approved buyers regardless of this toggle. |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
 | Honeypot field name | `honeypotFieldName` | `'b2b_website'` | Name of the hidden anti-spam field on the registration form. See [Security notes](#security-notes). |
@@ -249,6 +260,79 @@ referencing the shared address by id:
 </form>
 ```
 
+### Quick order
+
+Approved buyers can add many products to the cart at once by pasting SKUs. The
+`b2b/quick-order/index.twig` example ships a textarea that posts to
+`b2b-commerce/quick-order/add`. Enter **one SKU per line**, optionally followed by a
+quantity. The quantity separator is auto-detected per line, in this order: **tab**,
+**comma**, **semicolon**, then any run of **whitespace** (a space). A bare SKU with no
+quantity defaults to `1`:
+
+```
+WIDGET-01	5      ← tab-separated
+WIDGET-02,3        ← comma
+WIDGET-03;2        ← semicolon
+WIDGET-04 10       ← space
+WIDGET-05          ← bare SKU, quantity defaults to 1
+```
+
+SKU matching is **case-insensitive**, and duplicate SKUs (in any casing) are merged —
+their quantities are summed onto the first occurrence. Blank lines are skipped. The
+action returns JSON `{ added, errors }`, where `errors` is keyed by the **original
+1-based line number** so you can report problems against the exact line the buyer
+typed. Unknown SKUs, unavailable products, invalid quantities and cart vetoes each
+surface as a per-line error while the valid lines are still added.
+
+#### CSV upload
+
+The same page also posts a file to `b2b-commerce/quick-order/upload-csv` (a
+`multipart/form-data` form with a `csvFile` input). The upload is capped at 1 MB, must
+be a text/CSV MIME type, and its contents are fed through the **exact same parser** as
+the textarea — so the format, error reporting and casing/duplicate rules above apply
+identically. A UTF-8 byte-order mark is stripped automatically.
+
+#### Re-order
+
+`b2b/orders/_reorder-button.twig` posts a completed order's id to
+`b2b-commerce/quick-order/reorder`, which copies that order's still-available line items
+into the current cart. A buyer may re-order an order they placed **or** any order that
+belongs to their own company — so colleagues can repeat each other's orders. Only
+completed orders can be re-ordered; unavailable line items surface as per-position
+errors.
+
+### Order lists
+
+Order lists are named, **company-scoped** collections of products a team keeps around to
+drop into the cart in one go. They are shared work material, not team administration: by
+policy **any** company member — regardless of role (admin, purchaser or approver) — may
+view, create, rename and delete lists, edit their items and add a list to the cart.
+Every list is scoped to the buyer's company and each action re-checks that ownership, so
+one company can never touch another's lists.
+
+Read a company's lists with `craft.b2b.orderLists`, which returns an array of
+`{ id, name, createdByUserId, itemCount }` rows, and read a single list's items with
+`craft.b2b.getOrderListItems(listId)` (usable as `craft.b2b.orderListItems(listId)` in
+Twig), which returns `{ purchasableId, qty, sku, description }` rows guarded by the
+current user's company:
+
+```twig
+{% for list in craft.b2b.orderLists %}
+    <p>{{ list.name }} — {{ list.itemCount }} {{ 'items'|t('b2b-commerce') }}</p>
+
+    {% for item in craft.b2b.orderListItems(list.id) %}
+        <span>{{ item.sku }} × {{ item.qty }}</span>
+    {% endfor %}
+{% endfor %}
+```
+
+Lists are managed through the `b2b-commerce/order-lists/create`, `.../rename`,
+`.../delete`, `.../set-item` and `.../add-to-cart` actions. Setting an item's quantity to
+`0` removes it from the list. Adding a list to the cart reuses the quick-order add-path,
+so line-item vetoes are honoured and missing or unavailable products surface as
+per-position errors. See `examples/templates/b2b/order-lists/index.twig` and
+`_detail.twig` for a complete overview and item editor.
+
 ## Known limitations
 
 - **Company field layout is stored in the database, not project config.** The custom-field
@@ -256,10 +340,24 @@ referencing the shared address by id:
   database and does **not** deploy through project config. Reconfigure it per environment
   after deploying. Project-config storage for the layout is on the roadmap.
 
+## Console commands
+
+The plugin ships two Craft console commands:
+
+- `php craft b2b-commerce/seed` — bootstraps a demo, pre-approved company (*Acme
+  Wholesale Ltd*) with an admin user (`buyer@acme.test`) for local development. It is
+  idempotent: if the demo user already exists it does nothing.
+- `php craft b2b-commerce/team/assign-role <companyId> <email> <role>` — assigns (or
+  re-assigns) a company role to a user, looked up by email. Roles are `admin`,
+  `purchaser` and `approver`. This is the **recovery path** for a company that lost its
+  last admin: unlike the frontend team flows it deliberately bypasses the last-admin
+  guard, so an operator can reinstate an admin from the command line.
+
 ## Uninstalling
 
 Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,
-`b2b_company_users`, `b2b_order_company`) and their data behind. The install migration is
+`b2b_company_users`, `b2b_order_company`, `b2b_order_lists`, `b2b_order_list_items`) and
+their data behind. The install migration is
 idempotent: if the tables already exist it skips creation and keeps your data, so a later
 reinstall picks up exactly where you left off — no manual SQL required.
 
@@ -267,7 +365,6 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Quick order** — SKU entry, CSV import, re-ordering and order lists.
 - **Pay on account** — offline "pay on account" gateway, credit checks and balance
   overviews.
 - **Quotes** — request-for-quote lifecycle, order adjuster and validity handling.
