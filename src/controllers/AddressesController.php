@@ -3,30 +3,32 @@
 namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
+use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
 
 class AddressesController extends BaseTeamController
 {
+    use ReadsStringBodyParams;
+
     public function actionSave(): ?Response
     {
         $this->requirePostRequest();
         $company = $this->requireTeamAdmin();
-        $request = Craft::$app->getRequest();
 
-        $addressId = $request->getBodyParam('addressId');
-        $addressId = $addressId !== null && $addressId !== '' ? (int)$addressId : null;
+        $addressIdParam = $this->stringBodyParam('addressId');
+        $addressId = $addressIdParam !== '' ? (int)$addressIdParam : null;
 
         $attributes = [
-            'title' => $request->getBodyParam('title'),
-            'fullName' => $request->getBodyParam('fullName'),
-            'addressLine1' => $request->getBodyParam('addressLine1'),
-            'addressLine2' => $request->getBodyParam('addressLine2'),
-            'postalCode' => $request->getBodyParam('postalCode'),
-            'locality' => $request->getBodyParam('locality'),
-            'administrativeArea' => $request->getBodyParam('administrativeArea'),
-            'countryCode' => $request->getBodyParam('countryCode'),
+            'title' => $this->stringBodyParam('title'),
+            'fullName' => $this->stringBodyParam('fullName'),
+            'addressLine1' => $this->stringBodyParam('addressLine1'),
+            'addressLine2' => $this->stringBodyParam('addressLine2'),
+            'postalCode' => $this->stringBodyParam('postalCode'),
+            'locality' => $this->stringBodyParam('locality'),
+            'administrativeArea' => $this->stringBodyParam('administrativeArea'),
+            'countryCode' => $this->stringBodyParam('countryCode'),
         ];
 
         try {

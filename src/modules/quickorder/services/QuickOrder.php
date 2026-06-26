@@ -16,6 +16,8 @@ use yii\base\InvalidArgumentException;
 
 class QuickOrder extends Component
 {
+    private const MAX_LINES = 500;
+
     /**
      * Parses the pasted input, resolves every SKU to a purchasable and adds the
      * requested quantities to the cart. Parser errors and resolution errors are
@@ -26,6 +28,13 @@ class QuickOrder extends Component
     public function addToCart(Order $cart, string $input): array
     {
         $parsed = (new SkuLineParser())->parse($input);
+
+        if (count($parsed['lines']) + count($parsed['errors']) > self::MAX_LINES) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'Too many lines (maximum {max}).', ['max' => self::MAX_LINES])
+            );
+        }
+
         // The parser is framework-free and returns fixed English messages; translate them here.
         $errors = array_map(
             fn(string $message): string => Craft::t('b2b-commerce', $message),
@@ -98,7 +107,10 @@ class QuickOrder extends Component
         }
 
         if (!$this->actorMayReorder($source, $actor)) {
-            throw new InvalidArgumentException(Craft::t('b2b-commerce', 'You are not allowed to reorder this order.'));
+            // Deliberately the same message the controller returns for a missing order, so a
+            // probing user cannot tell an order they may not access apart from one that does
+            // not exist (order-id enumeration).
+            throw new InvalidArgumentException(Craft::t('b2b-commerce', 'Order not found.'));
         }
 
         $errors = [];

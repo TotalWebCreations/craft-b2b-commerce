@@ -8,12 +8,15 @@ use craft\commerce\Plugin as Commerce;
 use craft\helpers\FileHelper;
 use craft\web\Controller;
 use craft\web\UploadedFile;
+use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
 
 class QuickOrderController extends Controller
 {
+    use ReadsStringBodyParams;
+
     private const MAX_CSV_BYTES = 1024 * 1024;
 
     /** @var array<int, string> Extra MIME types accepted besides anything under text/* */
@@ -34,7 +37,7 @@ class QuickOrderController extends Controller
             );
         }
 
-        $input = (string) Craft::$app->getRequest()->getBodyParam('lines', '');
+        $input = $this->stringBodyParam('lines');
 
         return $this->addToCartResponse($input);
     }
@@ -75,6 +78,12 @@ class QuickOrderController extends Controller
         $this->requirePostRequest();
         $this->requireLogin();
 
+        if (!$this->canPurchase()) {
+            return $this->asFailure(
+                Craft::t('b2b-commerce', 'You need an approved business account to order.')
+            );
+        }
+
         $orderId = (int) Craft::$app->getRequest()->getBodyParam('orderId');
 
         $source = Order::find()->id($orderId)->isCompleted(true)->one();
@@ -109,7 +118,11 @@ class QuickOrderController extends Controller
     {
         $cart = Commerce::getInstance()->getCarts()->getCart(true);
 
-        $result = Plugin::getInstance()->quickOrder->addToCart($cart, $input);
+        try {
+            $result = Plugin::getInstance()->quickOrder->addToCart($cart, $input);
+        } catch (InvalidArgumentException $exception) {
+            return $this->asFailure($exception->getMessage());
+        }
 
         return $this->asSuccess(
             Craft::t('b2b-commerce', '{count} items added to your cart.', ['count' => $result['added']]),

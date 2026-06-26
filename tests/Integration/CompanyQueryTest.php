@@ -43,7 +43,9 @@ it('resolves the company for a user on a secondary site', function () {
         'primary' => false,
     ]);
 
-    $sitesService->saveSite($tempSite);
+    if (!$sitesService->saveSite($tempSite)) {
+        throw new RuntimeException('Could not save temp site: ' . implode(', ', $tempSite->getFirstErrors()));
+    }
 
     try {
         $sitesService->setCurrentSite($tempSite);

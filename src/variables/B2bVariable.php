@@ -7,6 +7,7 @@ use craft\elements\Address;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
+use yii\base\InvalidArgumentException;
 
 class B2bVariable
 {
@@ -89,6 +90,10 @@ class B2bVariable
             return [];
         }
 
-        return Plugin::getInstance()->orderLists->getItems($company, $listId);
+        try {
+            return Plugin::getInstance()->orderLists->getItems($company, $listId);
+        } catch (InvalidArgumentException) {
+            return [];
+        }
     }
 }

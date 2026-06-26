@@ -3,6 +3,7 @@
 namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
+use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -10,13 +11,15 @@ use yii\web\Response;
 
 class TeamController extends BaseTeamController
 {
+    use ReadsStringBodyParams;
+
     public function actionInvite(): ?Response
     {
         $this->requirePostRequest();
         $company = $this->requireTeamAdmin();
         $request = Craft::$app->getRequest();
 
-        $role = CompanyRole::tryFrom((string)$request->getRequiredBodyParam('role'));
+        $role = CompanyRole::tryFrom($this->requiredStringBodyParam('role'));
 
         if ($role === null) {
             return $this->asFailure(Craft::t('b2b-commerce', 'Invalid role.'));
@@ -25,9 +28,9 @@ class TeamController extends BaseTeamController
         try {
             Plugin::getInstance()->companyMembers->inviteMember(
                 $company,
-                (string)$request->getRequiredBodyParam('email'),
-                (string)$request->getRequiredBodyParam('firstName'),
-                (string)$request->getRequiredBodyParam('lastName'),
+                $this->requiredStringBodyParam('email'),
+                $this->requiredStringBodyParam('firstName'),
+                $this->requiredStringBodyParam('lastName'),
                 $role,
             );
         } catch (InvalidArgumentException $exception) {
@@ -43,7 +46,7 @@ class TeamController extends BaseTeamController
         $company = $this->requireTeamAdmin();
         $request = Craft::$app->getRequest();
 
-        $role = CompanyRole::tryFrom((string)$request->getRequiredBodyParam('role'));
+        $role = CompanyRole::tryFrom($this->requiredStringBodyParam('role'));
 
         if ($role === null) {
             return $this->asFailure(Craft::t('b2b-commerce', 'Invalid role.'));

@@ -4,12 +4,15 @@ namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
 use craft\web\Controller;
+use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
 
 class RegistrationController extends Controller
 {
+    use ReadsStringBodyParams;
+
     protected array|bool|int $allowAnonymous = ['register' => self::ALLOW_ANONYMOUS_LIVE];
 
     public function actionRegister(): ?Response
@@ -25,12 +28,12 @@ class RegistrationController extends Controller
 
         try {
             Plugin::getInstance()->registration->register(
-                companyName: (string)$request->getRequiredBodyParam('companyName'),
+                companyName: $this->requiredStringBodyParam('companyName'),
                 registrationNumber: $request->getBodyParam('registrationNumber'),
                 taxId: $request->getBodyParam('taxId'),
-                firstName: (string)$request->getRequiredBodyParam('firstName'),
-                lastName: (string)$request->getRequiredBodyParam('lastName'),
-                email: (string)$request->getRequiredBodyParam('email'),
+                firstName: $this->requiredStringBodyParam('firstName'),
+                lastName: $this->requiredStringBodyParam('lastName'),
+                email: $this->requiredStringBodyParam('email'),
             );
         } catch (InvalidArgumentException $exception) {
             return $this->asFailure($exception->getMessage());

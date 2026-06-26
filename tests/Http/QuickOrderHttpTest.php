@@ -28,3 +28,22 @@ it('adds resolvable SKUs to an approved buyer cart over HTTP and maps per-line e
         ->and($data['errors'] ?? [])->toHaveKey('2')
         ->and($data['errors']['2'])->toBeString()->not->toBe('');
 });
+
+it('does not 500 when the lines param arrives as an array', function () {
+    $company = createTestCompany('approved');
+    $buyer = createTestUserWithPassword('quickorder_array_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyer->id, $company->id, CompanyRole::Admin);
+
+    $client = httpClient();
+    loginAs($client, $buyer->email, httpTestPassword());
+
+    // A bot posting `lines[]=x` used to trigger an "Array to string conversion" 500.
+    $response = postAction($client, 'b2b-commerce/quick-order/add', [
+        'lines' => ['injected', 'array'],
+    ]);
+
+    $data = json_decode((string) $response->getBody(), true);
+
+    expect($response->getStatusCode())->toBe(200)
+        ->and($data['added'] ?? null)->toBe(0);
+});

@@ -4,6 +4,7 @@ use craft\commerce\elements\Order;
 use craft\commerce\events\AddLineItemEvent;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Event;
+use yii\base\InvalidArgumentException;
 
 /**
  * Creates and saves a tracked empty cart order.
@@ -54,6 +55,20 @@ it('adds resolvable SKUs to the cart, sums duplicates and reports per-line error
         ->and(array_keys($result['errors']))->toBe([2, 4])
         ->and($result['errors'][2])->toBe("Unknown SKU \"QO-UNKNOWN\"")
         ->and($result['errors'][4])->toBe('Invalid quantity');
+});
+
+it('refuses input with more lines than the cap without resolving anything', function () {
+    $lines = [];
+
+    for ($i = 1; $i <= 501; $i++) {
+        $lines[] = "SKU-CAP-{$i} 1";
+    }
+
+    $cart = createTestQuickOrderCart();
+
+    expect(fn () => Plugin::getInstance()->quickOrder->addToCart($cart, implode("\n", $lines)))
+        ->toThrow(InvalidArgumentException::class, 'Too many lines')
+        ->and($cart->getLineItems())->toHaveCount(0);
 });
 
 it('reports an unavailable SKU when the product is disabled', function () {

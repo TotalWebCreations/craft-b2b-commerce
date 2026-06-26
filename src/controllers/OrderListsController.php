@@ -4,6 +4,7 @@ namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
 use craft\commerce\Plugin as Commerce;
+use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
@@ -16,6 +17,8 @@ use yii\web\Response;
  */
 class OrderListsController extends BaseTeamController
 {
+    use ReadsStringBodyParams;
+
     public function actionCreate(): ?Response
     {
         $this->requirePostRequest();
@@ -25,7 +28,7 @@ class OrderListsController extends BaseTeamController
         try {
             Plugin::getInstance()->orderLists->createList(
                 $company,
-                (string) $request->getBodyParam('name', ''),
+                $this->stringBodyParam('name'),
                 Craft::$app->getUser()->getId(),
             );
         } catch (InvalidArgumentException $exception) {
@@ -45,7 +48,7 @@ class OrderListsController extends BaseTeamController
             Plugin::getInstance()->orderLists->renameList(
                 $company,
                 (int) $request->getRequiredBodyParam('listId'),
-                (string) $request->getBodyParam('name', ''),
+                $this->stringBodyParam('name'),
             );
         } catch (InvalidArgumentException $exception) {
             return $this->asFailure($exception->getMessage());
@@ -97,6 +100,12 @@ class OrderListsController extends BaseTeamController
         $this->requirePostRequest();
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
+
+        if (!Plugin::getInstance()->priceVisibility->canPurchase(Craft::$app->getUser()->getIdentity())) {
+            return $this->asFailure(
+                Craft::t('b2b-commerce', 'You need an approved business account to order.')
+            );
+        }
 
         $cart = Commerce::getInstance()->getCarts()->getCart(true);
 
