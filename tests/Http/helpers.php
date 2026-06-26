@@ -105,6 +105,29 @@ function postAction(Client $client, string $action, array $params = []): Respons
 }
 
 /**
+ * Posts a multipart/form-data action request (for file uploads) with a freshly fetched
+ * CSRF token. Each entry in $parts is a Guzzle multipart part; the CSRF token is appended
+ * automatically both as the header Craft reads and as the body field named after the token.
+ *
+ * @param array<int, array<string, mixed>> $parts
+ */
+function postMultipartAction(Client $client, string $action, array $parts): ResponseInterface
+{
+    $token = csrfToken($client);
+
+    return $client->post("/actions/{$action}", [
+        'headers' => [
+            'Accept' => 'application/json',
+            'X-Requested-With' => 'XMLHttpRequest',
+            'X-CSRF-Token' => $token,
+        ],
+        'multipart' => array_merge($parts, [
+            ['name' => 'CRAFT_CSRF_TOKEN', 'contents' => $token],
+        ]),
+    ]);
+}
+
+/**
  * Logs a client in over HTTP and returns the raw login response.
  */
 function loginAs(Client $client, string $email, string $password): ResponseInterface

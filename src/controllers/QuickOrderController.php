@@ -9,6 +9,7 @@ use craft\helpers\FileHelper;
 use craft\web\Controller;
 use craft\web\UploadedFile;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
+use totalwebcreations\b2bcommerce\controllers\concerns\RequiresFeature;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
@@ -16,6 +17,7 @@ use yii\web\Response;
 class QuickOrderController extends Controller
 {
     use ReadsStringBodyParams;
+    use RequiresFeature;
 
     private const MAX_CSV_BYTES = 1024 * 1024;
 
@@ -31,6 +33,10 @@ class QuickOrderController extends Controller
     {
         $this->requirePostRequest();
 
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         if (!$this->canPurchase()) {
             return $this->asFailure(
                 Craft::t('b2b-commerce', 'You need an approved business account to order.')
@@ -45,6 +51,10 @@ class QuickOrderController extends Controller
     public function actionUploadCsv(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
 
         if (!$this->canPurchase()) {
             return $this->asFailure(
@@ -77,6 +87,10 @@ class QuickOrderController extends Controller
     {
         $this->requirePostRequest();
         $this->requireLogin();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
 
         if (!$this->canPurchase()) {
             return $this->asFailure(

@@ -22,6 +22,14 @@ class SeedController extends Controller
             return ExitCode::OK;
         }
 
+        $existingCompany = Company::find()->title('Acme Wholesale Ltd')->status(null)->one();
+
+        if ($existingCompany) {
+            $this->stdout("Demo data already seeded (company #{$existingCompany->id} exists). Nothing to do.\n");
+
+            return ExitCode::OK;
+        }
+
         $this->stdout("Creating demo company with admin user...\n");
 
         $company = new Company();

@@ -5,6 +5,7 @@ namespace totalwebcreations\b2bcommerce\controllers;
 use Craft;
 use craft\commerce\Plugin as Commerce;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
+use totalwebcreations\b2bcommerce\controllers\concerns\RequiresFeature;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\Response;
@@ -18,10 +19,16 @@ use yii\web\Response;
 class OrderListsController extends BaseTeamController
 {
     use ReadsStringBodyParams;
+    use RequiresFeature;
 
     public function actionCreate(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
 
@@ -41,6 +48,11 @@ class OrderListsController extends BaseTeamController
     public function actionRename(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
 
@@ -60,6 +72,11 @@ class OrderListsController extends BaseTeamController
     public function actionDelete(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
 
@@ -78,6 +95,11 @@ class OrderListsController extends BaseTeamController
     public function actionSetItem(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
 
@@ -98,6 +120,11 @@ class OrderListsController extends BaseTeamController
     public function actionAddToCart(): ?Response
     {
         $this->requirePostRequest();
+
+        if ($response = $this->requireFeature('enableQuickOrder')) {
+            return $response;
+        }
+
         $company = $this->requireCompany();
         $request = Craft::$app->getRequest();
 

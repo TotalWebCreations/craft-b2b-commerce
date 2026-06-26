@@ -72,6 +72,10 @@ class B2bVariable
     /** @return array<int, array{id: int, name: string, createdByUserId: ?int, itemCount: int}> */
     public function getOrderLists(): array
     {
+        if (!Plugin::getInstance()->getSettings()->enableQuickOrder) {
+            return [];
+        }
+
         $company = $this->getCompany();
 
         if ($company === null) {
@@ -84,6 +88,10 @@ class B2bVariable
     /** @return array<int, array{purchasableId: int, qty: int, sku: string, description: ?string}> */
     public function getOrderListItems(int $listId): array
     {
+        if (!Plugin::getInstance()->getSettings()->enableQuickOrder) {
+            return [];
+        }
+
         $company = $this->getCompany();
 
         if ($company === null) {

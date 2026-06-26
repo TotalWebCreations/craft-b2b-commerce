@@ -140,8 +140,8 @@ register prompt instead of prices and cannot add products to the cart.
 | Companies | `enableCompanies` | `true` | No effect yet — reserved. Company accounts are always active in this release. |
 | Quotes | `enableQuotes` | `true` | No effect yet — reserved for the quotes pillar (roadmap). |
 | Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
-| Pay on account | `enableInvoicing` | `true` | No effect yet — reserved for the pay-on-account pillar (roadmap). |
-| Quick order | `enableQuickOrder` | `true` | No effect yet — the quick order features are always available to approved buyers regardless of this toggle. |
+| Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout for approved companies. The gateway ships in an upcoming release; the toggle is read as soon as it does. |
+| Quick order | `enableQuickOrder` | `true` | Enables quick order, order lists and reorder for approved buyers. When off, those front-end endpoints return a clean "feature not enabled" failure and `craft.b2b` exposes no order-list data. |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
 | Honeypot field name | `honeypotFieldName` | `'b2b_website'` | Name of the hidden anti-spam field on the registration form. See [Security notes](#security-notes). |

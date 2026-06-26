@@ -31,14 +31,14 @@
 
 {{ forms.lightswitchField({
     label: 'Pay on account'|t('b2b-commerce'),
-    instructions: 'Reserved for an upcoming release — this setting has no effect yet.'|t('b2b-commerce'),
+    instructions: 'Offer pay on account (on invoice) at checkout for approved companies, within their credit limit. The pay-on-account gateway ships in an upcoming release; this toggle governs its availability once it does.'|t('b2b-commerce'),
     name: 'enableInvoicing',
     on: settings.enableInvoicing,
 }) }}
 
 {{ forms.lightswitchField({
     label: 'Quick order'|t('b2b-commerce'),
-    instructions: 'Reserved for an upcoming release — this setting has no effect yet.'|t('b2b-commerce'),
+    instructions: 'Enable quick order, order lists and reorder for approved buyers. When off, those endpoints return a clean failure and craft.b2b exposes no order-list data.'|t('b2b-commerce'),
     name: 'enableQuickOrder',
     on: settings.enableQuickOrder,
 }) }}
