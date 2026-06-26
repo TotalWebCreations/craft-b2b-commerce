@@ -28,6 +28,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
 use totalwebcreations\b2bcommerce\variables\B2bVariable;
@@ -40,13 +41,14 @@ use yii\base\Event;
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
  * @property-read OrderCompanyLink $orderCompanyLink
+ * @property-read OrderLists $orderLists
  * @property-read PriceVisibility $priceVisibility
  * @property-read QuickOrder $quickOrder
  * @property-read Registration $registration
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.1';
+    public string $schemaVersion = '1.0.2';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -71,6 +73,7 @@ class Plugin extends BasePlugin
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
             'orderCompanyLink' => OrderCompanyLink::class,
+            'orderLists' => OrderLists::class,
             'priceVisibility' => PriceVisibility::class,
             'quickOrder' => QuickOrder::class,
             'registration' => Registration::class,

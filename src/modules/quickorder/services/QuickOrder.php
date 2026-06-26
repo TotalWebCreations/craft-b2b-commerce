@@ -135,8 +135,10 @@ class QuickOrder extends Component
      * Merges the requested quantity into the cart for the given purchasable and runs the
      * add through Commerce. Returns null on success, or a translated message when a
      * line-item veto blocks the add. The label seeds the neutral fallback message.
+     *
+     * Public so sibling services (order lists) share one add-path; callers save the cart.
      */
-    private function addResolvedPurchasable(Order $cart, int $purchasableId, int $qty, string $label): ?string
+    public function addResolvedPurchasable(Order $cart, int $purchasableId, int $qty, string $label): ?string
     {
         $lineItem = Commerce::getInstance()->getLineItems()->resolveLineItem($cart, $purchasableId, []);
         $lineItem->qty = $lineItem->id ? $lineItem->qty + $qty : $qty;
