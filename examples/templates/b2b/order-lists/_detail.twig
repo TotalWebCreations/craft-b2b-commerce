@@ -1,0 +1,93 @@
+{% extends '_layout' %}
+
+{# Detail view for a single order list. Wire it up with a site route that captures
+   the list id, e.g. 'b2b/order-lists/<listId:\d+>' => 'b2b/order-lists/_detail',
+   which hands this template a `listId` variable. #}
+{% requireLogin %}
+
+{% set listId = listId ?? craft.app.request.getSegment(3) %}
+{% set listId = listId ? listId|number : null %}
+
+{# Resolve the list's name from the company overview (items are fetched separately). #}
+{% set current = null %}
+{% for list in craft.b2b.orderLists %}
+    {% if list.id == listId %}
+        {% set current = list %}
+    {% endif %}
+{% endfor %}
+
+{% if not current %}
+    {% exit 404 %}
+{% endif %}
+
+{% block content %}
+    <h1>{{ current.name }}</h1>
+
+    <p><a href="{{ url('b2b/order-lists') }}">{{ 'Back to lists'|t('b2b-commerce') }}</a></p>
+
+    {# craft.b2b.orderListItems(listId) returns the items on this list, guarded by
+       the current user's company. Setting a quantity to 0 removes the item. #}
+    <p>{{ 'Setting a quantity to 0 removes the item from the list.'|t('b2b-commerce') }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'SKU'|t('b2b-commerce') }}</th>
+                <th>{{ 'Description'|t('b2b-commerce') }}</th>
+                <th>{{ 'Quantity'|t('b2b-commerce') }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in craft.b2b.orderListItems(listId) %}
+                <tr>
+                    <td>{{ item.sku }}</td>
+                    <td>{{ item.description }}</td>
+                    <td colspan="2">
+                        {# Set-item form: updates the quantity, or removes the row when 0. #}
+                        <form method="post" accept-charset="UTF-8">
+                            {{ csrfInput() }}
+                            {{ actionInput('b2b-commerce/order-lists/set-item') }}
+                            {{ hiddenInput('listId', current.id) }}
+                            {{ hiddenInput('purchasableId', item.purchasableId) }}
+                            <input type="number" name="qty" value="{{ item.qty }}" min="0" step="1">
+                            <button type="submit">{{ 'Update'|t('b2b-commerce') }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="4">{{ 'This list has no items yet.'|t('b2b-commerce') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>{{ 'Add an item'|t('b2b-commerce') }}</h2>
+
+    {# Add-item form: identifies the purchasable by id. On your own product pages
+       expose the purchasable (variant) id so buyers can add items to a list. #}
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/order-lists/set-item') }}
+        {{ hiddenInput('listId', current.id) }}
+
+        <label>{{ 'Purchasable ID'|t('b2b-commerce') }} <input type="number" name="purchasableId" min="1" step="1" required></label>
+        <label>{{ 'Quantity'|t('b2b-commerce') }} <input type="number" name="qty" value="1" min="1" step="1"></label>
+        <p>{{ 'Add the purchasable ID from a product page.'|t('b2b-commerce') }}</p>
+
+        <button type="submit">{{ 'Add'|t('b2b-commerce') }}</button>
+    </form>
+
+    <h2>{{ 'Add all to cart'|t('b2b-commerce') }}</h2>
+
+    {# Add-all form: copies every available item on the list into the active cart,
+       returning an {added, errors} payload. Restyle and handle the JSON as needed. #}
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/order-lists/add-to-cart') }}
+        {{ hiddenInput('listId', current.id) }}
+
+        <button type="submit">{{ 'Add all to cart'|t('b2b-commerce') }}</button>
+    </form>
+{% endblock %}

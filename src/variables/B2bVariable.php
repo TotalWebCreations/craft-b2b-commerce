@@ -67,4 +67,28 @@ class B2bVariable
 
         return Plugin::getInstance()->companyAddresses->getAddresses($company->id);
     }
+
+    /** @return array<int, array{id: int, name: string, createdByUserId: ?int, itemCount: int}> */
+    public function getOrderLists(): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        return Plugin::getInstance()->orderLists->getLists($company->id);
+    }
+
+    /** @return array<int, array{purchasableId: int, qty: int, sku: string, description: ?string}> */
+    public function getOrderListItems(int $listId): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        return Plugin::getInstance()->orderLists->getItems($company, $listId);
+    }
 }

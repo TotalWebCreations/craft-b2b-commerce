@@ -1,0 +1,67 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Order lists'|t('b2b-commerce') }}</h1>
+
+    {# craft.b2b.orderLists returns the current user's company lists, each with its
+       item count. Any company member may view, create, rename and delete lists —
+       order lists are shared work material, not team administration. #}
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'List name'|t('b2b-commerce') }}</th>
+                <th>{{ 'Items'|t('b2b-commerce') }}</th>
+                <th></th>
+                <th></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for list in craft.b2b.orderLists %}
+                <tr>
+                    <td>{{ list.name }}</td>
+                    <td>{{ list.itemCount }} {{ 'items'|t('b2b-commerce') }}</td>
+                    <td>
+                        {# Opens the detail view for this list. #}
+                        <a href="{{ url('b2b/order-lists/' ~ list.id) }}">{{ 'View'|t('b2b-commerce') }}</a>
+                    </td>
+                    <td>
+                        {# Rename form: any member may rename a shared list. #}
+                        <form method="post" accept-charset="UTF-8">
+                            {{ csrfInput() }}
+                            {{ actionInput('b2b-commerce/order-lists/rename') }}
+                            {{ hiddenInput('listId', list.id) }}
+                            <input type="text" name="name" value="{{ list.name }}" required>
+                            <button type="submit">{{ 'Rename'|t('b2b-commerce') }}</button>
+                        </form>
+                    </td>
+                    <td>
+                        {# Delete form: removes the list and its items (cascades). #}
+                        <form method="post" accept-charset="UTF-8">
+                            {{ csrfInput() }}
+                            {{ actionInput('b2b-commerce/order-lists/delete') }}
+                            {{ hiddenInput('listId', list.id) }}
+                            <button type="submit">{{ 'Delete'|t('b2b-commerce') }}</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">{{ 'No lists yet.'|t('b2b-commerce') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>{{ 'Create a list'|t('b2b-commerce') }}</h2>
+
+    {# Create form: the created list is scoped to the current user's company. #}
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/order-lists/create') }}
+
+        <label>{{ 'List name'|t('b2b-commerce') }} <input type="text" name="name" required></label>
+
+        <button type="submit">{{ 'Create'|t('b2b-commerce') }}</button>
+    </form>
+{% endblock %}
