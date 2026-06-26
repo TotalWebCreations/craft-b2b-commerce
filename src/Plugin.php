@@ -7,6 +7,7 @@ use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
 use craft\commerce\elements\Order;
 use craft\commerce\events\AddLineItemEvent;
+use craft\commerce\services\Gateways;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\events\DefineBehaviorsEvent;
@@ -22,6 +23,7 @@ use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyAddresses;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
@@ -61,6 +63,7 @@ class Plugin extends BasePlugin
         }
 
         $this->registerComponents();
+        $this->registerGateways();
         $this->attachCpHandlers();
         $this->attachCommerceHandlers();
         $this->attachSystemMessages();
@@ -100,6 +103,17 @@ class Plugin extends BasePlugin
             Order::EVENT_DEFINE_BEHAVIORS,
             function(DefineBehaviorsEvent $event) {
                 $event->behaviors['b2bOrder'] = OrderBehavior::class;
+            }
+        );
+    }
+
+    private function registerGateways(): void
+    {
+        Event::on(
+            Gateways::class,
+            Gateways::EVENT_REGISTER_GATEWAY_TYPES,
+            function(RegisterComponentTypesEvent $event) {
+                $event->types[] = InvoiceGateway::class;
             }
         );
     }

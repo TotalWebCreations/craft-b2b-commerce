@@ -19,8 +19,9 @@ B2B Commerce is organised around five pillars:
    order adjuster.
 3. **Order approvals** — *on the roadmap.* Spending thresholds with an approve/decline
    flow for purchasers and approvers.
-4. **Pay on account** — *on the roadmap.* Offline "pay on account" gateway with credit
-   limits and balance overviews.
+4. **Pay on account** — *available now.* Offline "pay on account" gateway that lets
+   approved companies with pay-on-account enabled check out on invoice. Credit limits
+   and balance overviews are on the roadmap.
 5. **Quick order** — *available now.* Fast repeat purchasing for approved buyers:
    paste SKUs (one per line, Excel-style), upload a CSV, re-order a past order (your
    own or a colleague's), and keep shared, company-wide order lists to drop into the
@@ -133,6 +134,21 @@ Once a member is approved and signed in, they can add products to the cart. When
 **Hide prices for guests** is enabled, guests and unapproved accounts see a sign-in /
 register prompt instead of prices and cannot add products to the cart.
 
+### 6. Pay on account (optional)
+
+To let approved companies check out on invoice, create the gateway in the control
+panel under **Commerce → System Settings → Gateways → New gateway** and pick the
+**Pay on account** type. Add one gateway per store. It behaves like Commerce's Manual
+gateway (authorize-only; the order completes unpaid so you can capture and invoice out
+of band) and shows up at checkout only when:
+
+1. the **Pay on account** setting (`enableInvoicing`) is on;
+2. the customer belongs to a company that is **approved** and has **Allow pay on
+   account** enabled on its company record.
+
+Credit-limit enforcement lands in a later release; for now the gateway is offered to
+every eligible company regardless of its credit limit.
+
 ## Settings reference
 
 | Setting | Key | Default | Description |
@@ -140,7 +156,7 @@ register prompt instead of prices and cannot add products to the cart.
 | Companies | `enableCompanies` | `true` | No effect yet — reserved. Company accounts are always active in this release. |
 | Quotes | `enableQuotes` | `true` | No effect yet — reserved for the quotes pillar (roadmap). |
 | Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
-| Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout for approved companies. The gateway ships in an upcoming release; the toggle is read as soon as it does. |
+| Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout. When off, the gateway is never available regardless of company settings. See [Pay on account](#6-pay-on-account-optional). |
 | Quick order | `enableQuickOrder` | `true` | Enables quick order, order lists and reorder for approved buyers. When off, those front-end endpoints return a clean "feature not enabled" failure and `craft.b2b` exposes no order-list data. |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
@@ -365,8 +381,8 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Pay on account** — offline "pay on account" gateway, credit checks and balance
-  overviews.
+- **Pay on account** — credit checks and balance overviews on top of the offline
+  "pay on account" gateway (the gateway itself is available now).
 - **Quotes** — request-for-quote lifecycle, order adjuster and validity handling.
 - **Order approvals** — spending thresholds with an approve/decline flow and emails.
 - **Tax ID / VIES validation** and Plugin Store polish.
