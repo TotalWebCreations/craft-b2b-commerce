@@ -26,7 +26,11 @@ class QuickOrder extends Component
     public function addToCart(Order $cart, string $input): array
     {
         $parsed = (new SkuLineParser())->parse($input);
-        $errors = $parsed['errors'];
+        // The parser is framework-free and returns fixed English messages; translate them here.
+        $errors = array_map(
+            fn(string $message): string => Craft::t('b2b-commerce', $message),
+            $parsed['errors'],
+        );
         $lines = $parsed['lines'];
 
         if ($lines === []) {

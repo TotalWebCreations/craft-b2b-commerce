@@ -100,6 +100,8 @@ return [
     'No orders yet.' => 'Nog geen orders.',
     'Company not found.' => 'Bedrijf niet gevonden.',
     'Unknown SKU "{sku}"' => 'Onbekende SKU "{sku}"',
+    'Missing SKU' => 'SKU ontbreekt',
+    'Invalid quantity' => 'Ongeldig aantal',
     'SKU "{sku}" is not available' => 'SKU "{sku}" is niet beschikbaar',
     '{count} items added to your cart.' => '{count} artikelen toegevoegd aan je winkelwagen.',
     'Enter one SKU per line, optionally followed by a quantity (separated by a space, tab, comma or semicolon).' => 'Voer één SKU per regel in, eventueel gevolgd door een aantal (gescheiden door een spatie, tab, komma of puntkomma).',
