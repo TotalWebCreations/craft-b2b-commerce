@@ -3,6 +3,10 @@
 ## 1.0.0-alpha.1 - Unreleased
 
 ### Added
+- Pay on account: an offline "pay on account" gateway (Commerce → System Settings → Gateways → New gateway → Pay on account) that lets approved companies with pay-on-account enabled check out on invoice; the order completes unpaid so you can capture and invoice out of band
+- Per-company credit limit enforced on the storefront: the gateway is only offered while a new order fits inside the company's remaining credit, and the limit is re-checked under a per-company lock at order completion so two orders completing at once cannot both slip past it. An empty credit limit means no credit room at all, not unlimited credit. Enforcement is scoped to storefront requests; control-panel completions are treated as a merchant override
+- Credit balance overview: outstanding balance and available credit exposed as `craft.b2b.creditSummary` on the storefront and shown to merchants on a company's Orders page, alongside a per-order paid / partially paid / unpaid status
+- `order.b2bPaymentDueDate`: a completed invoice order's payment due date, derived from the order date plus the company's payment term
 - Quick order: paste SKUs (one per line, Excel-style) to add many products to the cart at once, with per-line error reporting keyed to the original line number
 - Quick order CSV upload, fed through the same SKU parser as the textarea
 - Re-order action that copies a completed order's still-available line items into the cart, for the buyer's own and colleague orders
@@ -24,6 +28,7 @@
 - Dutch translations
 
 ### Changed
+- The `enableInvoicing` and `enableQuickOrder` settings are now functional: turning them off makes the pay-on-account gateway unavailable everywhere and returns a clean "feature not enabled" failure from the quick-order endpoints
 - The `B2B: company approved` email is now accompanied by an activation email so new members can set a password
 
 ### Fixed

@@ -21,13 +21,14 @@ B2B Commerce is organised around five pillars:
    flow for purchasers and approvers.
 4. **Pay on account** — *available now.* Offline "pay on account" gateway that lets
    approved companies with pay-on-account enabled check out on invoice, with credit
-   limits enforced on the storefront. Balance overviews are on the roadmap.
+   limits enforced on the storefront and outstanding-balance overviews in both the
+   control panel and the storefront.
 5. **Quick order** — *available now.* Fast repeat purchasing for approved buyers:
    paste SKUs (one per line, Excel-style), upload a CSV, re-order a past order (your
    own or a colleague's), and keep shared, company-wide order lists to drop into the
    cart in one go.
 
-This release delivers pillars 1 and 5. It ships:
+This release delivers pillars 1, 4 and 5. It ships:
 
 - A **Company** element with control panel management, statuses and a
   `Manage companies` permission.
@@ -54,6 +55,11 @@ This release delivers pillars 1 and 5. It ships:
 - **Quick order**: a SKU textarea (Excel-style paste), CSV upload, a re-order button
   (own and colleague orders) and shared, company-scoped **order lists**, all guarded by
   the same purchase check as the storefront.
+- **Pay on account**: an offline "pay on account" gateway for approved companies, with a
+  per-company **credit limit** enforced on the storefront (and re-checked under a lock at
+  order completion), a **payment term** that drives a per-order payment due date, and
+  outstanding-balance / available-credit overviews in the control panel and on the
+  storefront.
 - **Console commands**: `b2b-commerce/seed` to bootstrap demo data and
   `b2b-commerce/team/assign-role` to recover a company that lost its admin.
 - **Dutch translations** for all control panel and frontend strings.
@@ -150,6 +156,13 @@ Credit limits are enforced on the storefront. The gateway is only offered at che
 while a new order fits inside the company's remaining credit, and completion is checked
 again — under a per-company lock — so two orders completing at once cannot both slip past
 the limit.
+
+A company's **credit limit** is the total it may owe on unpaid pay-on-account orders at
+once. An **empty** credit limit means **no credit room at all**, not unlimited credit: a
+company with no limit set can never pay on account, and the gateway is never offered to
+it. Give a company a positive limit to let it order on invoice up to that amount. Each
+completed invoice order draws down the remaining room until it is paid off (see
+[Marking an invoice as paid](#marking-an-invoice-as-paid)).
 
 Enforcement is deliberately scoped to storefront (site) requests. Completing an
 over-limit order from the control panel is treated as a business override: an admin doing
@@ -433,8 +446,6 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Pay on account** — balance overviews on top of the offline "pay on account" gateway
-  (the gateway and storefront credit-limit enforcement are available now).
 - **Quotes** — request-for-quote lifecycle, order adjuster and validity handling.
 - **Order approvals** — spending thresholds with an approve/decline flow and emails.
 - **Tax ID / VIES validation** and Plugin Store polish.

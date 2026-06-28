@@ -41,9 +41,12 @@ use yii\base\Exception;
  * could each read the same pre-completion balance, both fit "within" the limit, and together
  * overshoot it (a TOCTOU race).
  *
- * Residual, fail-safe leak: if the completion save itself fails after the BEFORE event, no AFTER
- * event fires and the lock is never released in-process -- it is held until request teardown. This
- * never fails OPEN: MySQL GET_LOCK and file locks auto-release when the connection or process ends,
+ * Residual, fail-safe leak: the lock can be held past its usefulness by two vectors -- if the
+ * completion save itself fails after the BEFORE event, no AFTER event fires; or if
+ * OrderCompanyLink::linkCompany throws inside the AFTER event, it aborts the chain before
+ * releaseCreditLock (registered after it) runs. Either way the lock is never released in-process --
+ * it is held until request teardown. Neither ever fails OPEN: MySQL GET_LOCK and file locks
+ * auto-release when the connection or process ends,
  * and in the meantime a competing completion simply waits out the 5s acquire timeout and refuses
  * cleanly with the retry message. A stuck lock can only cause a temporary, self-healing refusal,
  * never an unchecked over-limit completion.
