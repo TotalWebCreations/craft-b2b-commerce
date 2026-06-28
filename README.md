@@ -251,6 +251,50 @@ with `order.b2bCompany`, which returns the `Company` element (or `null` for gues
 {% endif %}
 ```
 
+Each completed order also exposes its **payment due date** — the order date plus the
+company's payment term — through `order.b2bPaymentDueDate`. It returns a `DateTime` (or
+`null` when the order is not completed, is a guest order, or the company has no payment
+term configured). This is ideal for an order-confirmation email:
+
+```twig
+{% if order.b2bPaymentDueDate %}
+    <p>{{ 'Payment due'|t('b2b-commerce') }}: {{ order.b2bPaymentDueDate|date('short') }}</p>
+{% endif %}
+```
+
+### Credit balance
+
+`craft.b2b.creditSummary` returns the signed-in user's company credit position as a
+`{ outstanding, creditLimit, available }` array (or `null` when the visitor has no
+company). `outstanding` is the unpaid balance across the company's completed
+pay-on-account orders, `creditLimit` is the configured limit (or `null` when none is set),
+and `available` is the room left under the limit — never below zero — (or `null` when
+there is no limit). See `examples/templates/b2b/account/credit.twig` for a complete
+summary page:
+
+```twig
+{% set summary = craft.b2b.creditSummary %}
+
+{% if summary %}
+    <p>{{ 'Outstanding balance'|t('b2b-commerce') }}: {{ summary.outstanding|currency }}</p>
+    {% if summary.available is not null %}
+        <p>{{ 'Available credit'|t('b2b-commerce') }}: {{ summary.available|currency }}</p>
+    {% endif %}
+{% endif %}
+```
+
+The same figures are shown to merchants in the control panel on a company's **Orders**
+page, alongside a per-order payment status (paid / partially paid / unpaid).
+
+#### Marking an invoice as paid
+
+The plugin ships **no** custom "mark as paid" button. Because pay-on-account uses an
+offline gateway, you record a payment the standard Commerce way: open the order in the
+control panel order editor and add a transaction under **Payments** (or use **Update
+order status** / the payment actions). The company's outstanding balance and available
+credit are derived live from those transactions, so recording an offline payment there
+immediately lowers the outstanding balance everywhere it is shown.
+
 ### Address book
 
 Companies own a shared address book. Every stored address is a native Craft `Address`

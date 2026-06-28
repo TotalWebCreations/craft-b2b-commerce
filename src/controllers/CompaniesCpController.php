@@ -57,9 +57,16 @@ class CompaniesCpController extends Controller
             ? Order::find()->id($orderIds)->isCompleted(true)->status(null)->orderBy(['dateOrdered' => SORT_DESC])->all()
             : [];
 
+        $outstanding = Plugin::getInstance()->creditBalance->getOutstandingBalance($company->id);
+        $creditLimit = $company->creditLimit;
+        $available = $creditLimit === null ? null : max(0.0, $creditLimit - $outstanding);
+
         return $this->renderTemplate('b2b-commerce/companies/_orders', [
             'company' => $company,
             'orders' => $orders,
+            'outstanding' => $outstanding,
+            'creditLimit' => $creditLimit,
+            'available' => $available,
         ]);
     }
 

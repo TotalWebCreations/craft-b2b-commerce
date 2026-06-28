@@ -8,6 +8,29 @@
 ] %}
 
 {% block content %}
+    {# Only show the credit block when the company has a limit or an outstanding invoice balance. #}
+    {% if creditLimit is not null or outstanding > 0 %}
+        <div class="pane" style="margin-bottom: 24px;">
+            <h2>{{ 'Credit summary'|t('b2b-commerce') }}</h2>
+            <table class="data">
+                <tr>
+                    <th scope="row">{{ 'Outstanding balance'|t('b2b-commerce') }}</th>
+                    <td>{{ outstanding|currency }}</td>
+                </tr>
+                <tr>
+                    <th scope="row">{{ 'Credit limit'|t('b2b-commerce') }}</th>
+                    <td>{{ creditLimit is not null ? creditLimit|currency : 'No credit limit set'|t('b2b-commerce') }}</td>
+                </tr>
+                {% if available is not null %}
+                    <tr>
+                        <th scope="row">{{ 'Available credit'|t('b2b-commerce') }}</th>
+                        <td>{{ available|currency }}</td>
+                    </tr>
+                {% endif %}
+            </table>
+        </div>
+    {% endif %}
+
     {% if orders is empty %}
         <p class="zilch">{{ 'No orders yet.'|t('b2b-commerce') }}</p>
     {% else %}
@@ -17,17 +40,28 @@
                     <th scope="col">{{ 'Order'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Date'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Payment'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for order in orders %}
+                    {# Payment status derived from the live getTotalPaid() getter against the order total. #}
+                    {% set totalPaid = order.totalPaid %}
+                    {% if totalPaid >= order.totalPrice %}
+                        {% set paymentLabel = 'Paid'|t('b2b-commerce') %}
+                    {% elseif totalPaid > 0 %}
+                        {% set paymentLabel = 'Partially paid'|t('b2b-commerce') %}
+                    {% else %}
+                        {% set paymentLabel = 'Unpaid'|t('b2b-commerce') %}
+                    {% endif %}
                     <tr>
                         <td>
                             <a href="{{ order.cpEditUrl }}">{{ order.reference ?: order.shortNumber }}</a>
                         </td>
                         <td>{{ (order.dateOrdered ?? order.dateCreated) ? (order.dateOrdered ?? order.dateCreated)|datetime('short') : '' }}</td>
                         <td>{{ order.totalPrice|currency(order.currency) }}</td>
+                        <td>{{ paymentLabel }}</td>
                         <td>{{ order.orderStatus ? order.orderStatus.name : order.status }}</td>
                     </tr>
                 {% endfor %}

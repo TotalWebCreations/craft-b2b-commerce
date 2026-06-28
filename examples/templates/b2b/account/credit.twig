@@ -1,0 +1,29 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Credit summary'|t('b2b-commerce') }}</h1>
+
+    {# craft.b2b.creditSummary returns {outstanding, creditLimit, available} for the current
+       user's company, or null when the visitor is not linked to a company. #}
+    {% set summary = craft.b2b.creditSummary %}
+
+    {% if summary %}
+        <dl>
+            <dt>{{ 'Outstanding balance'|t('b2b-commerce') }}</dt>
+            <dd>{{ summary.outstanding|currency }}</dd>
+
+            <dt>{{ 'Credit limit'|t('b2b-commerce') }}</dt>
+            <dd>
+                {# creditLimit and available are null when no credit limit is configured. #}
+                {{ summary.creditLimit is not null ? summary.creditLimit|currency : 'No credit limit set'|t('b2b-commerce') }}
+            </dd>
+
+            {% if summary.available is not null %}
+                <dt>{{ 'Available credit'|t('b2b-commerce') }}</dt>
+                <dd>{{ summary.available|currency }}</dd>
+            {% endif %}
+        </dl>
+    {% else %}
+        <p>{{ 'No orders yet.'|t('b2b-commerce') }}</p>
+    {% endif %}
+{% endblock %}

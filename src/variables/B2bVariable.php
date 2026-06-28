@@ -36,6 +36,32 @@ class B2bVariable
         return Plugin::getInstance()->companyMembers->getCompanyForUser($user->id);
     }
 
+    /**
+     * The current user's company credit position, or null when the visitor has no company.
+     * `available` is the room left under the credit limit (never below zero), or null when the
+     * company has no credit limit set.
+     *
+     * @return array{outstanding: float, creditLimit: ?float, available: ?float}|null
+     */
+    public function getCreditSummary(): ?array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return null;
+        }
+
+        $outstanding = Plugin::getInstance()->creditBalance->getOutstandingBalance($company->id);
+        $creditLimit = $company->creditLimit;
+        $available = $creditLimit === null ? null : max(0.0, $creditLimit - $outstanding);
+
+        return [
+            'outstanding' => $outstanding,
+            'creditLimit' => $creditLimit,
+            'available' => $available,
+        ];
+    }
+
     /** @return array<int, array{user: User, role: string}> */
     public function getTeamMembers(): array
     {
