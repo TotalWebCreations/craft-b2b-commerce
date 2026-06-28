@@ -15,16 +15,16 @@
             <table class="data">
                 <tr>
                     <th scope="row">{{ 'Outstanding balance'|t('b2b-commerce') }}</th>
-                    <td>{{ outstanding|currency }}</td>
+                    <td>{{ outstanding|currency(currency) }}</td>
                 </tr>
                 <tr>
                     <th scope="row">{{ 'Credit limit'|t('b2b-commerce') }}</th>
-                    <td>{{ creditLimit is not null ? creditLimit|currency : 'No credit limit set'|t('b2b-commerce') }}</td>
+                    <td>{{ creditLimit is not null ? creditLimit|currency(currency) : 'No credit limit set'|t('b2b-commerce') }}</td>
                 </tr>
                 {% if available is not null %}
                     <tr>
                         <th scope="row">{{ 'Available credit'|t('b2b-commerce') }}</th>
-                        <td>{{ available|currency }}</td>
+                        <td>{{ available|currency(currency) }}</td>
                     </tr>
                 {% endif %}
             </table>

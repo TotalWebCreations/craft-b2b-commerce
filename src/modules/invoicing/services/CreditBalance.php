@@ -74,6 +74,32 @@ class CreditBalance extends Component
     }
 
     /**
+     * The company's credit position: what it still owes, its configured limit, and the room left
+     * under that limit. `available` is clamped at zero -- an over-limit balance shows no negative
+     * room -- and is null when the company has no credit limit set. Centralises the clamp rule
+     * shared by the control-panel orders screen and the craft.b2b.creditSummary variable.
+     *
+     * @return array{
+     *     outstanding: float,
+     *     creditLimit: ?float,
+     *     available: ?float
+     * }
+     */
+    public function getSummary(int $companyId): array
+    {
+        $company = Plugin::getInstance()->companyMembers->getCompanyById($companyId);
+        $creditLimit = $company?->creditLimit;
+        $outstanding = $this->getOutstandingBalance($companyId);
+        $available = $creditLimit === null ? null : max(0.0, $creditLimit - $outstanding);
+
+        return [
+            'outstanding' => $outstanding,
+            'creditLimit' => $creditLimit,
+            'available' => $available,
+        ];
+    }
+
+    /**
      * Whether the company can take on an additional charge without exceeding its credit limit.
      * A company without a credit limit is never allowed to pay on account.
      */

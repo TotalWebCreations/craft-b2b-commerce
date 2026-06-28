@@ -51,15 +51,7 @@ class B2bVariable
             return null;
         }
 
-        $outstanding = Plugin::getInstance()->creditBalance->getOutstandingBalance($company->id);
-        $creditLimit = $company->creditLimit;
-        $available = $creditLimit === null ? null : max(0.0, $creditLimit - $outstanding);
-
-        return [
-            'outstanding' => $outstanding,
-            'creditLimit' => $creditLimit,
-            'available' => $available,
-        ];
+        return Plugin::getInstance()->creditBalance->getSummary($company->id);
     }
 
     /** @return array<int, array{user: User, role: string}> */

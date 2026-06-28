@@ -174,6 +174,17 @@ class InvoiceGateway extends Gateway
 
     private function hasCreditRoom(Order $order, Company $company): bool
     {
+        // A completed invoice order has already drawn on the company's credit and is itself part of
+        // the outstanding balance. Commerce's PaymentsController re-checks availableForUseWithOrder
+        // at pay time (also from the control panel), so re-running canCover() here would count the
+        // order's totalPrice on top of a balance that already includes it -- double-counting that
+        // refuses any payment recorded against an at-/over-limit invoice order. Paying off
+        // already-extended credit must always be allowed, so the credit-room gate does not apply
+        // once the order is completed; the pre-completion checkout estimate is the only case it guards.
+        if ($order->isCompleted) {
+            return true;
+        }
+
         return Plugin::getInstance()->creditBalance->canCover($company->id, (float)$order->getTotalPrice());
     }
 }

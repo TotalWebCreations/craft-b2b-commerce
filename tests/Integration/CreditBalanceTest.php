@@ -225,3 +225,18 @@ it('makes the invoice gateway unavailable once a new order would exceed the cred
     expect($gateway->availableForUseWithOrder($overLimitCart))->toBeFalse()
         ->and($gateway->availableForUseWithOrder($withinLimitCart))->toBeTrue();
 });
+
+it('keeps the invoice gateway available to record payment on a completed over-limit order', function () {
+    // Completing in console skips enforcement, so this over-limit invoice order lands completed and
+    // drives the company's outstanding balance (60) past its 50 limit. Commerce re-checks
+    // availableForUseWithOrder when a payment is recorded (also from the CP); paying off
+    // already-extended credit must always be allowed, so the credit-room gate is skipped once the
+    // order is completed (I2). A fresh over-limit cart is still refused.
+    $gateway = new InvoiceGateway();
+    $company = creditTestCompany(50.0);
+    $completed = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 60.0);
+    $freshCart = cartForMember($company, 60.0);
+
+    expect($gateway->availableForUseWithOrder($completed))->toBeTrue()
+        ->and($gateway->availableForUseWithOrder($freshCart))->toBeFalse();
+});

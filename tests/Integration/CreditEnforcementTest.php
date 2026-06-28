@@ -219,6 +219,44 @@ it('refuses completion when the company credit lock cannot be acquired', functio
         ->toBe(['Could not verify your company credit limit. Please try again.']);
 });
 
+it('refuses completion of an invoice order whose customer has no company', function () {
+    // An invoice-gateway order with no approved company account would draw untracked credit no
+    // balance can ever see (the b2b_order_company receivable is only written for a customer with a
+    // company). Removing the buyer's membership before completion must fail closed (I4).
+    $company = enforcementCompany(500.0);
+    $order = invoiceOrderForNewMember($company, 20.0);
+
+    Plugin::getInstance()->companyMembers->removeUserFromCompany($order->getCustomer()->id, $company->id);
+
+    $refused = refuseCompletionAsSiteRequest($order);
+
+    expect($refused)->toBeTrue()
+        ->and(orderCompletedInDb($order->id))->toBeFalse()
+        ->and($order->getErrors('customerId'))
+        ->toBe(['Pay on account requires an approved company account.']);
+});
+
+it('refuses completion of an invoice order once pay on account is toggled off', function () {
+    // A cart that selected the invoice gateway while the toggle was on can still reach completion
+    // after a merchant switches it off; that completion must be refused (F7).
+    $company = enforcementCompany(500.0);
+    $order = invoiceOrderForNewMember($company, 20.0);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableInvoicing' => false]);
+
+    try {
+        $refused = refuseCompletionAsSiteRequest($order);
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableInvoicing' => true]);
+    }
+
+    expect($refused)->toBeTrue()
+        ->and(orderCompletedInDb($order->id))->toBeFalse()
+        ->and($order->getErrors('customerId'))
+        ->toBe(['This payment method is currently not available.']);
+});
+
 it('still credit-checks a partially paid invoice order for its remaining balance', function () {
     // Remainder within the limit is allowed despite the payment: this proves the check runs on the
     // remainder rather than skipping paid orders the way the account-status backstop does.

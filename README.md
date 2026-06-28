@@ -164,6 +164,10 @@ it. Give a company a positive limit to let it order on invoice up to that amount
 completed invoice order draws down the remaining room until it is paid off (see
 [Marking an invoice as paid](#marking-an-invoice-as-paid)).
 
+Credit limits are **single-currency**: a limit is a plain amount with no currency of its
+own, so it is compared against — and every credit figure is formatted in — your primary
+store's currency. Running credit across multiple store currencies is not supported.
+
 Enforcement is deliberately scoped to storefront (site) requests. Completing an
 over-limit order from the control panel is treated as a business override: an admin doing
 so is making an informed, merchant-initiated decision, so console and CP completions are
@@ -307,6 +311,13 @@ control panel order editor and add a transaction under **Payments** (or use **Up
 order status** / the payment actions). The company's outstanding balance and available
 credit are derived live from those transactions, so recording an offline payment there
 immediately lowers the outstanding balance everywhere it is shown.
+
+**Refunds.** The outstanding balance is measured as each order's live outstanding balance
+(total minus paid). A refund lowers the paid amount, so a **fully refunded** invoice order
+counts as outstanding again — a deliberate fail-safe that overstates rather than understates
+what a company owes. To **write off** an order today, either adjust the company's credit
+limit or record a payment covering the balance; excluding an order by its order status is on
+the roadmap.
 
 ### Address book
 

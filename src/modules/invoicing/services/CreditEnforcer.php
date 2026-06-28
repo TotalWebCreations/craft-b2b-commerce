@@ -85,18 +85,39 @@ class CreditEnforcer extends Component
             return;
         }
 
-        $customer = $order->getCustomer();
+        // Honour the master toggle at completion. A cart that selected the invoice gateway while the
+        // toggle was on can still reach this before-complete event after a merchant switches it off;
+        // refuse that completion so a disabled payment method cannot slip an order through. This
+        // event only fires on the not-yet-completed -> completed transition (markAsComplete()
+        // short-circuits an already-completed order), so recording a payment on an existing invoice
+        // order is unaffected -- see InvoiceGateway::hasCreditRoom().
+        if (!Plugin::getInstance()->getSettings()->enableInvoicing) {
+            $message = Craft::t('b2b-commerce', 'This payment method is currently not available.');
 
-        if ($customer === null) {
-            return;
+            // Attribute error before throwing keeps the aborted order from persisting as completed
+            // via Commerce's _returnCart short-circuit (see the credit-check coupling comment below).
+            $order->addError('customerId', $message);
+
+            throw new Exception($message);
         }
 
-        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($customer->id);
+        $customer = $order->getCustomer();
 
-        // Gateway availability already restricts invoice payment to approved companies, so a
-        // missing company should not happen here; let it pass rather than crash the completion.
+        $company = $customer !== null
+            ? Plugin::getInstance()->companyMembers->getCompanyForUser($customer->id)
+            : null;
+
+        // Fail closed: an invoice-gateway order with no approved company account must never complete.
+        // The b2b_order_company link -- and therefore the receivable -- is only written for a
+        // customer that HAS a company (see OrderCompanyLink::linkCompany), so an unlinked on-account
+        // order would draw silent, untracked credit that no balance can ever see. Refuse it rather
+        // than extend invisible credit.
         if ($company === null) {
-            return;
+            $message = Craft::t('b2b-commerce', 'Pay on account requires an approved company account.');
+
+            $order->addError('customerId', $message);
+
+            throw new Exception($message);
         }
 
         $mutex = Craft::$app->getMutex();

@@ -4,6 +4,7 @@ namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
 use craft\commerce\elements\Order;
+use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use craft\web\Controller;
 use totalwebcreations\b2bcommerce\elements\Company;
@@ -57,16 +58,19 @@ class CompaniesCpController extends Controller
             ? Order::find()->id($orderIds)->isCompleted(true)->status(null)->orderBy(['dateOrdered' => SORT_DESC])->all()
             : [];
 
-        $outstanding = Plugin::getInstance()->creditBalance->getOutstandingBalance($company->id);
-        $creditLimit = $company->creditLimit;
-        $available = $creditLimit === null ? null : max(0.0, $creditLimit - $outstanding);
+        $summary = Plugin::getInstance()->creditBalance->getSummary($company->id);
+
+        // Credit limits are single-currency: format every credit figure in the primary store's
+        // currency rather than leaving the |currency filter to fall back to the request locale.
+        $currency = Commerce::getInstance()->getStores()->getPrimaryStore()?->getCurrency()?->getCode();
 
         return $this->renderTemplate('b2b-commerce/companies/_orders', [
             'company' => $company,
             'orders' => $orders,
-            'outstanding' => $outstanding,
-            'creditLimit' => $creditLimit,
-            'available' => $available,
+            'outstanding' => $summary['outstanding'],
+            'creditLimit' => $summary['creditLimit'],
+            'available' => $summary['available'],
+            'currency' => $currency,
         ]);
     }
 
