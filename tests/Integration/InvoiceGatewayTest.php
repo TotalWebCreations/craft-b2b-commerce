@@ -32,12 +32,15 @@ function createGatewayTestOrder(?User $customer): Order
 
 /**
  * Creates a tracked company with the given status and persists the
- * allowInvoicePayment flag so getCompanyForUser rehydrates it from the database.
+ * allowInvoicePayment flag and credit limit so getCompanyForUser rehydrates them
+ * from the database. A credit limit is required for the gateway to consider the
+ * company to have credit room.
  */
-function createInvoiceCompany(string $status, bool $allowInvoicePayment): Company
+function createInvoiceCompany(string $status, bool $allowInvoicePayment, ?float $creditLimit = 1000.0): Company
 {
     $company = createTestCompany($status);
     $company->allowInvoicePayment = $allowInvoicePayment;
+    $company->creditLimit = $creditLimit;
 
     if (!craftApp()->getElements()->saveElement($company)) {
         throw new RuntimeException('Could not save test company: ' . implode(', ', $company->getFirstErrors()));

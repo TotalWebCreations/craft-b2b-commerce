@@ -30,6 +30,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
@@ -42,6 +43,7 @@ use yii\base\Event;
  * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
+ * @property-read CreditBalance $creditBalance
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
  * @property-read PriceVisibility $priceVisibility
@@ -75,6 +77,7 @@ class Plugin extends BasePlugin
             'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
+            'creditBalance' => CreditBalance::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
             'priceVisibility' => PriceVisibility::class,

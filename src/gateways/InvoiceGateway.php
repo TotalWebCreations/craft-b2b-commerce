@@ -174,7 +174,6 @@ class InvoiceGateway extends Gateway
 
     private function hasCreditRoom(Order $order, Company $company): bool
     {
-        // Credit enforcement lands with the CreditBalance service (phase 4 task 3), which replaces this body.
-        return true;
+        return Plugin::getInstance()->creditBalance->canCover($company->id, (float)$order->getTotalPrice());
     }
 }
