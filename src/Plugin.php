@@ -31,6 +31,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
+use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
@@ -44,6 +45,7 @@ use yii\base\Event;
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
  * @property-read CreditBalance $creditBalance
+ * @property-read CreditEnforcer $creditEnforcer
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
  * @property-read PriceVisibility $priceVisibility
@@ -78,6 +80,7 @@ class Plugin extends BasePlugin
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
             'creditBalance' => CreditBalance::class,
+            'creditEnforcer' => CreditEnforcer::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
             'priceVisibility' => PriceVisibility::class,
@@ -199,6 +202,22 @@ class Plugin extends BasePlugin
                 }
 
                 $this->orderCompanyLink->enforcePurchasePolicy($event->sender);
+            }
+        );
+
+        // Registered AFTER enforcePurchasePolicy so the account-status backstop runs first and the
+        // hard credit-limit check second. The two are independent: the backstop's paid-order
+        // exemption does not skip this check (a partially paid invoice order is still checked for
+        // its remaining balance).
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->creditEnforcer->enforceCreditLimit($event->sender);
             }
         );
 

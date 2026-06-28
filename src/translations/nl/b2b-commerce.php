@@ -36,6 +36,8 @@ return [
     'B2B: company approved' => 'B2B: bedrijf goedgekeurd',
     'You need an approved business account to order.' => 'Je hebt een goedgekeurd zakelijk account nodig om te bestellen.',
     'This order cannot be completed with the current account status.' => 'Deze bestelling kan niet worden voltooid met de huidige accountstatus.',
+    "This order exceeds your company's credit limit." => 'Deze bestelling overschrijdt de kredietlimiet van je bedrijf.',
+    'Could not verify your company credit limit. Please try again.' => 'Kon de kredietlimiet van je bedrijf niet verifiëren. Probeer het opnieuw.',
     'Hide prices for guests' => 'Prijzen verbergen voor gasten',
     'Hide prices and disable add-to-cart for visitors without an approved company account.' => 'Verberg prijzen en schakel bestellen uit voor bezoekers zonder goedgekeurd bedrijfsaccount.',
     'Admin notification email' => 'E-mailadres voor beheerdersnotificaties',
