@@ -59,6 +59,31 @@ function creditTestManualGateway(): Manual
 }
 
 /**
+ * Returns a shared InvoiceGateway fixture kept for the archive test, created on first use.
+ * getGatewayByHandle resolves archived gateways too, so once this has been archived a later run
+ * finds and reuses the archived instance rather than colliding on its handle.
+ */
+function creditTestArchivableInvoiceGateway(): InvoiceGateway
+{
+    $handle = 'b2bCreditArchivedInvoice';
+    $existing = Commerce::getInstance()->getGateways()->getGatewayByHandle($handle);
+
+    if ($existing instanceof InvoiceGateway) {
+        return $existing;
+    }
+
+    $gateway = new InvoiceGateway();
+    $gateway->name = 'B2B Credit Archived Invoice';
+    $gateway->handle = $handle;
+
+    if (!Commerce::getInstance()->getGateways()->saveGateway($gateway)) {
+        throw new RuntimeException('Could not save archivable invoice gateway: ' . implode(', ', $gateway->getErrorSummary(true)));
+    }
+
+    return $gateway;
+}
+
+/**
  * Creates a tracked, approved company with the invoice flag and the given credit limit.
  */
 function creditTestCompany(?float $creditLimit): Company
@@ -196,6 +221,29 @@ it('refuses any charge for a company without a credit limit', function () {
     $company = creditTestCompany(null);
 
     expect(Plugin::getInstance()->creditBalance->canCover($company->id, 5.0))->toBeFalse();
+});
+
+it('includes archived invoice gateways in the balance gateway-id set', function () {
+    // Inclusion logic is asserted directly rather than by archiving-then-summing an order:
+    // Commerce's archiveGatewayById() nulls gatewayId on every existing order as it archives, so a
+    // completed order can never keep pointing at an archived gateway through that path -- summing
+    // it would prove nothing. What we can prove deterministically is that an archived InvoiceGateway
+    // still contributes its id to the set the balance query filters on, so any order that does still
+    // reference it keeps counting.
+    $gateway = creditTestArchivableInvoiceGateway();
+
+    if (!$gateway->isArchived) {
+        Commerce::getInstance()->getGateways()->archiveGatewayById($gateway->id);
+    }
+
+    $service = Plugin::getInstance()->creditBalance;
+    $method = new ReflectionMethod($service, 'getInvoiceGatewayIds');
+    $method->setAccessible(true);
+
+    $ids = $method->invoke($service);
+
+    expect($gateway->isArchived)->toBeTrue()
+        ->and($ids)->toContain($gateway->id);
 });
 
 it('makes the invoice gateway unavailable once a new order would exceed the credit limit', function () {

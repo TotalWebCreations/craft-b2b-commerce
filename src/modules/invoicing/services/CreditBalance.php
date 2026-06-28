@@ -37,6 +37,10 @@ class CreditBalance extends Component
         // getter is therefore the only correct measure of what is still owed.
         $orderIds = (new Query())
             ->select('orders.id')
+            // A defensive DISTINCT: the inner join is one-to-one on orderId (b2b_order_company
+            // keys on orderId), so duplicates cannot occur today, but a duplicated candidate id
+            // would double-count an order's balance -- guard against it rather than trust the join.
+            ->distinct()
             ->from(['orders' => Table::ORDERS])
             ->innerJoin(['oc' => '{{%b2b_order_company}}'], '[[oc.orderId]] = [[orders.id]]')
             ->where([
@@ -87,19 +91,35 @@ class CreditBalance extends Component
     }
 
     /**
-     * Ids of every non-archived InvoiceGateway instance. Resolved from Commerce's Gateways
-     * service, which already caches the gateway set per request (Gateways::$_allGateways) and
-     * invalidates that cache whenever a gateway is saved or archived, so no second cache is kept
-     * here: a stale one would silently miscount the balance if the gateway set changed.
+     * Ids of every InvoiceGateway instance, archived ones included. Resolved from Commerce's
+     * Gateways service, which already caches the gateway set per request (Gateways::$_allGateways)
+     * and invalidates that cache whenever a gateway is saved or archived, so no second cache is
+     * kept here: a stale one would silently miscount the balance if the gateway set changed.
+     *
+     * Archived invoice gateways are unioned in on purpose: an order still carrying an archived
+     * invoice gateway's id is a real receivable and must keep counting against the company's
+     * credit -- dropping it would understate the balance and hand out phantom credit room.
+     *
+     * Note the limit of a gatewayId-keyed balance: Commerce's Gateways::archiveGatewayById() nulls
+     * gatewayId on every existing order as it archives, so orders archived AFTER completion lose
+     * this reference entirely and fall out of the sum regardless of this union. The union therefore
+     * only catches orders that still reference an archived gateway (e.g. data written out of band).
+     * Recovering the nulled ones would need a durable invoice marker rather than the live gatewayId,
+     * which is out of scope here.
      *
      * @return array<int, int>
      */
     private function getInvoiceGatewayIds(): array
     {
-        return Commerce::getInstance()->getGateways()
-            ->getAllGateways()
+        $gateways = Commerce::getInstance()->getGateways();
+
+        $active = $gateways->getAllGateways()->all();
+        $archived = $gateways->getAllArchivedGateways();
+
+        return collect([...$active, ...$archived])
             ->filter(fn($gateway) => $gateway instanceof InvoiceGateway)
             ->map(fn($gateway) => (int) $gateway->id)
+            ->unique()
             ->values()
             ->all();
     }
