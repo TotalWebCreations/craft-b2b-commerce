@@ -54,7 +54,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.2';
+    public string $schemaVersion = '1.0.3';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -230,6 +230,25 @@ class Plugin extends BasePlugin
                 }
 
                 $this->orderCompanyLink->linkCompany($event->sender);
+            }
+        );
+
+        // CRITICAL ORDERING: this release MUST stay registered AFTER linkCompany above.
+        // yii\base\Event::trigger fires class-level handlers in registration order (Event::on
+        // appends; the handlers are array_merge'd in registration order in Event::trigger), so
+        // releasing here runs only once linkCompany's AFTER_COMPLETE write has landed. The credit
+        // lock taken in EVENT_BEFORE_COMPLETE_ORDER must span BOTH the completion save AND the
+        // b2b_order_company link row, otherwise a concurrent invoice order could read a stale
+        // balance in between and both slip past the limit. Do not reorder these two Event::on calls.
+        Event::on(
+            Order::class,
+            Order::EVENT_AFTER_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->creditEnforcer->releaseCreditLock($event->sender);
             }
         );
     }

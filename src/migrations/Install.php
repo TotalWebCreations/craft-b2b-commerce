@@ -51,6 +51,7 @@ class Install extends Migration
             $this->createTable('{{%b2b_order_company}}', [
                 'orderId' => $this->integer()->notNull(),
                 'companyId' => $this->integer()->notNull(),
+                'isInvoice' => $this->boolean()->notNull()->defaultValue(false),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
@@ -60,6 +61,17 @@ class Install extends Migration
             $this->createIndex(null, '{{%b2b_order_company}}', ['companyId']);
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+        }
+
+        // Column parity for installs whose table predates the isInvoice snapshot. No backfill here:
+        // a fresh install has no link rows, and an existing install reaches this column through the
+        // m260709_120000 migration, which does backfill.
+        if (!$this->db->columnExists('{{%b2b_order_company}}', 'isInvoice')) {
+            $this->addColumn(
+                '{{%b2b_order_company}}',
+                'isInvoice',
+                $this->boolean()->notNull()->defaultValue(false)->after('companyId')
+            );
         }
 
         if (!$this->db->tableExists('{{%b2b_order_lists}}')) {

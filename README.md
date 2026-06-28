@@ -20,8 +20,8 @@ B2B Commerce is organised around five pillars:
 3. **Order approvals** — *on the roadmap.* Spending thresholds with an approve/decline
    flow for purchasers and approvers.
 4. **Pay on account** — *available now.* Offline "pay on account" gateway that lets
-   approved companies with pay-on-account enabled check out on invoice. Credit limits
-   and balance overviews are on the roadmap.
+   approved companies with pay-on-account enabled check out on invoice, with credit
+   limits enforced on the storefront. Balance overviews are on the roadmap.
 5. **Quick order** — *available now.* Fast repeat purchasing for approved buyers:
    paste SKUs (one per line, Excel-style), upload a CSV, re-order a past order (your
    own or a colleague's), and keep shared, company-wide order lists to drop into the
@@ -146,8 +146,16 @@ of band) and shows up at checkout only when:
 2. the customer belongs to a company that is **approved** and has **Allow pay on
    account** enabled on its company record.
 
-Credit-limit enforcement lands in a later release; for now the gateway is offered to
-every eligible company regardless of its credit limit.
+Credit limits are enforced on the storefront. The gateway is only offered at checkout
+while a new order fits inside the company's remaining credit, and completion is checked
+again — under a per-company lock — so two orders completing at once cannot both slip past
+the limit.
+
+Enforcement is deliberately scoped to storefront (site) requests. Completing an
+over-limit order from the control panel is treated as a business override: an admin doing
+so is making an informed, merchant-initiated decision, so console and CP completions are
+never refused (and never throw at the merchant). Only the customer-facing checkout path is
+hard-enforced.
 
 ## Settings reference
 
@@ -381,8 +389,8 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Pay on account** — credit checks and balance overviews on top of the offline
-  "pay on account" gateway (the gateway itself is available now).
+- **Pay on account** — balance overviews on top of the offline "pay on account" gateway
+  (the gateway and storefront credit-limit enforcement are available now).
 - **Quotes** — request-for-quote lifecycle, order adjuster and validity handling.
 - **Order approvals** — spending thresholds with an approve/decline flow and emails.
 - **Tax ID / VIES validation** and Plugin Store polish.

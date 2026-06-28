@@ -7,6 +7,7 @@ use craft\commerce\elements\Order;
 use craft\db\Query;
 use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\Exception;
@@ -83,9 +84,13 @@ class OrderCompanyLink extends Component
             return;
         }
 
+        // Snapshot whether this order was placed on account. Reading it back from the live
+        // gatewayId is unsafe: archiving a gateway nulls gatewayId on every order that used it, so
+        // the receivable is recorded here, once, at completion instead.
         Db::upsert('{{%b2b_order_company}}', [
             'orderId' => $order->id,
             'companyId' => $company->id,
+            'isInvoice' => $order->getGateway() instanceof InvoiceGateway,
         ]);
     }
 }
