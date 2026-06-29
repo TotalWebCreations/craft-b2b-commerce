@@ -1,13 +1,17 @@
 <?php
 
 use craft\base\ElementInterface;
+use craft\commerce\elements\Order;
 use craft\commerce\elements\Product;
 use craft\commerce\elements\Variant;
 use craft\commerce\models\ProductType;
 use craft\commerce\models\ProductTypeSite;
 use craft\commerce\Plugin as Commerce;
+use craft\db\Query;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\enums\CompanyRole;
+use totalwebcreations\b2bcommerce\Plugin;
 
 /**
  * Elements created during a test, hard-deleted afterwards.
@@ -147,6 +151,38 @@ function mailCount(): int
 }
 
 /**
+ * Snapshot of the .eml files currently in the dev mailbox, for diffing against
+ * a later state to isolate the mail a single action produced. Sorting by
+ * filemtime is unreliable at 1-second resolution, so tests diff the file set.
+ *
+ * @return string[]
+ */
+function mailSnapshot(): array
+{
+    return glob(mailDir() . '/*.eml') ?: [];
+}
+
+/**
+ * Concatenated, quoted-printable decoded bodies of every .eml written since the
+ * given snapshot, so soft-wrapped long URLs and encoded query separators match
+ * as plain text.
+ *
+ * @param string[] $snapshot
+ */
+function decodedMailSince(array $snapshot): string
+{
+    $new = array_diff(mailSnapshot(), $snapshot);
+
+    $body = '';
+
+    foreach ($new as $file) {
+        $body .= quoted_printable_decode((string) file_get_contents($file)) . "\n";
+    }
+
+    return $body;
+}
+
+/**
  * Raw contents of the most recently written .eml file in the dev mailbox.
  */
 function newestMailBody(): string
@@ -179,4 +215,52 @@ function createTestUser(string $email, bool $active = true): User
     trackElement($user);
 
     return $user;
+}
+
+/**
+ * Creates and saves a tracked cart order carrying a single line item.
+ */
+function quoteCartWithItem(): Order
+{
+    $order = new Order();
+    $order->number = md5(uniqid((string) mt_rand(), true));
+
+    if (!craftApp()->getElements()->saveElement($order)) {
+        throw new RuntimeException('Could not save quote cart: ' . implode(', ', $order->getFirstErrors()));
+    }
+
+    trackElement($order);
+
+    $variant = createTestVariant('QUOTE-' . substr(uniqid(), -6));
+    Plugin::getInstance()->quickOrder->addResolvedPurchasable($order, $variant->id, 1, $variant->sku);
+    craftApp()->getElements()->saveElement($order);
+
+    return $order;
+}
+
+/**
+ * Creates a tracked user attached to a tracked company with the given status.
+ *
+ * @return array{0: User, 1: Company}
+ */
+function quoteMember(string $status = Company::STATUS_APPROVED): array
+{
+    $company = createTestCompany($status, 'Quote Co');
+    $user = createTestUser('quote_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
+
+    return [$user, $company];
+}
+
+/**
+ * Reads the quote row for the given order straight from the table.
+ *
+ * @return array<string, mixed>|null
+ */
+function quoteRow(int $orderId): ?array
+{
+    return (new Query())
+        ->from('{{%b2b_quotes}}')
+        ->where(['orderId' => $orderId])
+        ->one() ?: null;
 }

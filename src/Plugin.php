@@ -177,6 +177,16 @@ class Plugin extends BasePlugin
                     return;
                 }
 
+                if ($event->sender instanceof Order && $this->quotes->orderHasOpenQuote($event->sender->id)) {
+                    $message = Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.');
+
+                    $event->isValid = false;
+                    $event->lineItem->addError('purchasableId', $message);
+                    $event->sender->addError('purchasableId', $message);
+
+                    return;
+                }
+
                 $canPurchase = $this->priceVisibility->canPurchase(
                     Craft::$app->getUser()->getIdentity()
                 );
@@ -280,6 +290,25 @@ class Plugin extends BasePlugin
                         "You have been added to the business account for {{company.title}}. " .
                         "You can now sign in and order at business conditions.\n\n" .
                         "{{siteUrl}}"),
+                ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_quote_sent',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: quote sent'),
+                    'subject' => Craft::t('b2b-commerce', 'Your quote is ready'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "Your quote is ready. You can accept it or decline it using the links below:\n\n" .
+                        "Accept: {{acceptUrl}}\n" .
+                        "Decline: {{declineUrl}}"),
+                ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_quote_declined',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: quote declined'),
+                    'subject' => Craft::t('b2b-commerce', 'Your quote request was declined'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "Unfortunately your quote request was declined.\n\n" .
+                        "Reason: {{reason}}"),
                 ];
             }
         );

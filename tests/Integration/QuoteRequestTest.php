@@ -1,12 +1,10 @@
 <?php
 
 use craft\commerce\elements\Order;
-use craft\db\Query;
 use craft\elements\User;
 use craft\web\Response as WebResponse;
 use totalwebcreations\b2bcommerce\controllers\QuotesController;
 use totalwebcreations\b2bcommerce\elements\Company;
-use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -49,52 +47,6 @@ function withQuoteIdentity(User $user, callable $callback): void
     } finally {
         $userComponent->setIdentity($previous);
     }
-}
-
-/**
- * Creates and saves a tracked cart order carrying a single line item.
- */
-function quoteCartWithItem(): Order
-{
-    $order = new Order();
-    $order->number = md5(uniqid((string) mt_rand(), true));
-
-    if (!craftApp()->getElements()->saveElement($order)) {
-        throw new RuntimeException('Could not save quote cart: ' . implode(', ', $order->getFirstErrors()));
-    }
-
-    trackElement($order);
-
-    $variant = createTestVariant('QUOTE-' . substr(uniqid(), -6));
-    Plugin::getInstance()->quickOrder->addResolvedPurchasable($order, $variant->id, 1, $variant->sku);
-    craftApp()->getElements()->saveElement($order);
-
-    return $order;
-}
-
-/**
- * Creates a tracked user attached to a tracked company with the given status.
- *
- * @return array{0: User, 1: Company}
- */
-function quoteMember(string $status = Company::STATUS_APPROVED): array
-{
-    $company = createTestCompany($status, 'Quote Co');
-    $user = createTestUser('quote_' . uniqid() . '@example.test');
-    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $company->id, CompanyRole::Admin);
-
-    return [$user, $company];
-}
-
-/**
- * Reads the quote row for the given order straight from the table.
- */
-function quoteRow(int $orderId): ?array
-{
-    return (new Query())
-        ->from('{{%b2b_quotes}}')
-        ->where(['orderId' => $orderId])
-        ->one() ?: null;
 }
 
 it('records a requested quote, notifies an admin and leaves the order surviving as a non-completed order', function () {

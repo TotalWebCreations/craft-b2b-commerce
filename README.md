@@ -425,6 +425,43 @@ so line-item vetoes are honoured and missing or unavailable products surface as
 per-position errors. See `examples/templates/b2b/order-lists/index.twig` and
 `_detail.twig` for a complete overview and item editor.
 
+### Quotes
+
+An approved buyer turns their cart into a quote request from the cart (see the
+*Request a quote* example template). The request survives as a non-completed order; the
+buyer keeps a fresh session cart. A merchant then works the quote in the control panel and
+either **sends** it (with an optional validity date) or **declines** it.
+
+**Frozen prices.** When a quote is sent, the plugin pins the order's prices by setting
+Commerce's `recalculationMode` to `none` and saving. That mode is a persisted column on
+the order and is restored on load *before* the element defaults it, so the freeze survives
+reloads and every later save short-circuits recalculation — whatever the merchant left on
+each line item is exactly what the buyer will pay. Merchant line-item price overrides made
+under this mode are preserved verbatim.
+
+**Accept / decline routes are yours to build.** The sent-quote email links to two **site**
+routes with the quote's token in the query string:
+
+```
+{{ siteUrl('quotes/accept', { token: '…' }) }}
+{{ siteUrl('quotes/decline', { token: '…' }) }}
+```
+
+These paths are **not** provided by the plugin — the store owner defines the routes and
+templates (in `config/routes.php` or as sections/entries) that resolve the token and drive
+the accept/decline actions. Example storefront templates ship in a later phase.
+
+**Cart-mutation guard.** An open quote order (`requested` or `sent`) must not be edited
+through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate any
+non-completed order by number as the session cart, the plugin vetoes **any line-item add**
+on an order that still carries an open quote (Commerce only fires the add event for *new*
+line items). Known residual: Commerce's cart update merges a **quantity change** onto an
+*existing* line item without firing that event, so quantity edits are not blocked at this
+layer. Under the `recalculationMode = none` freeze the per-unit price cannot change, so
+this cannot inject a discount; it can only change quantities on an order the buyer must
+still know the number of. Fully blocking quantity edits needs an order-level save veto,
+which is deferred to the accept/checkout flow that owns the order lifecycle.
+
 ## Known limitations
 
 - **Company field layout is stored in the database, not project config.** The custom-field
@@ -434,7 +471,7 @@ per-position errors. See `examples/templates/b2b/order-lists/index.twig` and
 
 ## Console commands
 
-The plugin ships two Craft console commands:
+The plugin ships these Craft console commands:
 
 - `php craft b2b-commerce/seed` — bootstraps a demo, pre-approved company (*Acme
   Wholesale Ltd*) with an admin user (`buyer@acme.test`) for local development. It is
@@ -444,6 +481,14 @@ The plugin ships two Craft console commands:
   `purchaser` and `approver`. This is the **recovery path** for a company that lost its
   last admin: unlike the frontend team flows it deliberately bypasses the last-admin
   guard, so an operator can reinstate an admin from the command line.
+- `php craft b2b-commerce/quotes/expire` — flips every still-open quote (`requested` or
+  `sent`) whose `validUntil` has passed to `expired`, in a single update, and prints the
+  count. Quotes without a `validUntil` never expire. **Run it on a cron** so quotes lapse
+  on their own, for example hourly:
+
+  ```cron
+  0 * * * * cd /path/to/project && php craft b2b-commerce/quotes/expire >> /dev/null 2>&1
+  ```
 
 ## Uninstalling
 
