@@ -177,6 +177,7 @@ return [
     'The company field layout could not be saved.' => 'De veldindeling voor bedrijven kon niet worden opgeslagen.',
     'This order is not a quote.' => 'Deze bestelling is geen offerte.',
     'A quote cannot move from {from} to {to}.' => 'Een offerte kan niet van {from} naar {to} gaan.',
+    'The validity date must be in the future.' => 'De geldigheidsdatum moet in de toekomst liggen.',
     'This cart is part of a quote and cannot be modified.' => 'Deze winkelwagen maakt deel uit van een offerte en kan niet worden gewijzigd.',
     'B2B: quote sent' => 'B2B: offerte verzonden',
     'Your quote is ready' => 'Je offerte is klaar',

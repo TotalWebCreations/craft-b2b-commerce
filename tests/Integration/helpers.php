@@ -253,6 +253,23 @@ function quoteMember(string $status = Company::STATUS_APPROVED): array
 }
 
 /**
+ * Runs the callback while pretending to be a front-end (non-console) request,
+ * restoring the console flag afterwards. Front-end guards keyed on the request
+ * type only fire in this window.
+ */
+function asSiteRequest(callable $callback): void
+{
+    $request = craftApp()->getRequest();
+    $request->setIsConsoleRequest(false);
+
+    try {
+        $callback();
+    } finally {
+        $request->setIsConsoleRequest(true);
+    }
+}
+
+/**
  * Reads the quote row for the given order straight from the table.
  *
  * @return array<string, mixed>|null

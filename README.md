@@ -449,18 +449,22 @@ routes with the quote's token in the query string:
 
 These paths are **not** provided by the plugin — the store owner defines the routes and
 templates (in `config/routes.php` or as sections/entries) that resolve the token and drive
-the accept/decline actions. Example storefront templates ship in a later phase.
+the accept/decline actions. Example storefront templates ship in a later phase. The **same
+token** authorizes both accept and decline.
 
 **Cart-mutation guard.** An open quote order (`requested` or `sent`) must not be edited
 through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate any
-non-completed order by number as the session cart, the plugin vetoes **any line-item add**
-on an order that still carries an open quote (Commerce only fires the add event for *new*
-line items). Known residual: Commerce's cart update merges a **quantity change** onto an
-*existing* line item without firing that event, so quantity edits are not blocked at this
-layer. Under the `recalculationMode = none` freeze the per-unit price cannot change, so
-this cannot inject a discount; it can only change quantities on an order the buyer must
-still know the number of. Fully blocking quantity edits needs an order-level save veto,
-which is deferred to the accept/checkout flow that owns the order lifecycle.
+non-completed order by number as the session cart, the plugin guards the order at save time:
+on a site request it vetoes the save whenever an open quote's line-item set diverges from
+what is stored — **quantity edits, option edits, line-item additions and removals are all
+blocked**. (This matters because under the `recalculationMode = none` freeze the charged
+total still moves with quantity — a quantity change against a frozen absolute discount can
+be driven to zero or negative — so freezing the per-unit price alone is not enough.) The
+new-item add event is still vetoed too, as defence in depth. Merchant edits in the control
+panel remain possible: the guard only applies to front-end site requests, and the plugin's
+own saves (such as setting the freeze when a quote is sent) explicitly stand down. Once the
+quote reaches a terminal status (e.g. accepted), the guard no longer applies and the order
+resumes its normal lifecycle.
 
 ## Known limitations
 

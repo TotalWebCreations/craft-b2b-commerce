@@ -21,6 +21,13 @@ use yii\base\InvalidArgumentException;
 class Quotes extends Component
 {
     /**
+     * Disarms the open-quote save guard for the plugin's own saves on an open
+     * quote. Buyer-side cart saves never touch this; only the service methods
+     * below (and future ones) flip it via allowQuoteSave().
+     */
+    private bool $quoteSaveAllowed = false;
+
+    /**
      * Turns the given cart into a quote request: records a requested quote row for the
      * actor's approved company and notifies an admin, then forgets the session cart so
      * the order survives untouched as the quote while the customer keeps a fresh cart.
@@ -75,9 +82,19 @@ class Quotes extends Component
         $row = $this->requireQuoteRow($order);
         $this->assertTransition(QuoteStatus::from($row['status']), QuoteStatus::Sent);
 
+        if ($validUntil !== null && $validUntil <= new DateTime()) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'The validity date must be in the future.')
+            );
+        }
+
         $order->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
 
-        if (!Craft::$app->getElements()->saveElement($order)) {
+        $saved = $this->allowQuoteSave(
+            fn (): bool => Craft::$app->getElements()->saveElement($order)
+        );
+
+        if (!$saved) {
             throw new InvalidArgumentException(implode(' ', $order->getFirstErrors()));
         }
 
@@ -146,6 +163,85 @@ class Quotes extends Component
                 'status' => [QuoteStatus::Requested->value, QuoteStatus::Sent->value],
             ])
             ->exists();
+    }
+
+    /**
+     * Runs the callback with the open-quote save guard disarmed, so the plugin's
+     * own saves on an open quote (the freeze in markSent, future service saves)
+     * are not vetoed as buyer mutations. The flag is always restored afterwards,
+     * even on exception. markSent already runs in CP context (double-covered);
+     * this keeps console and test contexts safe too.
+     *
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    public function allowQuoteSave(callable $callback): mixed
+    {
+        $previous = $this->quoteSaveAllowed;
+        $this->quoteSaveAllowed = true;
+
+        try {
+            return $callback();
+        } finally {
+            $this->quoteSaveAllowed = $previous;
+        }
+    }
+
+    /**
+     * Whether an open-quote save is currently sanctioned by the plugin itself,
+     * so the buyer-mutation save guard should stand down.
+     */
+    public function isQuoteSaveAllowed(): bool
+    {
+        return $this->quoteSaveAllowed;
+    }
+
+    /**
+     * Whether the order's in-memory line items diverge from the rows stored for
+     * it: a line item without an id (a pending addition), a changed set of ids
+     * (an addition or a removal), or any quantity change. Read straight from
+     * commerce_lineitems so it is independent of this plugin's own tables. The
+     * open-quote save guard uses this to veto exactly the buyer-side cart
+     * mutations (qty, options, additions, removals) while leaving untouched
+     * saves — which never change the line-item set — free to proceed.
+     */
+    public function lineItemsDifferFromStored(Order $order): bool
+    {
+        $rows = (new Query())
+            ->select(['id', 'qty'])
+            ->from('{{%commerce_lineitems}}')
+            ->where(['orderId' => $order->id])
+            ->all();
+
+        /** @var array<int, int> $stored */
+        $stored = array_column($rows, 'qty', 'id');
+
+        $current = [];
+
+        foreach ($order->getLineItems() as $lineItem) {
+            if ($lineItem->id === null) {
+                return true;
+            }
+
+            $current[$lineItem->id] = $lineItem->qty;
+        }
+
+        if (count($current) !== count($stored)) {
+            return true;
+        }
+
+        foreach ($current as $id => $qty) {
+            if (!array_key_exists($id, $stored)) {
+                return true;
+            }
+
+            if ((int) $stored[$id] !== (int) $qty) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function orderIsQuote(int $orderId): bool

@@ -11,6 +11,7 @@ use craft\commerce\services\Gateways;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\events\DefineBehaviorsEvent;
+use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
 use craft\events\RegisterUrlRulesEvent;
@@ -173,7 +174,7 @@ class Plugin extends BasePlugin
             function(AddLineItemEvent $event) {
                 $request = Craft::$app->getRequest();
 
-                if ($request->getIsConsoleRequest() || !$request->getIsSiteRequest()) {
+                if ($request->getIsConsoleRequest() || $request->getIsCpRequest()) {
                     return;
                 }
 
@@ -203,6 +204,55 @@ class Plugin extends BasePlugin
                 if ($event->sender instanceof Order) {
                     $event->sender->addError('purchasableId', $message);
                 }
+            }
+        );
+
+        // Buyer-side immutability of open quote carts. Under the sent-quote price freeze
+        // (recalculationMode = none) the charged total still moves with quantity and a frozen
+        // absolute discount can be driven negative, and line removal is otherwise unguarded — so
+        // the add-line-item guard above (new items only) is not enough. This vetoes the order save
+        // whenever an open-quote cart's line-item set diverges from what is stored: quantity edits,
+        // option edits, additions and removals all change the set and are blocked. It stands down
+        // for the plugin's own saves (isQuoteSaveAllowed) and self-disarms once Task 4 flips the
+        // quote to accepted (orderHasOpenQuote goes false). Scoped like the add-guard (skips
+        // console and CP requests), so merchant CP edits stay free. Note: a still-'sent' quote should never reach
+        // checkout (accept flips it to accepted first); a completion save that still mutates line
+        // items on a sent quote being vetoed here is therefore correct protection, not a regression.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_SAVE,
+            function(ModelEvent $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $request = Craft::$app->getRequest();
+
+                if ($request->getIsConsoleRequest() || $request->getIsCpRequest()) {
+                    return;
+                }
+
+                $quotes = $this->quotes;
+
+                if ($quotes->isQuoteSaveAllowed()) {
+                    return;
+                }
+
+                $order = $event->sender;
+
+                if (!$quotes->orderHasOpenQuote($order->id)) {
+                    return;
+                }
+
+                if (!$quotes->lineItemsDifferFromStored($order)) {
+                    return;
+                }
+
+                $event->isValid = false;
+                $order->addError(
+                    'lineItems',
+                    Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.')
+                );
             }
         );
 

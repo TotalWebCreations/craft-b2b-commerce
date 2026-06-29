@@ -59,22 +59,6 @@ function orderCompanyRowExists(int $orderId): bool
         ->exists();
 }
 
-/**
- * Runs the callback while pretending to be a front-end (non-console) request,
- * restoring the console flag afterwards.
- */
-function asSiteRequest(callable $callback): void
-{
-    $request = Craft::$app->getRequest();
-    $request->setIsConsoleRequest(false);
-
-    try {
-        $callback();
-    } finally {
-        $request->setIsConsoleRequest(true);
-    }
-}
-
 it('links a completed order to the customer company and resolves it back', function () {
     $user = createTestUser('ordercompany_' . uniqid() . '@example.test');
     $company = createTestCompany('approved');

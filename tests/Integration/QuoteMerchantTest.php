@@ -1,6 +1,8 @@
 <?php
 
 use craft\commerce\elements\Order;
+use craft\commerce\Plugin as Commerce;
+use craft\db\Query;
 use craft\helpers\Db;
 use craft\helpers\StringHelper;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
@@ -199,3 +201,146 @@ it('flags open quote carts as unmodifiable and clears the flag once terminal', f
         ->and($quotes->orderHasOpenQuote($plainCart->id))->toBeFalse()
         ->and($quotes->orderHasOpenQuote(null))->toBeFalse();
 });
+
+it('refuses to send a quote with a validity date in the past', function () {
+    [$user, $company] = quoteMember();
+    $order = bareQuoteOrder();
+    insertQuoteRow($order->id, QuoteStatus::Requested->value, $company->id, $user->id);
+
+    expect(fn () => Plugin::getInstance()->quotes->markSent($order, new DateTime('-1 day')))
+        ->toThrow(InvalidArgumentException::class, 'The validity date must be in the future.');
+});
+
+it('vetoes a quantity change on an open quote cart on a site request', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $lineItem->qty = $lineItem->qty + 3;
+    $reloaded->setLineItems([$lineItem]);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
+    expect($saved)->toBeFalse()
+        ->and($reloaded->getFirstError('lineItems'))->toBe('This cart is part of a quote and cannot be modified.')
+        ->and(storedLineItemQty($lineItemId))->toBe(1);
+});
+
+it('vetoes removing a line item from an open quote cart on a site request', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $reloaded->setLineItems([]);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
+    $remaining = (new Query())
+        ->from('{{%commerce_lineitems}}')
+        ->where(['orderId' => $order->id])
+        ->count();
+
+    expect($saved)->toBeFalse()
+        ->and((int) $remaining)->toBe(1);
+});
+
+it('vetoes adding a new line item to an open quote cart on a site request', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $newVariant = createTestVariant('QUOTE-ADD-' . substr(uniqid(), -6));
+
+    // Resolve the line item in console context (building a purchasable snapshot
+    // touches web-request internals the faked request lacks), then add it under
+    // a site request so it is the add-line-item guard event that fires.
+    $lineItem = Commerce::getInstance()->getLineItems()->resolveLineItem($reloaded, $newVariant->id, []);
+    $lineItem->qty = 1;
+
+    asSiteRequest(function () use ($reloaded, $lineItem) {
+        $reloaded->addLineItem($lineItem);
+    });
+
+    expect($reloaded->getLineItems())->toHaveCount(1)
+        ->and($lineItem->getFirstError('purchasableId'))
+        ->toBe('This cart is part of a quote and cannot be modified.');
+});
+
+it('lets the plugin save an open quote cart through the allow flag', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $lineItem->qty = 5;
+    $reloaded->setLineItems([$lineItem]);
+
+    // A sent quote is frozen (recalculationMode = none); mirror that here so the
+    // save does not re-price line items (which would rebuild the CP-URL snapshot
+    // the faked request cannot resolve). The allow flag is what lets it through.
+    $reloaded->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = Plugin::getInstance()->quotes->allowQuoteSave(
+            fn (): bool => craftApp()->getElements()->saveElement($reloaded)
+        );
+    });
+
+    expect($saved)->toBeTrue()
+        ->and(storedLineItemQty($lineItemId))->toBe(5);
+});
+
+it('stops vetoing cart mutations once the quote is accepted', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Accepted->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $lineItem->qty = 4;
+    $reloaded->setLineItems([$lineItem]);
+
+    // An accepted quote inherits the sent quote's frozen mode; keep it frozen so
+    // the save does not rebuild the snapshot the faked request cannot resolve.
+    $reloaded->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
+    expect($saved)->toBeTrue()
+        ->and($reloaded->hasErrors('lineItems'))->toBeFalse()
+        ->and(storedLineItemQty($lineItemId))->toBe(4);
+});
+
+/**
+ * Reads a line item's persisted quantity straight from commerce_lineitems.
+ */
+function storedLineItemQty(int $lineItemId): int
+{
+    return (int) (new Query())
+        ->select(['qty'])
+        ->from('{{%commerce_lineitems}}')
+        ->where(['id' => $lineItemId])
+        ->scalar();
+}
