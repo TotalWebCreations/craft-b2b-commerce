@@ -63,6 +63,29 @@ class Install extends Migration
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
         }
 
+        if (!$this->db->tableExists('{{%b2b_quotes}}')) {
+            $this->createTable('{{%b2b_quotes}}', [
+                'orderId' => $this->integer()->notNull(),
+                'companyId' => $this->integer()->notNull(),
+                'status' => $this->string()->notNull()->defaultValue('requested'),
+                'validUntil' => $this->dateTime(),
+                'notes' => $this->text(),
+                'declineReason' => $this->text(),
+                'requestedById' => $this->integer(),
+                'acceptToken' => $this->string()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+                'PRIMARY KEY([[orderId]])',
+            ]);
+
+            $this->createIndex(null, '{{%b2b_quotes}}', ['companyId']);
+            $this->createIndex(null, '{{%b2b_quotes}}', ['acceptToken'], true);
+            $this->addForeignKey(null, '{{%b2b_quotes}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_quotes}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_quotes}}', ['requestedById'], Table::USERS, ['id'], 'SET NULL');
+        }
+
         // Column parity for installs whose table predates the isInvoice snapshot. No backfill here:
         // a fresh install has no link rows, and an existing install reaches this column through the
         // m260709_120000 migration, which does backfill.
