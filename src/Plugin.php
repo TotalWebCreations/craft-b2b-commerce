@@ -211,8 +211,9 @@ class Plugin extends BasePlugin
         // (recalculationMode = none) the charged total still moves with quantity and a frozen
         // absolute discount can be driven negative, and line removal is otherwise unguarded — so
         // the add-line-item guard above (new items only) is not enough. This vetoes the order save
-        // whenever an open-quote cart's line-item set diverges from what is stored: quantity edits,
-        // option edits, additions and removals all change the set and are blocked. It stands down
+        // whenever an open-quote cart diverges from what is stored: additions and removals change the
+        // id-set, quantity edits move the qty, and in-place option edits change the optionsSignature —
+        // all four are blocked (line-item notes are not compared and stay editable). It stands down
         // for the plugin's own saves (isQuoteSaveAllowed) and self-disarms once Task 4 flips the
         // quote to accepted (orderHasOpenQuote goes false). Scoped like the add-guard (skips
         // console and CP requests), so merchant CP edits stay free. Note: a still-'sent' quote should never reach

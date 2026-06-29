@@ -233,6 +233,29 @@ it('vetoes a quantity change on an open quote cart on a site request', function 
         ->and(storedLineItemQty($lineItemId))->toBe(1);
 });
 
+it('vetoes an in-place options change on an open quote cart on a site request', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id);
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $storedSignature = storedLineItemOptionsSignature($lineItemId);
+    $lineItem->setOptions(['engraving' => 'x']);
+    $reloaded->setLineItems([$lineItem]);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
+    expect($saved)->toBeFalse()
+        ->and($reloaded->getFirstError('lineItems'))->toBe('This cart is part of a quote and cannot be modified.')
+        ->and(storedLineItemOptionsSignature($lineItemId))->toBe($storedSignature);
+});
+
 it('vetoes removing a line item from an open quote cart on a site request', function () {
     $company = createTestCompany();
     $order = quoteCartWithItem();
@@ -340,6 +363,18 @@ function storedLineItemQty(int $lineItemId): int
 {
     return (int) (new Query())
         ->select(['qty'])
+        ->from('{{%commerce_lineitems}}')
+        ->where(['id' => $lineItemId])
+        ->scalar();
+}
+
+/**
+ * Reads a line item's persisted options signature straight from commerce_lineitems.
+ */
+function storedLineItemOptionsSignature(int $lineItemId): string
+{
+    return (string) (new Query())
+        ->select(['optionsSignature'])
         ->from('{{%commerce_lineitems}}')
         ->where(['id' => $lineItemId])
         ->scalar();

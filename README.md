@@ -455,9 +455,10 @@ token** authorizes both accept and decline.
 **Cart-mutation guard.** An open quote order (`requested` or `sent`) must not be edited
 through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate any
 non-completed order by number as the session cart, the plugin guards the order at save time:
-on a site request it vetoes the save whenever an open quote's line-item set diverges from
+on a site request it vetoes the save whenever an open quote's line items diverge from
 what is stored — **quantity edits, option edits, line-item additions and removals are all
-blocked**. (This matters because under the `recalculationMode = none` freeze the charged
+blocked** (line-item notes are not compared and stay editable, as they are financially and
+delivery-wise inert). (This matters because under the `recalculationMode = none` freeze the charged
 total still moves with quantity — a quantity change against a frozen absolute discount can
 be driven to zero or negative — so freezing the per-unit price alone is not enough.) The
 new-item add event is still vetoed too, as defence in depth. Merchant edits in the control

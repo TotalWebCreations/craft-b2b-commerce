@@ -200,22 +200,21 @@ class Quotes extends Component
     /**
      * Whether the order's in-memory line items diverge from the rows stored for
      * it: a line item without an id (a pending addition), a changed set of ids
-     * (an addition or a removal), or any quantity change. Read straight from
-     * commerce_lineitems so it is independent of this plugin's own tables. The
-     * open-quote save guard uses this to veto exactly the buyer-side cart
+     * (an addition or a removal), any quantity change, or a changed options
+     * signature on an existing item (an in-place options edit). Read straight
+     * from commerce_lineitems so it is independent of this plugin's own tables.
+     * The open-quote save guard uses this to veto exactly the buyer-side cart
      * mutations (qty, options, additions, removals) while leaving untouched
      * saves — which never change the line-item set — free to proceed.
      */
     public function lineItemsDifferFromStored(Order $order): bool
     {
         $rows = (new Query())
-            ->select(['id', 'qty'])
+            ->select(['id', 'qty', 'optionsSignature'])
             ->from('{{%commerce_lineitems}}')
             ->where(['orderId' => $order->id])
+            ->indexBy('id')
             ->all();
-
-        /** @var array<int, int> $stored */
-        $stored = array_column($rows, 'qty', 'id');
 
         $current = [];
 
@@ -224,19 +223,23 @@ class Quotes extends Component
                 return true;
             }
 
-            $current[$lineItem->id] = $lineItem->qty;
+            $current[$lineItem->id] = $lineItem;
         }
 
-        if (count($current) !== count($stored)) {
+        if (count($current) !== count($rows)) {
             return true;
         }
 
-        foreach ($current as $id => $qty) {
-            if (!array_key_exists($id, $stored)) {
+        foreach ($current as $id => $lineItem) {
+            if (!array_key_exists($id, $rows)) {
                 return true;
             }
 
-            if ((int) $stored[$id] !== (int) $qty) {
+            if ((int) $rows[$id]['qty'] !== (int) $lineItem->qty) {
+                return true;
+            }
+
+            if ((string) $rows[$id]['optionsSignature'] !== $lineItem->getOptionsSignature()) {
                 return true;
             }
         }
