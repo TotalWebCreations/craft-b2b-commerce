@@ -183,10 +183,8 @@ class Quotes extends Component
             );
         }
 
-        Db::update('{{%b2b_quotes}}', [
-            'status' => QuoteStatus::Accepted->value,
-        ], ['orderId' => $row['orderId']]);
-
+        // Resolve the order BEFORE flipping the status, so a missing order can never leave an
+        // accepted quote row without an order behind it.
         $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
 
         if ($order === null) {
@@ -194,6 +192,10 @@ class Quotes extends Component
                 Craft::t('b2b-commerce', 'This quote is not available.')
             );
         }
+
+        Db::update('{{%b2b_quotes}}', [
+            'status' => QuoteStatus::Accepted->value,
+        ], ['orderId' => $row['orderId']]);
 
         $carts = Commerce::getInstance()->getCarts();
         $carts->forgetCart();
@@ -236,7 +238,7 @@ class Quotes extends Component
             'and',
             ['status' => [QuoteStatus::Requested->value, QuoteStatus::Sent->value]],
             ['not', ['validUntil' => null]],
-            ['<', 'validUntil', Db::prepareDateForDb(new DateTime())],
+            ['<=', 'validUntil', Db::prepareDateForDb(new DateTime())],
         ]);
     }
 

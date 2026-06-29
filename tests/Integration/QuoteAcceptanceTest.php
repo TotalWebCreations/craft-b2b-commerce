@@ -11,10 +11,15 @@ use yii\base\InvalidArgumentException;
 // quoteCartWithItem(), quoteRow(), mailSnapshot(), decodedMailSince() in helpers.php;
 // withQuoteIdentity() in QuoteRequestTest.php — all loaded globally by the suite.
 
-it('accepts a sent quote: flips the status, returns the quote order and lets it complete', function () {
+it('accepts a sent quote: flips the status, returns the quote order and completes at the frozen total', function () {
     [$user, $company] = quoteMember();
     $order = quoteCartWithItem();
-    $token = insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id, $user->id);
+    $token = insertQuoteRow($order->id, QuoteStatus::Requested->value, $company->id, $user->id);
+
+    // Send freezes the prices; capture the frozen total right after so the completed
+    // order can be proven to charge exactly that (the brief's frozen-total guarantee).
+    Plugin::getInstance()->quotes->markSent($order, null);
+    $frozenTotal = Order::find()->id($order->id)->status(null)->one()->getTotalPrice();
 
     // setSessionCartNumber() only writes the cookie on a web request, so the real
     // session hand-off is proven in the Http suite; here the durable guarantees are
@@ -29,7 +34,8 @@ it('accepts a sent quote: flips the status, returns the quote order and lets it 
     $reloaded = Order::find()->id($order->id)->status(null)->one();
 
     expect($reloaded->markAsComplete())->toBeTrue()
-        ->and($reloaded->isCompleted)->toBeTrue();
+        ->and($reloaded->isCompleted)->toBeTrue()
+        ->and($reloaded->getTotalPrice())->toBe($frozenTotal);
 });
 
 it('lazily expires a sent quote past its validity and refuses to accept it', function () {
@@ -103,6 +109,32 @@ it('declines a sent quote by token: records the reason and mails the store admin
     expect($row['status'])->toBe(QuoteStatus::Declined->value)
         ->and($row['declineReason'])->toBe('Found a better price elsewhere')
         ->and($body)->toContain('Found a better price elsewhere');
+});
+
+it('gives decline the same generic message for an unknown token and a wrong-company token (no oracle)', function () {
+    [$userA, $companyA] = quoteMember();
+    $order = bareQuoteOrder();
+    $token = insertQuoteRow($order->id, QuoteStatus::Sent->value, $companyA->id, $userA->id);
+
+    [$userB] = quoteMember();
+
+    $unknownMessage = null;
+    $wrongCompanyMessage = null;
+
+    try {
+        Plugin::getInstance()->quotes->declineByToken(StringHelper::randomString(40), $userB, 'nope');
+    } catch (InvalidArgumentException $exception) {
+        $unknownMessage = $exception->getMessage();
+    }
+
+    try {
+        Plugin::getInstance()->quotes->declineByToken($token, $userB, 'nope');
+    } catch (InvalidArgumentException $exception) {
+        $wrongCompanyMessage = $exception->getMessage();
+    }
+
+    expect($unknownMessage)->toBe('This quote is not available.')
+        ->and($wrongCompanyMessage)->toBe($unknownMessage);
 });
 
 it('exposes read-only quote data by token to a company member and hides it from outsiders', function () {
