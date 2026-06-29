@@ -1,0 +1,76 @@
+{% extends '_layout' %}
+
+{# Accept / decline page for a sent quote, reached from the token link in the
+   quote email. The plugin does NOT register this route: point a site route at
+   this template so the `token` query param resolves here, e.g. in config/routes.php:
+
+       'quotes/accept' => ['template' => 'b2b/quotes/accept'],
+
+   The same token authorizes both accepting and declining. Copy this template into
+   your own site and restyle it to taste. #}
+{% requireLogin %}
+
+{% set token = craft.app.request.getQueryParam('token') ?? '' %}
+
+{# craft.b2b.quoteByToken(token) returns read-only quote data, or null for an
+   unknown token or a quote outside the signed-in user's company. #}
+{% set quote = craft.b2b.quoteByToken(token) %}
+
+{% if not quote %}
+    {% exit 404 %}
+{% endif %}
+
+{% block content %}
+    <h1>{{ 'Your quote'|t('b2b-commerce') }}</h1>
+
+    <dl>
+        <dt>{{ 'Reference'|t('b2b-commerce') }}</dt>
+        <dd>{{ quote.reference }}</dd>
+
+        <dt>{{ 'Status'|t('b2b-commerce') }}</dt>
+        <dd>{{ quote.status }}</dd>
+
+        {% if quote.validUntil %}
+            <dt>{{ 'Valid until'|t('b2b-commerce') }}</dt>
+            <dd>{{ quote.validUntil|date('short') }}</dd>
+        {% endif %}
+
+        <dt>{{ 'Total'|t('b2b-commerce') }}</dt>
+        <dd>{{ quote.total|commerceCurrency(quote.currency) }}</dd>
+
+        {% if quote.notes %}
+            <dt>{{ 'Notes'|t('b2b-commerce') }}</dt>
+            <dd>{{ quote.notes|nl2br }}</dd>
+        {% endif %}
+    </dl>
+
+    {# Only a still-open (sent) quote can be accepted or declined; otherwise show a
+       read-only state. #}
+    {% if quote.status == 'sent' %}
+        {# Accept form: flips the quote to accepted and adopts the quote order as the
+           active cart, so the buyer can head straight to checkout. Pass a `redirect`
+           to send the browser to your checkout page after accepting. #}
+        <form method="post" accept-charset="UTF-8">
+            {{ csrfInput() }}
+            {{ actionInput('b2b-commerce/quotes/accept') }}
+            {{ hiddenInput('token', token) }}
+            {{ redirectInput('shop/checkout') }}
+
+            <button type="submit">{{ 'Accept quote'|t('b2b-commerce') }}</button>
+        </form>
+
+        {# Decline form: records an optional reason and notifies the store. #}
+        <form method="post" accept-charset="UTF-8">
+            {{ csrfInput() }}
+            {{ actionInput('b2b-commerce/quotes/decline') }}
+            {{ hiddenInput('token', token) }}
+
+            <label for="b2b-decline-reason">{{ 'Reason (optional)'|t('b2b-commerce') }}</label>
+            <textarea id="b2b-decline-reason" name="reason" rows="3"></textarea>
+
+            <button type="submit">{{ 'Decline quote'|t('b2b-commerce') }}</button>
+        </form>
+    {% else %}
+        <p>{{ 'This quote can no longer be accepted or declined.'|t('b2b-commerce') }}</p>
+    {% endif %}
+{% endblock %}

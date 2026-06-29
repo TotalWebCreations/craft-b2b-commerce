@@ -439,18 +439,42 @@ reloads and every later save short-circuits recalculation — whatever the merch
 each line item is exactly what the buyer will pay. Merchant line-item price overrides made
 under this mode are preserved verbatim.
 
-**Accept / decline routes are yours to build.** The sent-quote email links to two **site**
-routes with the quote's token in the query string:
+**Accept / decline the quote.** The sent-quote email links to a **site** route with the
+quote's token in the query string:
 
 ```
 {{ siteUrl('quotes/accept', { token: '…' }) }}
 {{ siteUrl('quotes/decline', { token: '…' }) }}
 ```
 
-These paths are **not** provided by the plugin — the store owner defines the routes and
-templates (in `config/routes.php` or as sections/entries) that resolve the token and drive
-the accept/decline actions. Example storefront templates ship in a later phase. The **same
-token** authorizes both accept and decline.
+The display page is **yours to route** — point a site route at the shipped example template
+(`examples/templates/b2b/quotes/accept.twig`) so the token resolves there, for example in
+`config/routes.php`:
+
+```php
+'quotes/accept' => ['template' => 'b2b/quotes/accept'],
+```
+
+That page reads the quote with `craft.b2b.quoteByToken(token)` — read-only data (status,
+validity, notes, order reference and totals), guarded by the signed-in user's company so it
+returns `null` for another company's token. It then posts to the two plugin actions, which
+require a logged-in company member and the `enableQuotes` feature:
+
+```
+b2b-commerce/quotes/accept    (POST: token[, redirect])
+b2b-commerce/quotes/decline   (POST: token, reason)
+```
+
+The **same token** authorizes both. **Accept** flips the quote to `accepted` and adopts the
+quote order as the buyer's active session cart, so they check out directly against the frozen
+prices — pay on account included, with the credit check still applied at checkout. **Decline**
+records the reason and notifies the store admin. Token lookup is a single indexed unique
+match (no timing-sensitive compare); an unknown token and another company's token return the
+**same** generic "This quote is not available." message, so a guessed token cannot be probed.
+A quote past its `validUntil` is expired lazily on the first accept/decline touch. On accept
+the order customer is left unchanged (the requester): Commerce checkout authorizes on the
+session cart, and the invoice gateway checks the customer's company, which is the acceptor's
+company for any member of the same company.
 
 **Cart-mutation guard.** An open quote order (`requested` or `sent`) must not be edited
 through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate any

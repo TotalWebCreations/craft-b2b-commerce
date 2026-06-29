@@ -39,4 +39,52 @@ class QuotesController extends Controller
             Craft::t('b2b-commerce', 'Your quote request has been submitted.')
         );
     }
+
+    public function actionAccept(): ?Response
+    {
+        $this->requirePostRequest();
+        $this->requireLogin();
+
+        if ($response = $this->requireFeature('enableQuotes')) {
+            return $response;
+        }
+
+        $token = $this->stringBodyParam('token');
+        $actor = Craft::$app->getUser()->getIdentity();
+
+        try {
+            $order = Plugin::getInstance()->quotes->acceptByToken($token, $actor);
+        } catch (InvalidArgumentException $exception) {
+            return $this->asFailure($exception->getMessage());
+        }
+
+        return $this->asSuccess(
+            Craft::t('b2b-commerce', 'Your quote has been accepted. You can now complete your order.'),
+            ['cartNumber' => $order->number]
+        );
+    }
+
+    public function actionDecline(): ?Response
+    {
+        $this->requirePostRequest();
+        $this->requireLogin();
+
+        if ($response = $this->requireFeature('enableQuotes')) {
+            return $response;
+        }
+
+        $token = $this->stringBodyParam('token');
+        $reason = $this->stringBodyParam('reason');
+        $actor = Craft::$app->getUser()->getIdentity();
+
+        try {
+            Plugin::getInstance()->quotes->declineByToken($token, $actor, $reason);
+        } catch (InvalidArgumentException $exception) {
+            return $this->asFailure($exception->getMessage());
+        }
+
+        return $this->asSuccess(
+            Craft::t('b2b-commerce', 'Your quote has been declined.')
+        );
+    }
 }

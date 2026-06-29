@@ -3,8 +3,11 @@
 namespace totalwebcreations\b2bcommerce\variables;
 
 use Craft;
+use craft\commerce\elements\Order;
 use craft\elements\Address;
 use craft\elements\User;
+use DateTime;
+use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -101,6 +104,59 @@ class B2bVariable
         }
 
         return Plugin::getInstance()->orderLists->getLists($company->id);
+    }
+
+    /**
+     * Read-only quote data for the token accept page (craft.b2b.quoteByToken(token)).
+     * Returns null for an unknown token or a quote that does not belong to the signed-in
+     * user's company, so a template can never probe another company's quotes. Every field
+     * is null-safe against a missing order element.
+     *
+     * @return array{
+     *     status: string,
+     *     validUntil: ?DateTime,
+     *     notes: ?string,
+     *     orderNumber: ?string,
+     *     reference: ?string,
+     *     itemSubtotal: ?float,
+     *     total: ?float,
+     *     currency: ?string
+     * }|null
+     */
+    public function getQuoteByToken(string $token): ?array
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if ($user === null) {
+            return null;
+        }
+
+        $row = Plugin::getInstance()->quotes->findByToken($token);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($user->id);
+
+        if ($company === null || (int) $row['companyId'] !== $company->id) {
+            return null;
+        }
+
+        $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+
+        return [
+            'status' => (string) $row['status'],
+            'validUntil' => empty($row['validUntil'])
+                ? null
+                : new DateTime((string) $row['validUntil'], new DateTimeZone('UTC')),
+            'notes' => $row['notes'] !== null ? (string) $row['notes'] : null,
+            'orderNumber' => $order?->number,
+            'reference' => $order !== null ? ($order->reference ?: $order->getShortNumber()) : null,
+            'itemSubtotal' => $order !== null ? $order->getItemSubtotal() : null,
+            'total' => $order !== null ? $order->getTotalPrice() : null,
+            'currency' => $order?->currency,
+        ];
     }
 
     /** @return array<int, array{purchasableId: int, qty: int, sku: string, description: ?string}> */

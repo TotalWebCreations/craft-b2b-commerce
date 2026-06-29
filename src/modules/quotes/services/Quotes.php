@@ -12,6 +12,7 @@ use craft\helpers\Db;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use DateTime;
+use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -131,6 +132,99 @@ class Quotes extends Component
     }
 
     /**
+     * Looks up a quote row by its accept token. The token column carries a unique
+     * index, so this is a single indexed equality lookup — no timing-sensitive manual
+     * string compare is needed, and there is no fallback to guard. An empty or unknown
+     * token simply yields null; the callers turn that into a generic, oracle-free error.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findByToken(string $token): ?array
+    {
+        if ($token === '') {
+            return null;
+        }
+
+        return (new Query())
+            ->from('{{%b2b_quotes}}')
+            ->where(['acceptToken' => $token])
+            ->one() ?: null;
+    }
+
+    /**
+     * Accepts a sent quote by its token and hands the quote order to the session as the
+     * active cart, so the buyer checks out directly against the frozen prices (pay on
+     * account included; the credit check still runs at checkout).
+     *
+     * The status flip lives on the b2b_quotes row alone — the order element is never
+     * saved here, so it keeps its frozen recalculationMode untouched and needs no
+     * allowQuoteSave() guard. The order customer is left as-is (the requester): Commerce
+     * checkout authorizes on the session cart, not on customer identity, and the invoice
+     * gateway checks the customer's company, which equals the acceptor's company for any
+     * member of the same company. See the price-integrity notes in the README.
+     */
+    public function acceptByToken(string $token, User $actor): Order
+    {
+        $row = $this->authorizeTokenAccess($token, $actor);
+
+        $this->expireIfLapsed($row);
+
+        $status = QuoteStatus::from($row['status']);
+
+        if ($status === QuoteStatus::Requested) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote has not been sent yet.')
+            );
+        }
+
+        if ($status !== QuoteStatus::Sent) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote has already been processed.')
+            );
+        }
+
+        Db::update('{{%b2b_quotes}}', [
+            'status' => QuoteStatus::Accepted->value,
+        ], ['orderId' => $row['orderId']]);
+
+        $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+
+        if ($order === null) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        $carts = Commerce::getInstance()->getCarts();
+        $carts->forgetCart();
+        $carts->setSessionCartNumber($order->number);
+
+        return $order;
+    }
+
+    /**
+     * Declines a sent (or still-requested) quote by its token, recording the reason and
+     * notifying the store admin. Shares the token, membership and lapsed-quote guards with
+     * acceptByToken, then delegates the status transition and notification to decline().
+     */
+    public function declineByToken(string $token, User $actor, string $reason): void
+    {
+        $row = $this->authorizeTokenAccess($token, $actor);
+
+        $this->expireIfLapsed($row);
+
+        $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+
+        if ($order === null) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        $this->decline($order, $reason, byCustomer: true);
+    }
+
+    /**
      * Expires every still-open quote (requested or sent) whose validity window has
      * closed, in a single UPDATE. Returns the number of rows expired.
      */
@@ -245,6 +339,68 @@ class Quotes extends Component
         }
 
         return false;
+    }
+
+    /**
+     * Resolves and authorizes a token for a token-driven action: the row must exist and
+     * belong to the actor's company. Both failures raise the SAME generic message so a
+     * guessed token cannot be distinguished from a real quote of another company (no
+     * oracle), while leaking nothing a legitimate mail recipient could not already infer.
+     *
+     * @return array<string, mixed>
+     */
+    private function authorizeTokenAccess(string $token, User $actor): array
+    {
+        $row = $this->findByToken($token);
+        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($actor->id);
+
+        if ($row === null || $company === null || (int) $row['companyId'] !== $company->id) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        return $row;
+    }
+
+    /**
+     * Lazily expires a still-open quote whose validity window has closed: the row flips to
+     * expired on this first touch and the caller is stopped with a clear message. A terminal
+     * quote, or one with no or a future deadline, passes through untouched.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function expireIfLapsed(array $row): void
+    {
+        $status = QuoteStatus::from($row['status']);
+
+        if (!in_array($status, [QuoteStatus::Requested, QuoteStatus::Sent], true)) {
+            return;
+        }
+
+        if (!$this->hasLapsed($row)) {
+            return;
+        }
+
+        Db::update('{{%b2b_quotes}}', [
+            'status' => QuoteStatus::Expired->value,
+        ], ['orderId' => $row['orderId']]);
+
+        throw new InvalidArgumentException(
+            Craft::t('b2b-commerce', 'This quote has expired.')
+        );
+    }
+
+    /** @param array<string, mixed> $row */
+    private function hasLapsed(array $row): bool
+    {
+        if (empty($row['validUntil'])) {
+            return false;
+        }
+
+        $validUntil = new DateTime((string) $row['validUntil'], new DateTimeZone('UTC'));
+
+        return $validUntil <= new DateTime('now', new DateTimeZone('UTC'));
     }
 
     private function orderIsQuote(int $orderId): bool
