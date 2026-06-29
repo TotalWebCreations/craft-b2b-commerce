@@ -179,7 +179,7 @@ hard-enforced.
 | Setting | Key | Default | Description |
 | --- | --- | --- | --- |
 | Companies | `enableCompanies` | `true` | No effect yet — reserved. Company accounts are always active in this release. |
-| Quotes | `enableQuotes` | `true` | No effect yet — reserved for the quotes pillar (roadmap). |
+| Quotes | `enableQuotes` | `true` | Enables quote requests from the cart and the quote workflow. When off, the request-quote endpoint returns a clean "feature not enabled" failure. |
 | Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
 | Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout. When off, the gateway is never available regardless of company settings. See [Pay on account](#6-pay-on-account-optional). |
 | Quick order | `enableQuickOrder` | `true` | Enables quick order, order lists and reorder for approved buyers. When off, those front-end endpoints return a clean "feature not enabled" failure and `craft.b2b` exposes no order-list data. |

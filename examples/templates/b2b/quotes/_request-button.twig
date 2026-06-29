@@ -1,0 +1,12 @@
+{# Request-a-quote form: turns the current cart into a quote request. The optional
+   notes textarea lets the buyer add a message for the sales team. Drop it on the cart
+   page, e.g. {% include 'b2b/quotes/_request-button' %}.
+   Copy this template into your own site and restyle it to taste. #}
+<form method="post" action="{{ actionUrl('b2b-commerce/quotes/request') }}" accept-charset="UTF-8">
+    {{ csrfInput() }}
+
+    <label for="b2b-quote-notes">{{ 'Notes (optional)'|t('b2b-commerce') }}</label>
+    <textarea id="b2b-quote-notes" name="notes" rows="3"></textarea>
+
+    <button type="submit">{{ 'Request a quote'|t('b2b-commerce') }}</button>
+</form>

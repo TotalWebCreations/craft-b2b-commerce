@@ -34,6 +34,7 @@ use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
+use totalwebcreations\b2bcommerce\modules\quotes\services\Quotes;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
 use totalwebcreations\b2bcommerce\variables\B2bVariable;
 use yii\base\Event;
@@ -50,6 +51,7 @@ use yii\base\Event;
  * @property-read OrderLists $orderLists
  * @property-read PriceVisibility $priceVisibility
  * @property-read QuickOrder $quickOrder
+ * @property-read Quotes $quotes
  * @property-read Registration $registration
  */
 class Plugin extends BasePlugin
@@ -85,6 +87,7 @@ class Plugin extends BasePlugin
             'orderLists' => OrderLists::class,
             'priceVisibility' => PriceVisibility::class,
             'quickOrder' => QuickOrder::class,
+            'quotes' => Quotes::class,
             'registration' => Registration::class,
         ]);
 

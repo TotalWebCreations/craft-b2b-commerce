@@ -8,38 +8,6 @@ use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 
 /**
- * Absolute path to the file-transport mailbox of the dev site.
- */
-function mailDir(): string
-{
-    return dirname(__DIR__, 3) . '/b2b-dev/storage/runtime/mail';
-}
-
-/**
- * Number of .eml files currently sitting in the dev-site mailbox.
- */
-function mailCount(): int
-{
-    return count(glob(mailDir() . '/*.eml') ?: []);
-}
-
-/**
- * Raw contents of the most recently written .eml file in the dev mailbox.
- */
-function newestMailBody(): string
-{
-    $files = glob(mailDir() . '/*.eml') ?: [];
-
-    if ($files === []) {
-        return '';
-    }
-
-    usort($files, fn(string $a, string $b): int => filemtime($b) <=> filemtime($a));
-
-    return (string) file_get_contents($files[0]);
-}
-
-/**
  * Reads the current role of a user within a company straight from the table.
  */
 function membershipRole(int $companyId, int $userId): ?string
