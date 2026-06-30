@@ -24,18 +24,22 @@ it('accepts a sent quote: flips the status, returns the quote order and complete
     // setSessionCartNumber() only writes the cookie on a web request, so the real
     // session hand-off is proven in the Http suite; here the durable guarantees are
     // asserted: the returned order IS the quote order, the row flips to accepted, the
-    // open-quote guard disarms, and the order can then be taken through checkout.
+    // line-item freeze stays armed until completion, and the order can then be taken
+    // through checkout at the frozen total.
     $returned = Plugin::getInstance()->quotes->acceptByToken($token, $user);
 
     expect((int) $returned->id)->toBe($order->id)
         ->and(quoteRow($order->id)['status'])->toBe(QuoteStatus::Accepted->value)
-        ->and(Plugin::getInstance()->quotes->orderHasOpenQuote($order->id))->toBeFalse();
+        ->and(Plugin::getInstance()->quotes->orderHasLineItemFrozenQuote($order->id))->toBeTrue();
 
     $reloaded = Order::find()->id($order->id)->status(null)->one();
 
+    // Completion via a console request (the completion veto is storefront-scoped); an accepted
+    // quote passes the veto in any case, and completing clears the line-item freeze.
     expect($reloaded->markAsComplete())->toBeTrue()
         ->and($reloaded->isCompleted)->toBeTrue()
-        ->and($reloaded->getTotalPrice())->toBe($frozenTotal);
+        ->and($reloaded->getTotalPrice())->toBe($frozenTotal)
+        ->and(Plugin::getInstance()->quotes->orderHasLineItemFrozenQuote($order->id))->toBeFalse();
 });
 
 it('lazily expires a sent quote past its validity and refuses to accept it', function () {

@@ -9,7 +9,6 @@ use craft\db\Query;
 use craft\elements\User;
 use craft\helpers\App;
 use craft\helpers\Db;
-use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use DateTime;
 use DateTimeZone;
@@ -17,6 +16,7 @@ use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
+use yii\base\Exception;
 use yii\base\InvalidArgumentException;
 
 class Quotes extends Component
@@ -61,7 +61,7 @@ class Quotes extends Component
             'status' => QuoteStatus::Requested->value,
             'notes' => $notes,
             'requestedById' => $actor->id,
-            'acceptToken' => StringHelper::randomString(40),
+            'acceptToken' => Craft::$app->getSecurity()->generateRandomString(40),
         ]);
 
         $this->notifyAdmin($company, $cart);
@@ -81,6 +81,13 @@ class Quotes extends Component
     public function markSent(Order $order, ?DateTime $validUntil): void
     {
         $row = $this->requireQuoteRow($order);
+
+        if ($order->isCompleted) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote order has already been completed.')
+            );
+        }
+
         $this->assertTransition(QuoteStatus::from($row['status']), QuoteStatus::Sent);
 
         if ($validUntil !== null && $validUntil <= new DateTime()) {
@@ -198,6 +205,12 @@ class Quotes extends Component
         if ($order === null) {
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        if ($order->isCompleted) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote order has already been completed.')
             );
         }
 
@@ -375,22 +388,87 @@ class Quotes extends Component
     }
 
     /**
-     * Whether the order carries a quote that is still open (requested or sent) and so
-     * must not be mutated through the cart endpoints.
+     * Whether the order carries a quote whose line items must stay frozen against buyer
+     * mutation: any non-terminal-for-editing status (requested, sent or accepted) on an
+     * order that is not yet completed. An accepted quote stays line-item-frozen right
+     * through checkout — the negotiated deal — so post-accept additions cannot ride in at
+     * resolve-time prices while the freeze (recalculationMode = none) leaves tax and
+     * shipping unrecomputed. Once the order completes, the freeze is spent and editing is
+     * no longer this guard's concern.
      */
-    public function orderHasOpenQuote(?int $orderId): bool
+    public function orderHasLineItemFrozenQuote(?int $orderId): bool
     {
         if ($orderId === null) {
             return false;
         }
 
         return (new Query())
-            ->from('{{%b2b_quotes}}')
+            ->from(['q' => '{{%b2b_quotes}}'])
+            ->innerJoin(['o' => '{{%commerce_orders}}'], '[[o.id]] = [[q.orderId]]')
             ->where([
-                'orderId' => $orderId,
-                'status' => [QuoteStatus::Requested->value, QuoteStatus::Sent->value],
+                'q.orderId' => $orderId,
+                'q.status' => [
+                    QuoteStatus::Requested->value,
+                    QuoteStatus::Sent->value,
+                    QuoteStatus::Accepted->value,
+                ],
             ])
+            ->andWhere(['not', ['o.isCompleted' => true]])
             ->exists();
+    }
+
+    /**
+     * Vetoes completion of an order whose quote has not been accepted. A quote order can be
+     * reactivated as a cart by number (commerce/cart/load-cart) and taken to checkout while
+     * still requested (catalog prices), sent, declined or expired — bypassing accept, the
+     * validity window and decline. Only an accepted quote may complete. Storefront-scoped
+     * like the other completion guards; console and control-panel completions are the
+     * deliberate merchant override.
+     */
+    public function enforceAcceptedBeforeCompletion(Order $order): void
+    {
+        $request = Craft::$app->getRequest();
+
+        if ($request->getIsConsoleRequest() || $request->getIsCpRequest()) {
+            return;
+        }
+
+        $status = (new Query())
+            ->select(['status'])
+            ->from('{{%b2b_quotes}}')
+            ->where(['orderId' => $order->id])
+            ->scalar();
+
+        if ($status === false || $status === null || $status === QuoteStatus::Accepted->value) {
+            return;
+        }
+
+        $message = Craft::t('b2b-commerce', 'This order is part of a quote that has not been accepted.');
+
+        // The error MUST be set on an order attribute before throwing so Commerce's CartController
+        // short-circuits the half-completed save (see OrderCompanyLink::enforcePurchasePolicy for the
+        // full rationale). EVENT_BEFORE_COMPLETE_ORDER is not cancelable, so throwing aborts completion.
+        $order->addError('customerId', $message);
+
+        throw new Exception($message);
+    }
+
+    /**
+     * Excludes every order that carries a quote row from Commerce's inactive-cart purge
+     * query. The purge (Carts::purgeIncompleteCarts, on by default, 90 days) deletes
+     * non-completed orders and the CASCADE FK would wipe their b2b_quotes rows — silently
+     * losing sent quotes with long validity and ALL terminal quote history. Quotes are
+     * business records, so keep the whole set. The purge query selects orders.id.
+     */
+    public function excludeQuoteOrdersFromPurge(Query $query): void
+    {
+        $query->andWhere([
+            'not', [
+                'orders.id' => (new Query())
+                    ->select(['orderId'])
+                    ->from('{{%b2b_quotes}}'),
+            ],
+        ]);
     }
 
     /**

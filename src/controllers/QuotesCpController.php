@@ -92,7 +92,7 @@ class QuotesCpController extends Controller
         $order = Order::find()->id($orderId)->status(null)->one();
 
         if ($order === null) {
-            throw new NotFoundHttpException(Craft::t('b2b-commerce', 'This order is not a quote.'));
+            throw new NotFoundHttpException(Craft::t('b2b-commerce', 'Order not found.'));
         }
 
         return $order;

@@ -25,7 +25,7 @@ class QuotesController extends Controller
             return $response;
         }
 
-        $cart = Commerce::getInstance()->getCarts()->getCart(true);
+        $cart = Commerce::getInstance()->getCarts()->getCart();
         $actor = Craft::$app->getUser()->getIdentity();
         $notes = $this->stringBodyParam('notes');
 

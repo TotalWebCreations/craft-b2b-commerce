@@ -448,7 +448,11 @@ buyer keeps a fresh session cart. A merchant then works the quote in the control
 either **sends** it (with an optional validity date) or **declines** it.
 
 The quote lifecycle is `requested → sent → accepted | declined | expired`. `accepted`,
-`declined` and `expired` are terminal.
+`declined` and `expired` are terminal. An accepted quote that the buyer never checks out
+stays completable at its frozen prices until the merchant cancels the underlying order —
+there is no accept deadline. Quote orders (including terminal quote history) are excluded
+from Commerce's inactive-cart purge, so a long-lived sent quote or a finished quote's
+records are never silently deleted after the purge window.
 
 #### Merchant flow (control panel)
 
@@ -529,10 +533,11 @@ the order customer is left unchanged (the requester): Commerce checkout authoriz
 session cart, and the invoice gateway checks the customer's company, which is the acceptor's
 company for any member of the same company.
 
-**Cart-mutation guard.** An open quote order (`requested` or `sent`) must not be edited
-through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate any
-non-completed order by number as the session cart, the plugin guards the order at save time:
-on a site request it vetoes the save whenever an open quote's line items diverge from
+**Cart-mutation guard.** A line-item-frozen quote order — one whose quote is `requested`,
+`sent` or `accepted` and whose order is not yet completed — must not have its line items
+edited through the storefront cart endpoints. Because `commerce/cart/load-cart` can reactivate
+any non-completed order by number as the session cart, the plugin guards the order at save
+time: on a site request it vetoes the save whenever such a quote's line items diverge from
 what is stored — **quantity edits, option edits, line-item additions and removals are all
 blocked** (line-item notes are not compared and stay editable, as they are financially and
 delivery-wise inert). (This matters because under the `recalculationMode = none` freeze the charged
@@ -540,9 +545,17 @@ total still moves with quantity — a quantity change against a frozen absolute 
 be driven to zero or negative — so freezing the per-unit price alone is not enough.) The
 new-item add event is still vetoed too, as defence in depth. Merchant edits in the control
 panel remain possible: the guard only applies to front-end site requests, and the plugin's
-own saves (such as setting the freeze when a quote is sent) explicitly stand down. Once the
-quote reaches a terminal status (e.g. accepted), the guard no longer applies and the order
-resumes its normal lifecycle.
+own saves (such as setting the freeze when a quote is sent) explicitly stand down.
+
+An accepted quote is the deal as negotiated: its line items stay locked right through
+checkout, because the frozen `recalculationMode = none` leaves tax and shipping adjustments
+unrecomputed — a post-accept line-item addition would otherwise persist at resolve-time
+prices while under-collecting tax. Address, gateway and completion saves never change the
+line-item set, so they proceed freely. Only once the order **completes** (or the quote
+lands in a `declined` / `expired` terminal status) does the line-item guard stand down. A
+separate **completion veto** blocks any attempt to complete a quote order that reactivated
+as a cart while its quote is not `accepted` (still requested at catalog prices, or sent,
+declined or expired) with *"This order is part of a quote that has not been accepted."*
 
 ## Known limitations
 

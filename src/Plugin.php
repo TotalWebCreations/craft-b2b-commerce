@@ -7,6 +7,8 @@ use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
 use craft\commerce\elements\Order;
 use craft\commerce\events\AddLineItemEvent;
+use craft\commerce\events\CartPurgeEvent;
+use craft\commerce\services\Carts;
 use craft\commerce\services\Gateways;
 use craft\elements\User;
 use craft\enums\CmsEdition;
@@ -182,7 +184,7 @@ class Plugin extends BasePlugin
                     return;
                 }
 
-                if ($event->sender instanceof Order && $this->quotes->orderHasOpenQuote($event->sender->id)) {
+                if ($event->sender instanceof Order && $this->quotes->orderHasLineItemFrozenQuote($event->sender->id)) {
                     $message = Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.');
 
                     $event->isValid = false;
@@ -211,18 +213,19 @@ class Plugin extends BasePlugin
             }
         );
 
-        // Buyer-side immutability of open quote carts. Under the sent-quote price freeze
+        // Buyer-side immutability of line-item-frozen quote carts. Under the sent-quote price freeze
         // (recalculationMode = none) the charged total still moves with quantity and a frozen
         // absolute discount can be driven negative, and line removal is otherwise unguarded — so
         // the add-line-item guard above (new items only) is not enough. This vetoes the order save
-        // whenever an open-quote cart diverges from what is stored: additions and removals change the
+        // whenever such a quote's cart diverges from what is stored: additions and removals change the
         // id-set, quantity edits move the qty, and in-place option edits change the optionsSignature —
         // all four are blocked (line-item notes are not compared and stay editable). It stands down
-        // for the plugin's own saves (isQuoteSaveAllowed) and self-disarms once Task 4 flips the
-        // quote to accepted (orderHasOpenQuote goes false). Scoped like the add-guard (skips
-        // console and CP requests), so merchant CP edits stay free. Note: a still-'sent' quote should never reach
-        // checkout (accept flips it to accepted first); a completion save that still mutates line
-        // items on a sent quote being vetoed here is therefore correct protection, not a regression.
+        // for the plugin's own saves (isQuoteSaveAllowed). The quote stays frozen through the whole
+        // requested → sent → accepted window until the order completes (orderHasLineItemFrozenQuote):
+        // an accepted quote is the negotiated deal, so post-accept additions cannot ride in at
+        // resolve-time prices while tax and shipping stay unrecomputed under the persisting freeze.
+        // Scoped like the add-guard (skips console and CP requests), so merchant CP edits stay free.
+        // Address, gateway and completion saves never change the line-item set, so they pass freely.
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_SAVE,
@@ -245,7 +248,7 @@ class Plugin extends BasePlugin
 
                 $order = $event->sender;
 
-                if (!$quotes->orderHasOpenQuote($order->id)) {
+                if (!$quotes->orderHasLineItemFrozenQuote($order->id)) {
                     return;
                 }
 
@@ -258,6 +261,21 @@ class Plugin extends BasePlugin
                     'lineItems',
                     Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.')
                 );
+            }
+        );
+
+        // Completion veto: a quote order reactivated as a cart (commerce/cart/load-cart by number)
+        // must not be completed unless its quote was accepted. Registered before the other completion
+        // guards so an unaccepted quote is rejected up front. Storefront-scoped inside the service.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->quotes->enforceAcceptedBeforeCompletion($event->sender);
             }
         );
 
@@ -317,6 +335,19 @@ class Plugin extends BasePlugin
                 }
 
                 $this->creditEnforcer->releaseCreditLock($event->sender);
+            }
+        );
+
+        // Purge protection: Commerce's purgeIncompleteCarts (Carts::purgeIncompleteCarts, on by
+        // default, 90 days) deletes non-completed orders and the CASCADE FK would wipe their
+        // b2b_quotes rows with them — silently losing sent quotes with long validity and ALL
+        // terminal quote history. Exclude every order that carries a quote row from the purge
+        // query so those business records survive. (Phase 6 will extend this to b2b_approvals.)
+        Event::on(
+            Carts::class,
+            Carts::EVENT_BEFORE_PURGE_INACTIVE_CARTS,
+            function(CartPurgeEvent $event) {
+                $this->quotes->excludeQuoteOrdersFromPurge($event->inactiveCartsQuery);
             }
         );
     }

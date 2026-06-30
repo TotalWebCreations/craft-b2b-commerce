@@ -49,7 +49,7 @@
                             <span class="status {{ statusColors[quote.status] ?? 'grey' }}"></span>
                             {{ statusLabels[quote.status] ?? quote.status }}
                             {% if quote.status == 'declined' and quote.declineReason %}
-                                <div class="light" style="margin-top: 4px;">{{ 'Reason (optional)'|t('b2b-commerce') }}: {{ quote.declineReason }}</div>
+                                <div class="light" style="margin-top: 4px;">{{ 'Reason'|t('b2b-commerce') }}: {{ quote.declineReason }}</div>
                             {% endif %}
                         </td>
                         <td>{{ quote.companyName ?? '' }}</td>

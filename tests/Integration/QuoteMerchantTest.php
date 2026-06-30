@@ -4,7 +4,6 @@ use craft\commerce\elements\Order;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use craft\helpers\Db;
-use craft\helpers\StringHelper;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -38,7 +37,7 @@ function insertQuoteRow(
     ?int $requestedById = null,
     ?DateTime $validUntil = null,
 ): string {
-    $token = StringHelper::randomString(40);
+    $token = craftApp()->getSecurity()->generateRandomString(40);
 
     Db::insert('{{%b2b_quotes}}', [
         'orderId' => $orderId,
@@ -179,27 +178,35 @@ it('expires only open, overdue quotes and leaves fresh and terminal rows untouch
         ->and(quoteRow($overdueAccepted->id)['status'])->toBe(QuoteStatus::Accepted->value);
 });
 
-it('flags open quote carts as unmodifiable and clears the flag once terminal', function () {
+it('flags requested, sent and accepted quote carts as line-item-frozen and clears once completed or terminal', function () {
     $company = createTestCompany();
     $quotes = Plugin::getInstance()->quotes;
 
     $requested = bareQuoteOrder();
     $sent = bareQuoteOrder();
     $accepted = bareQuoteOrder();
+    $completedAccepted = bareQuoteOrder();
     $declined = bareQuoteOrder();
     $plainCart = bareQuoteOrder();
 
     insertQuoteRow($requested->id, QuoteStatus::Requested->value, $company->id);
     insertQuoteRow($sent->id, QuoteStatus::Sent->value, $company->id);
     insertQuoteRow($accepted->id, QuoteStatus::Accepted->value, $company->id);
+    insertQuoteRow($completedAccepted->id, QuoteStatus::Accepted->value, $company->id);
     insertQuoteRow($declined->id, QuoteStatus::Declined->value, $company->id);
 
-    expect($quotes->orderHasOpenQuote($requested->id))->toBeTrue()
-        ->and($quotes->orderHasOpenQuote($sent->id))->toBeTrue()
-        ->and($quotes->orderHasOpenQuote($accepted->id))->toBeFalse()
-        ->and($quotes->orderHasOpenQuote($declined->id))->toBeFalse()
-        ->and($quotes->orderHasOpenQuote($plainCart->id))->toBeFalse()
-        ->and($quotes->orderHasOpenQuote(null))->toBeFalse();
+    // A completed accepted quote: the freeze is spent, so the line-item guard stands down.
+    $completedAccepted->markAsComplete();
+
+    // An accepted quote stays frozen right through checkout (the negotiated deal); only
+    // completion or a declined/expired terminal status clears the guard.
+    expect($quotes->orderHasLineItemFrozenQuote($requested->id))->toBeTrue()
+        ->and($quotes->orderHasLineItemFrozenQuote($sent->id))->toBeTrue()
+        ->and($quotes->orderHasLineItemFrozenQuote($accepted->id))->toBeTrue()
+        ->and($quotes->orderHasLineItemFrozenQuote($completedAccepted->id))->toBeFalse()
+        ->and($quotes->orderHasLineItemFrozenQuote($declined->id))->toBeFalse()
+        ->and($quotes->orderHasLineItemFrozenQuote($plainCart->id))->toBeFalse()
+        ->and($quotes->orderHasLineItemFrozenQuote(null))->toBeFalse();
 });
 
 it('refuses to send a quote with a validity date in the past', function () {
@@ -330,7 +337,7 @@ it('lets the plugin save an open quote cart through the allow flag', function ()
         ->and(storedLineItemQty($lineItemId))->toBe(5);
 });
 
-it('stops vetoing cart mutations once the quote is accepted', function () {
+it('keeps vetoing cart mutations on an accepted quote until it is completed', function () {
     $company = createTestCompany();
     $order = quoteCartWithItem();
     insertQuoteRow($order->id, QuoteStatus::Accepted->value, $company->id);
@@ -351,9 +358,124 @@ it('stops vetoing cart mutations once the quote is accepted', function () {
         $saved = craftApp()->getElements()->saveElement($reloaded);
     });
 
+    // The negotiated deal stays line-item-frozen through checkout: post-accept edits are vetoed
+    // so a late addition cannot ride in at resolve-time prices while tax stays unrecomputed.
+    expect($saved)->toBeFalse()
+        ->and($reloaded->getFirstError('lineItems'))->toBe('This cart is part of a quote and cannot be modified.')
+        ->and(storedLineItemQty($lineItemId))->toBe(1);
+});
+
+it('stops vetoing cart mutations once the quote order is completed', function () {
+    $company = createTestCompany();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Accepted->value, $company->id);
+
+    // Complete the accepted quote (console request → completion veto skipped, accepted passes).
+    $order->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
+    $order->markAsComplete();
+
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $lineItem->qty = 4;
+    $reloaded->setLineItems([$lineItem]);
+    $reloaded->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
+
+    $saved = null;
+
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
     expect($saved)->toBeTrue()
         ->and($reloaded->hasErrors('lineItems'))->toBeFalse()
         ->and(storedLineItemQty($lineItemId))->toBe(4);
+});
+
+it('refuses to send a quote whose order has already been completed', function () {
+    [$user, $company] = quoteMember();
+    $order = bareQuoteOrder();
+    insertQuoteRow($order->id, QuoteStatus::Requested->value, $company->id, $user->id);
+
+    $order->markAsComplete();
+
+    expect(fn () => Plugin::getInstance()->quotes->markSent($order, null))
+        ->toThrow(InvalidArgumentException::class, 'This quote order has already been completed.');
+});
+
+it('vetoes completing a not-yet-accepted quote order reactivated as a cart on a site request', function () {
+    [$user, $company] = quoteMember();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id, $user->id);
+
+    // A sent quote reactivated by number as the session cart must not slip through checkout:
+    // only an accepted quote may complete. Frozen so the completion attempt does not re-price.
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $reloaded->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
+
+    $refused = false;
+
+    asSiteRequest(function () use ($reloaded, &$refused) {
+        try {
+            $reloaded->markAsComplete();
+        } catch (Throwable) {
+            $refused = true;
+        }
+    });
+
+    expect($refused)->toBeTrue()
+        ->and(orderCompletedInDb($order->id))->toBeFalse()
+        ->and($reloaded->getErrors('customerId'))
+        ->toBe(['This order is part of a quote that has not been accepted.']);
+});
+
+it('lets an accepted quote order through the completion veto on a site request', function () {
+    [$user, $company] = quoteMember();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Accepted->value, $company->id, $user->id);
+
+    $threw = false;
+
+    asSiteRequest(function () use ($order, &$threw) {
+        try {
+            Plugin::getInstance()->quotes->enforceAcceptedBeforeCompletion($order);
+        } catch (Throwable) {
+            $threw = true;
+        }
+    });
+
+    expect($threw)->toBeFalse()
+        ->and($order->hasErrors('customerId'))->toBeFalse();
+});
+
+it('excludes quote orders (including terminal history) from the inactive-cart purge query', function () {
+    $company = createTestCompany();
+
+    $sentQuote = bareQuoteOrder();
+    $declinedQuote = bareQuoteOrder();
+    $plainCart = bareQuoteOrder();
+
+    insertQuoteRow($sentQuote->id, QuoteStatus::Sent->value, $company->id);
+    insertQuoteRow($declinedQuote->id, QuoteStatus::Declined->value, $company->id);
+
+    // Rebuild the query Commerce's purgeIncompleteCarts hands the event, then fire the event
+    // through the real Carts service so our registered handler modifies it exactly as in production.
+    $query = (new Query())
+        ->select(['orders.id'])
+        ->where(['not', ['isCompleted' => true]])
+        ->from(['orders' => \craft\commerce\db\Table::ORDERS]);
+
+    $event = new \craft\commerce\events\CartPurgeEvent(['inactiveCartsQuery' => $query]);
+    Commerce::getInstance()->getCarts()->trigger(
+        \craft\commerce\services\Carts::EVENT_BEFORE_PURGE_INACTIVE_CARTS,
+        $event
+    );
+
+    $ids = array_map('intval', $event->inactiveCartsQuery->column());
+
+    expect($ids)->not->toContain($sentQuote->id)
+        ->and($ids)->not->toContain($declinedQuote->id)
+        ->and($ids)->toContain($plainCart->id);
 });
 
 /**
