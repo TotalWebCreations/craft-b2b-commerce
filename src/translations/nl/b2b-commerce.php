@@ -110,7 +110,6 @@ return [
     'Paid' => 'Betaald',
     'Partially paid' => 'Deels betaald',
     'Unpaid' => 'Onbetaald',
-    'Payment due' => 'Vervaldatum',
     'Related' => 'Gerelateerd',
     'No members yet.' => 'Nog geen leden.',
     'No orders yet.' => 'Nog geen orders.',

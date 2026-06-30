@@ -15,8 +15,11 @@ B2B Commerce is organised around five pillars:
    manage their own team and a shared address book from the frontend, completed orders
    are linked to their company, and the control panel offers per-company member and
    order overviews plus a configurable custom-field layout.
-2. **Quotes** — *on the roadmap.* Request-for-quote flow with a status lifecycle and
-   order adjuster.
+2. **Quotes** — *available now.* Request-for-quote flow with a full status lifecycle
+   (requested → sent → accepted / declined / expired). An approved buyer turns a cart
+   into a quote request; a merchant prices it in the control panel and sends it with an
+   optional validity date that freezes the order's prices; the buyer accepts from an
+   emailed link and checks out against the frozen prices — pay on account included.
 3. **Order approvals** — *on the roadmap.* Spending thresholds with an approve/decline
    flow for purchasers and approvers.
 4. **Pay on account** — *available now.* Offline "pay on account" gateway that lets
@@ -28,7 +31,7 @@ B2B Commerce is organised around five pillars:
    own or a colleague's), and keep shared, company-wide order lists to drop into the
    cart in one go.
 
-This release delivers pillars 1, 4 and 5. It ships:
+This release delivers pillars 1, 2, 4 and 5. It ships:
 
 - A **Company** element with control panel management, statuses and a
   `Manage companies` permission.
@@ -60,8 +63,17 @@ This release delivers pillars 1, 4 and 5. It ships:
   order completion), a **payment term** that drives a per-order payment due date, and
   outstanding-balance / available-credit overviews in the control panel and on the
   storefront.
-- **Console commands**: `b2b-commerce/seed` to bootstrap demo data and
-  `b2b-commerce/team/assign-role` to recover a company that lost its admin.
+- **Quotes**: approved buyers turn a cart into a quote request; a merchant works it in a
+  control-panel workbench (`Manage quotes` permission), edits line-item prices in the
+  Commerce order editor, and either **sends** it with an optional validity date — which
+  freezes the prices — or **declines** it with a reason. Sent quotes email the buyer accept
+  and decline links; accepting adopts the frozen order as the buyer's cart to check out
+  (pay on account included). Overdue quotes lapse to `expired` via a console command or on
+  the first accept/decline touch. Open quote carts are protected against buyer-side
+  edits.
+- **Console commands**: `b2b-commerce/seed` to bootstrap demo data,
+  `b2b-commerce/team/assign-role` to recover a company that lost its admin, and
+  `b2b-commerce/quotes/expire` to lapse overdue quotes.
 - **Dutch translations** for all control panel and frontend strings.
 
 ## Requirements
@@ -105,6 +117,9 @@ This gives you:
 - `b2b/orders/_reorder-button.twig` — a re-order button partial for an order row.
 - `b2b/order-lists/index.twig` and `b2b/order-lists/_detail.twig` — shared order lists
   with create/rename/delete and an item editor.
+- `b2b/quotes/_request-button.twig` — a "request a quote" button for the cart page,
+  `b2b/quotes/index.twig` — the company's quote overview, and `b2b/quotes/accept.twig` —
+  the accept/decline page the sent-quote email links to.
 
 ### 2. Configure the settings
 
@@ -432,6 +447,44 @@ An approved buyer turns their cart into a quote request from the cart (see the
 buyer keeps a fresh session cart. A merchant then works the quote in the control panel and
 either **sends** it (with an optional validity date) or **declines** it.
 
+The quote lifecycle is `requested → sent → accepted | declined | expired`. `accepted`,
+`declined` and `expired` are terminal.
+
+#### Merchant flow (control panel)
+
+1. **Workbench.** A new **B2B → Quotes** section lists every quote newest-first, filterable
+   by status, showing the company, requester, validity date and a link to the underlying
+   order. It is gated by the **`Manage quotes`** permission, so grant that to the user
+   groups who should handle quotes.
+2. **Price the quote.** The quote is a normal, non-completed Commerce order. Open it in the
+   standard **Commerce → Orders** editor and adjust line-item prices, add or remove lines,
+   apply discounts — whatever the deal needs. Merchant edits in the control panel are never
+   blocked (the buyer-mutation guard below is scoped to storefront requests only).
+3. **Mark sent.** From the workbench, **Mark sent** with an optional **valid-until** date
+   (which must be in the future). Sending freezes the order's prices (see *Frozen prices*)
+   and emails the requester accept and decline links. From this point the buyer pays exactly
+   what you left on the order.
+4. **Merchant override.** Because the buyer-mutation guard stands down for control-panel
+   requests, you can still re-open and re-edit a sent quote in the Commerce order editor if a
+   price needs correcting before the buyer accepts — a deliberate merchant override. Re-run
+   **Mark sent** afterwards is not required; the freeze persists on the order.
+5. **Decline.** **Decline** records an optional reason (stored on the quote and shown in the
+   workbench) and emails the requester that their request was declined, including the reason.
+
+#### Customer flow (storefront)
+
+1. **Request.** From the cart, the buyer submits *Request a quote* (optionally with notes).
+   The store admin is notified by email; the buyer keeps a fresh, empty cart.
+2. **Receive.** When the merchant sends the quote, the buyer gets the `B2B: quote sent` email
+   with an **Accept** and a **Decline** link (both carrying the quote token).
+3. **Accept → checkout.** Accepting adopts the frozen quote order as the buyer's active cart,
+   so they proceed straight to checkout against the frozen prices. Pay on account is offered
+   as usual (the credit check still runs at completion). Declining records a reason and
+   notifies the store admin.
+4. **Overview.** `craft.b2b.quotes` (see the *Your quotes* example template) lists the
+   company's quotes with status and totals, and rebuilds the accept link for a still-sent
+   quote so the buyer can act on it from their account too.
+
 **Frozen prices.** When a quote is sent, the plugin pins the order's prices by setting
 Commerce's `recalculationMode` to `none` and saving. That mode is a persisted column on
 the order and is restored on load *before* the element defaults it, so the freeze survives
@@ -522,7 +575,8 @@ The plugin ships these Craft console commands:
 ## Uninstalling
 
 Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,
-`b2b_company_users`, `b2b_order_company`, `b2b_order_lists`, `b2b_order_list_items`) and
+`b2b_company_users`, `b2b_order_company`, `b2b_order_lists`, `b2b_order_list_items` and
+`b2b_quotes`) and
 their data behind. The install migration is
 idempotent: if the tables already exist it skips creation and keeps your data, so a later
 reinstall picks up exactly where you left off — no manual SQL required.
@@ -531,7 +585,6 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Quotes** — request-for-quote lifecycle, order adjuster and validity handling.
 - **Order approvals** — spending thresholds with an approve/decline flow and emails.
 - **Tax ID / VIES validation** and Plugin Store polish.
 
