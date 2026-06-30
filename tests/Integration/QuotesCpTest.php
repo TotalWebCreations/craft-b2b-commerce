@@ -32,6 +32,26 @@ it('attaches company name, requester and order to each CP quote row', function (
         ->and((int) $mine['order']->id)->toBe($order->id);
 });
 
+it('surfaces the decline reason on a declined CP quote row so a merchant can read it back', function () {
+    [$user, $company] = quoteMember();
+    $order = bareQuoteOrder();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id, $user->id);
+
+    Plugin::getInstance()->quotes->decline($order, 'Out of stock until Q3', byCustomer: false);
+
+    $rows = Plugin::getInstance()->quotes->getQuotesForCp(QuoteStatus::Declined->value);
+
+    $mine = null;
+    foreach ($rows as $row) {
+        if ($row['orderId'] === $order->id) {
+            $mine = $row;
+        }
+    }
+
+    expect($mine)->not->toBeNull()
+        ->and($mine['declineReason'])->toBe('Out of stock until Q3');
+});
+
 it('filters CP quotes by status', function () {
     [$user, $company] = quoteMember();
     $sentOrder = bareQuoteOrder();

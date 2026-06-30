@@ -94,6 +94,15 @@ it('refuses to re-accept a quote in a terminal status with the processed message
         ->toThrow(InvalidArgumentException::class, 'This quote has already been processed.');
 });
 
+it('reports an already-expired quote as expired, not merely processed, on accept', function () {
+    [$user, $company] = quoteMember();
+    $order = bareQuoteOrder();
+    $token = insertQuoteRow($order->id, QuoteStatus::Expired->value, $company->id, $user->id);
+
+    expect(fn () => Plugin::getInstance()->quotes->acceptByToken($token, $user))
+        ->toThrow(InvalidArgumentException::class, 'This quote has expired.');
+});
+
 it('declines a sent quote by token: records the reason and mails the store admin', function () {
     [$user, $company] = quoteMember();
     $order = bareQuoteOrder();

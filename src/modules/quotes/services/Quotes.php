@@ -177,6 +177,14 @@ class Quotes extends Component
             );
         }
 
+        // A quote already lapsed by the expire cron reads as expired, not merely "processed",
+        // so the buyer sees the same reason the lazy expireIfLapsed() path gives.
+        if ($status === QuoteStatus::Expired) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote has expired.')
+            );
+        }
+
         if ($status !== QuoteStatus::Sent) {
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'This quote has already been processed.')
@@ -254,6 +262,7 @@ class Quotes extends Component
      *     companyName: ?string,
      *     requesterName: ?string,
      *     notes: ?string,
+     *     declineReason: ?string,
      *     validUntil: ?DateTime,
      *     dateCreated: ?DateTime,
      *     order: ?Order
@@ -306,6 +315,7 @@ class Quotes extends Component
                 'companyName' => ($companies[(int) $row['companyId']] ?? null)?->title,
                 'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
                 'notes' => $row['notes'] !== null ? (string) $row['notes'] : null,
+                'declineReason' => $row['declineReason'] !== null ? (string) $row['declineReason'] : null,
                 'validUntil' => $this->toUtcDateTime($row['validUntil']),
                 'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
                 'order' => $orders[(int) $row['orderId']] ?? null,
