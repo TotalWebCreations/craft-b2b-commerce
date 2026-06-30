@@ -24,7 +24,7 @@
 
 {{ forms.lightswitchField({
     label: 'Order approvals'|t('b2b-commerce'),
-    instructions: 'Reserved for an upcoming release — this setting has no effect yet.'|t('b2b-commerce'),
+    instructions: 'Let purchasers submit orders above their company approval threshold for an approver to approve. When off, the submit endpoint returns a clean failure and the completion backstop is not enforced.'|t('b2b-commerce'),
     name: 'enableApprovals',
     on: settings.enableApprovals,
 }) }}

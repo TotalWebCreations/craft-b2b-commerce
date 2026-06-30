@@ -195,7 +195,7 @@ hard-enforced.
 | --- | --- | --- | --- |
 | Companies | `enableCompanies` | `true` | No effect yet — reserved. Company accounts are always active in this release. |
 | Quotes | `enableQuotes` | `true` | Enables quote requests from the cart and the quote workflow. When off, the request-quote endpoint returns a clean "feature not enabled" failure. |
-| Order approvals | `enableApprovals` | `true` | No effect yet — reserved for the order approvals pillar (roadmap). |
+| Order approvals | `enableApprovals` | `true` | Lets purchasers submit orders above their company approval threshold for an approver to approve. When off, the submit-for-approval endpoint returns a clean "feature not enabled" failure and the completion backstop is not enforced. |
 | Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout. When off, the gateway is never available regardless of company settings. See [Pay on account](#6-pay-on-account-optional). |
 | Quick order | `enableQuickOrder` | `true` | Enables quick order, order lists and reorder for approved buyers. When off, those front-end endpoints return a clean "feature not enabled" failure and `craft.b2b` exposes no order-list data. |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |

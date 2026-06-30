@@ -22,11 +22,13 @@ use yii\base\InvalidArgumentException;
 class Quotes extends Component
 {
     /**
-     * Disarms the open-quote save guard for the plugin's own saves on an open
-     * quote. Buyer-side cart saves never touch this; only the service methods
-     * below (and future ones) flip it via allowQuoteSave().
+     * Disarms the buyer-mutation save guard for the plugin's own saves on a guarded
+     * (frozen quote or pending approval) order. Buyer-side cart saves never touch
+     * this; only the service methods that legitimately save such an order flip it via
+     * allowGuardedSave(). Shared across the quote and approval flows since the single
+     * BEFORE_SAVE guard enforces both.
      */
-    private bool $quoteSaveAllowed = false;
+    private bool $guardedSaveAllowed = false;
 
     /**
      * Turns the given cart into a quote request: records a requested quote row for the
@@ -98,7 +100,7 @@ class Quotes extends Component
 
         $order->setRecalculationMode(Order::RECALCULATION_MODE_NONE);
 
-        $saved = $this->allowQuoteSave(
+        $saved = $this->allowGuardedSave(
             fn (): bool => Craft::$app->getElements()->saveElement($order)
         );
 
@@ -165,7 +167,7 @@ class Quotes extends Component
      *
      * The status flip lives on the b2b_quotes row alone — the order element is never
      * saved here, so it keeps its frozen recalculationMode untouched and needs no
-     * allowQuoteSave() guard. The order customer is left as-is (the requester): Commerce
+     * allowGuardedSave() guard. The order customer is left as-is (the requester): Commerce
      * checkout authorizes on the session cart, not on customer identity, and the invoice
      * gateway checks the customer's company, which equals the acceptor's company for any
      * member of the same company. See the price-integrity notes in the README.
@@ -472,35 +474,35 @@ class Quotes extends Component
     }
 
     /**
-     * Runs the callback with the open-quote save guard disarmed, so the plugin's
-     * own saves on an open quote (the freeze in markSent, future service saves)
-     * are not vetoed as buyer mutations. The flag is always restored afterwards,
-     * even on exception. markSent already runs in CP context (double-covered);
-     * this keeps console and test contexts safe too.
+     * Runs the callback with the buyer-mutation save guard disarmed, so the plugin's
+     * own saves on a guarded order (the freeze in markSent, future quote or approval
+     * service saves) are not vetoed as buyer mutations. The flag is always restored
+     * afterwards, even on exception. markSent already runs in CP context
+     * (double-covered); this keeps console and test contexts safe too.
      *
      * @template T
      * @param callable(): T $callback
      * @return T
      */
-    public function allowQuoteSave(callable $callback): mixed
+    public function allowGuardedSave(callable $callback): mixed
     {
-        $previous = $this->quoteSaveAllowed;
-        $this->quoteSaveAllowed = true;
+        $previous = $this->guardedSaveAllowed;
+        $this->guardedSaveAllowed = true;
 
         try {
             return $callback();
         } finally {
-            $this->quoteSaveAllowed = $previous;
+            $this->guardedSaveAllowed = $previous;
         }
     }
 
     /**
-     * Whether an open-quote save is currently sanctioned by the plugin itself,
+     * Whether a guarded-order save is currently sanctioned by the plugin itself,
      * so the buyer-mutation save guard should stand down.
      */
-    public function isQuoteSaveAllowed(): bool
+    public function isGuardedSaveAllowed(): bool
     {
-        return $this->quoteSaveAllowed;
+        return $this->guardedSaveAllowed;
     }
 
     /**

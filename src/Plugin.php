@@ -216,19 +216,23 @@ class Plugin extends BasePlugin
             }
         );
 
-        // Buyer-side immutability of line-item-frozen quote carts. Under the sent-quote price freeze
-        // (recalculationMode = none) the charged total still moves with quantity and a frozen
-        // absolute discount can be driven negative, and line removal is otherwise unguarded — so
-        // the add-line-item guard above (new items only) is not enough. This vetoes the order save
-        // whenever such a quote's cart diverges from what is stored: additions and removals change the
-        // id-set, quantity edits move the qty, and in-place option edits change the optionsSignature —
-        // all four are blocked (line-item notes are not compared and stay editable). It stands down
-        // for the plugin's own saves (isQuoteSaveAllowed). The quote stays frozen through the whole
-        // requested → sent → accepted window until the order completes (orderHasLineItemFrozenQuote):
-        // an accepted quote is the negotiated deal, so post-accept additions cannot ride in at
-        // resolve-time prices while tax and shipping stay unrecomputed under the persisting freeze.
-        // Scoped like the add-guard (skips console and CP requests), so merchant CP edits stay free.
-        // Address, gateway and completion saves never change the line-item set, so they pass freely.
+        // Buyer-side immutability of guarded carts: a line-item-frozen quote OR an order awaiting
+        // approval. Under the sent-quote price freeze (recalculationMode = none) the charged total
+        // still moves with quantity and a frozen absolute discount can be driven negative, and line
+        // removal is otherwise unguarded — so the add-line-item guard above (new items only) is not
+        // enough. This vetoes the order save whenever such an order's cart diverges from what is
+        // stored: additions and removals change the id-set, quantity edits move the qty, and in-place
+        // option edits change the optionsSignature — all four are blocked (line-item notes are not
+        // compared and stay editable). It stands down for the plugin's own saves
+        // (isGuardedSaveAllowed). A quote stays frozen through the whole requested → sent → accepted
+        // window until the order completes (orderHasLineItemFrozenQuote): an accepted quote is the
+        // negotiated deal, so post-accept additions cannot ride in at resolve-time prices while tax
+        // and shipping stay unrecomputed under the persisting freeze. A pending approval freezes the
+        // exact snapshot the approver is deciding on, so a buyer cannot inflate the order after it is
+        // submitted. The two predicates are mutually exclusive on one order (submitForApproval
+        // refuses an order that is part of a quote), so the message is unambiguous. Scoped like the
+        // add-guard (skips console and CP requests), so merchant CP edits stay free. Address, gateway
+        // and completion saves never change the line-item set, so they pass freely.
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_SAVE,
@@ -245,13 +249,21 @@ class Plugin extends BasePlugin
 
                 $quotes = $this->quotes;
 
-                if ($quotes->isQuoteSaveAllowed()) {
+                if ($quotes->isGuardedSaveAllowed()) {
                     return;
                 }
 
                 $order = $event->sender;
+                $orderId = $order->id;
 
-                if (!$quotes->orderHasLineItemFrozenQuote($order->id)) {
+                if ($orderId === null) {
+                    return;
+                }
+
+                $frozenQuote = $quotes->orderHasLineItemFrozenQuote($orderId);
+                $pendingApproval = $this->approvals->orderHasPendingApproval($orderId);
+
+                if (!$frozenQuote && !$pendingApproval) {
                     return;
                 }
 
@@ -259,11 +271,12 @@ class Plugin extends BasePlugin
                     return;
                 }
 
+                $message = $frozenQuote
+                    ? Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.')
+                    : Craft::t('b2b-commerce', 'This cart is awaiting approval and cannot be modified.');
+
                 $event->isValid = false;
-                $order->addError(
-                    'lineItems',
-                    Craft::t('b2b-commerce', 'This cart is part of a quote and cannot be modified.')
-                );
+                $order->addError('lineItems', $message);
             }
         );
 
@@ -279,6 +292,26 @@ class Plugin extends BasePlugin
                 }
 
                 $this->quotes->enforceAcceptedBeforeCompletion($event->sender);
+            }
+        );
+
+        // Approval completion backstop. Registered here — after the quote-completion veto but BEFORE
+        // the account-status and credit backstops — deliberately: it is a permission-to-order gate,
+        // so a purchaser who never got approval is refused up front, before enforceCreditLimit takes
+        // its per-company credit lock (a refusal after that lock is acquired would leak it until
+        // request teardown). It stacks with the quote veto: an accepted quote whose purchaser is over
+        // the threshold must ALSO carry an approved approval, and an order that is both accepted and
+        // approved satisfies both guards and completes. See Approvals::enforceApprovalBeforeCompletion
+        // for the full matrix and the paid-order / quote-interplay rationale.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->approvals->enforceApprovalBeforeCompletion($event->sender);
             }
         );
 
@@ -343,14 +376,16 @@ class Plugin extends BasePlugin
 
         // Purge protection: Commerce's purgeIncompleteCarts (Carts::purgeIncompleteCarts, on by
         // default, 90 days) deletes non-completed orders and the CASCADE FK would wipe their
-        // b2b_quotes rows with them — silently losing sent quotes with long validity and ALL
-        // terminal quote history. Exclude every order that carries a quote row from the purge
-        // query so those business records survive. (Phase 6 will extend this to b2b_approvals.)
+        // b2b_quotes and b2b_approvals rows with them — silently losing sent quotes with long
+        // validity, pending approvals, and ALL terminal quote/approval history. Exclude every order
+        // that carries a quote row OR an approval row from the purge query so those business records
+        // survive.
         Event::on(
             Carts::class,
             Carts::EVENT_BEFORE_PURGE_INACTIVE_CARTS,
             function(CartPurgeEvent $event) {
                 $this->quotes->excludeQuoteOrdersFromPurge($event->inactiveCartsQuery);
+                $this->approvals->excludeApprovalOrdersFromPurge($event->inactiveCartsQuery);
             }
         );
     }
@@ -389,6 +424,16 @@ class Plugin extends BasePlugin
                         "Your quote is ready. You can accept it or decline it using the links below:\n\n" .
                         "Accept: {{acceptUrl}}\n" .
                         "Decline: {{declineUrl}}"),
+                ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_approval_requested',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: order approval requested'),
+                    'subject' => Craft::t('b2b-commerce', 'An order is awaiting your approval'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "A colleague at {{company.title}} has submitted an order that needs your approval " .
+                        "before it can be placed. Please review it and approve or decline it.\n\n" .
+                        "{{siteUrl}}"),
                 ];
 
                 $event->messages[] = [

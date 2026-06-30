@@ -328,7 +328,7 @@ it('lets the plugin save an open quote cart through the allow flag', function ()
     $saved = null;
 
     asSiteRequest(function () use ($reloaded, &$saved) {
-        $saved = Plugin::getInstance()->quotes->allowQuoteSave(
+        $saved = Plugin::getInstance()->quotes->allowGuardedSave(
             fn (): bool => craftApp()->getElements()->saveElement($reloaded)
         );
     });
