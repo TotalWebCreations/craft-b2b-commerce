@@ -374,6 +374,24 @@ class Plugin extends BasePlugin
             }
         );
 
+        // Stale-pending reconciliation. Registered AFTER linkCompany (and the credit-lock release):
+        // if a purchaser's over-threshold order is submitted for approval and the merchant then nulls
+        // or raises the company threshold, live needsApproval drops to false, so the completion
+        // backstop passes even though the approval row is still pending. This flips such a still-pending
+        // row to approved with resolvedById = null and an auditable reason, so the approver queue is
+        // left clean and the history stays honest. See Approvals::reconcilePendingApproval.
+        Event::on(
+            Order::class,
+            Order::EVENT_AFTER_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->approvals->reconcilePendingApproval($event->sender);
+            }
+        );
+
         // Purge protection: Commerce's purgeIncompleteCarts (Carts::purgeIncompleteCarts, on by
         // default, 90 days) deletes non-completed orders and the CASCADE FK would wipe their
         // b2b_quotes and b2b_approvals rows with them — silently losing sent quotes with long
@@ -434,6 +452,24 @@ class Plugin extends BasePlugin
                         "A colleague at {{company.title}} has submitted an order that needs your approval " .
                         "before it can be placed. Please review it and approve or decline it.\n\n" .
                         "{{siteUrl}}"),
+                ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_approval_approved',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: order approved'),
+                    'subject' => Craft::t('b2b-commerce', 'Your order has been approved'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "Your order {{reference}} has been approved.\n\n" .
+                        "{{instructions}}"),
+                ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_approval_declined',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: order declined'),
+                    'subject' => Craft::t('b2b-commerce', 'Your order was declined'),
+                    'body' => Craft::t('b2b-commerce', "Hi {{user.friendlyName}},\n\n" .
+                        "Your order {{reference}} was declined.\n\n" .
+                        "Reason: {{reason}}"),
                 ];
 
                 $event->messages[] = [

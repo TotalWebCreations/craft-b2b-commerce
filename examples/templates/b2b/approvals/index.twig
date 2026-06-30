@@ -1,0 +1,107 @@
+{% extends '_layout' %}
+
+{# Storefront approvals overview. Two sections:
+     - the approver queue (craft.b2b.pendingApprovals): only populated for an admin or approver of
+       the company, so a purchaser sees nothing here. Each row has an approve form and a decline
+       form (decline requires a reason).
+     - your own requests (craft.b2b.myApprovalRequests): every request the signed-in user raised,
+       any status, with the decision reason. An approved request shows a resume-checkout button that
+       hands the order back as the active cart so the buyer can finish checkout.
+   Copy this template into your own site and restyle it to taste. #}
+{% requireLogin %}
+
+{% block content %}
+    {% set statusLabels = {
+        pending: 'Pending'|t('b2b-commerce'),
+        approved: 'Approved'|t('b2b-commerce'),
+        declined: 'Declined'|t('b2b-commerce'),
+    } %}
+
+    <h1>{{ 'Order approvals'|t('b2b-commerce') }}</h1>
+
+    {% set queue = craft.b2b.pendingApprovals %}
+
+    {% if queue|length %}
+        <h2>{{ 'Awaiting your approval'|t('b2b-commerce') }}</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ 'Reference'|t('b2b-commerce') }}</th>
+                    <th>{{ 'Requester'|t('b2b-commerce') }}</th>
+                    <th>{{ 'Total'|t('b2b-commerce') }}</th>
+                    <th>{{ 'Date'|t('b2b-commerce') }}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for request in queue %}
+                    <tr>
+                        <td>{{ request.reference }}</td>
+                        <td>{{ request.requesterName }}</td>
+                        <td>{{ request.total is not null ? request.total|commerceCurrency(request.currency) : '' }}</td>
+                        <td>{{ request.dateCreated ? request.dateCreated|date('short') : '' }}</td>
+                        <td>
+                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/approve') }}" accept-charset="UTF-8">
+                                {{ csrfInput() }}
+                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                <button type="submit">{{ 'Approve'|t('b2b-commerce') }}</button>
+                            </form>
+
+                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/decline') }}" accept-charset="UTF-8">
+                                {{ csrfInput() }}
+                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                <label>
+                                    {{ 'Reason'|t('b2b-commerce') }}
+                                    <input type="text" name="reason" required>
+                                </label>
+                                <button type="submit">{{ 'Decline'|t('b2b-commerce') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <h2>{{ 'Your requests'|t('b2b-commerce') }}</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Reference'|t('b2b-commerce') }}</th>
+                <th>{{ 'Status'|t('b2b-commerce') }}</th>
+                <th>{{ 'Total'|t('b2b-commerce') }}</th>
+                <th>{{ 'Reason'|t('b2b-commerce') }}</th>
+                <th>{{ 'Date'|t('b2b-commerce') }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for request in craft.b2b.myApprovalRequests %}
+                <tr>
+                    <td>{{ request.reference }}</td>
+                    <td>{{ statusLabels[request.status] ?? request.status }}</td>
+                    <td>{{ request.total is not null ? request.total|commerceCurrency(request.currency) : '' }}</td>
+                    <td>{{ request.reason }}</td>
+                    <td>{{ request.dateCreated ? request.dateCreated|date('short') : '' }}</td>
+                    <td>
+                        {# An approved request can be resumed: the order is handed back as the active
+                           cart so the buyer can complete checkout. #}
+                        {% if request.status == 'approved' %}
+                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/resume') }}" accept-charset="UTF-8">
+                                {{ csrfInput() }}
+                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                <button type="submit">{{ 'Resume checkout'|t('b2b-commerce') }}</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6">{{ 'No approval requests yet.'|t('b2b-commerce') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

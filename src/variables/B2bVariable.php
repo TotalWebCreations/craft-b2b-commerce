@@ -187,6 +187,71 @@ class B2bVariable
         return Plugin::getInstance()->quotes->getQuotesForCompany($company->id);
     }
 
+    /**
+     * The pending approval queue for the signed-in user, but only when they are an approver
+     * (admin or approver role) of their company; any other visitor sees an empty queue, so a
+     * purchaser can never read the company's pending requests. Newest first, with order and
+     * requester data batch-loaded.
+     *
+     * @return array<int, array{
+     *     orderId: int,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     requesterName: ?string,
+     *     dateCreated: ?DateTime
+     * }>
+     */
+    public function getPendingApprovals(): array
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if ($user === null) {
+            return [];
+        }
+
+        $members = Plugin::getInstance()->companyMembers;
+        $company = $members->getCompanyForUser($user->id);
+
+        if ($company === null) {
+            return [];
+        }
+
+        $role = $members->getRoleForUser($user->id, $company->id);
+
+        if ($role === null || !$role->canApproveOrders()) {
+            return [];
+        }
+
+        return Plugin::getInstance()->approvals->getPendingForCompany($company->id);
+    }
+
+    /**
+     * The signed-in user's own approval requests, any status, newest first, with the decision
+     * reason. Returns an empty array for a guest. Feeds the requester's overview and the
+     * resume-checkout button on an approved request.
+     *
+     * @return array<int, array{
+     *     orderId: int,
+     *     status: string,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     reason: ?string,
+     *     dateCreated: ?DateTime
+     * }>
+     */
+    public function getMyApprovalRequests(): array
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if ($user === null) {
+            return [];
+        }
+
+        return Plugin::getInstance()->approvals->getRequestsForRequester($user->id);
+    }
+
     /** @return array<int, array{purchasableId: int, qty: int, sku: string, description: ?string}> */
     public function getOrderListItems(int $listId): array
     {
