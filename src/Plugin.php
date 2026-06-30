@@ -28,6 +28,7 @@ use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\models\Settings;
+use totalwebcreations\b2bcommerce\modules\approvals\services\Approvals;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyAddresses;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
@@ -45,6 +46,7 @@ use yii\base\Event;
 /**
  * @method static Plugin getInstance()
  * @method Settings getSettings()
+ * @property-read Approvals $approvals
  * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
@@ -59,7 +61,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.4';
+    public string $schemaVersion = '1.0.5';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -81,6 +83,7 @@ class Plugin extends BasePlugin
     private function registerComponents(): void
     {
         $this->setComponents([
+            'approvals' => Approvals::class,
             'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
