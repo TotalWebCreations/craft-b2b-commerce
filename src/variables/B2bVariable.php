@@ -159,6 +159,34 @@ class B2bVariable
         ];
     }
 
+    /**
+     * The current user's company quotes, newest first, for the storefront overview.
+     * Any company member may view them. Returns an empty array when the visitor has no
+     * company. The accept token is present only on a still-sent quote, so a template can
+     * build the same accept link the quote mail sends.
+     *
+     * @return array<int, array{
+     *     status: string,
+     *     validUntil: ?DateTime,
+     *     dateCreated: ?DateTime,
+     *     orderNumber: ?string,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     acceptToken: ?string
+     * }>
+     */
+    public function getQuotes(): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        return Plugin::getInstance()->quotes->getQuotesForCompany($company->id);
+    }
+
     /** @return array<int, array{purchasableId: int, qty: int, sku: string, description: ?string}> */
     public function getOrderListItems(int $listId): array
     {

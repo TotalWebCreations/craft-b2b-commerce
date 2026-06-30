@@ -243,6 +243,128 @@ class Quotes extends Component
     }
 
     /**
+     * Every quote for the control-panel workbench, newest first, optionally filtered to a
+     * single status. Built without an N+1: one query loads the rows, then the referenced
+     * orders, companies and requesters are each batch-loaded once and stitched onto the rows.
+     *
+     * @return array<int, array{
+     *     orderId: int,
+     *     status: string,
+     *     companyId: int,
+     *     companyName: ?string,
+     *     requesterName: ?string,
+     *     notes: ?string,
+     *     validUntil: ?DateTime,
+     *     dateCreated: ?DateTime,
+     *     order: ?Order
+     * }>
+     */
+    public function getQuotesForCp(?string $status = null): array
+    {
+        $query = (new Query())
+            ->from('{{%b2b_quotes}}')
+            ->orderBy(['dateCreated' => SORT_DESC]);
+
+        if ($status !== null) {
+            $query->where(['status' => $status]);
+        }
+
+        $rows = $query->all();
+
+        if ($rows === []) {
+            return [];
+        }
+
+        $orders = Order::find()
+            ->id(array_column($rows, 'orderId'))
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        // Companies are non-localized elements hosted on the primary site only, so query with site('*').
+        $companies = Company::find()
+            ->id(array_unique(array_column($rows, 'companyId')))
+            ->site('*')
+            ->unique()
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        $requesterIds = array_values(array_filter(array_column($rows, 'requestedById')));
+        $requesters = $requesterIds !== []
+            ? User::find()->id($requesterIds)->status(null)->indexBy('id')->all()
+            : [];
+
+        return array_map(function (array $row) use ($orders, $companies, $requesters): array {
+            $requesterId = $row['requestedById'] !== null ? (int) $row['requestedById'] : null;
+            $requester = $requesterId !== null ? ($requesters[$requesterId] ?? null) : null;
+
+            return [
+                'orderId' => (int) $row['orderId'],
+                'status' => (string) $row['status'],
+                'companyId' => (int) $row['companyId'],
+                'companyName' => ($companies[(int) $row['companyId']] ?? null)?->title,
+                'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
+                'notes' => $row['notes'] !== null ? (string) $row['notes'] : null,
+                'validUntil' => $this->toUtcDateTime($row['validUntil']),
+                'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
+                'order' => $orders[(int) $row['orderId']] ?? null,
+            ];
+        }, $rows);
+    }
+
+    /**
+     * Every quote belonging to the given company, newest first, for the storefront overview.
+     * Any member may view; the accept token is exposed only for a still-sent quote (the sole
+     * status a buyer can act on), so the template can rebuild the accept link the mail sends.
+     *
+     * @return array<int, array{
+     *     status: string,
+     *     validUntil: ?DateTime,
+     *     dateCreated: ?DateTime,
+     *     orderNumber: ?string,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     acceptToken: ?string
+     * }>
+     */
+    public function getQuotesForCompany(int $companyId): array
+    {
+        $rows = (new Query())
+            ->from('{{%b2b_quotes}}')
+            ->where(['companyId' => $companyId])
+            ->orderBy(['dateCreated' => SORT_DESC])
+            ->all();
+
+        if ($rows === []) {
+            return [];
+        }
+
+        $orders = Order::find()
+            ->id(array_column($rows, 'orderId'))
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        return array_map(function (array $row) use ($orders): array {
+            $order = $orders[(int) $row['orderId']] ?? null;
+            $status = (string) $row['status'];
+
+            return [
+                'status' => $status,
+                'validUntil' => $this->toUtcDateTime($row['validUntil']),
+                'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
+                'orderNumber' => $order?->number,
+                'reference' => $order !== null ? ($order->reference ?: $order->getShortNumber()) : null,
+                'total' => $order?->getTotalPrice(),
+                'currency' => $order?->currency,
+                'acceptToken' => $status === QuoteStatus::Sent->value ? (string) $row['acceptToken'] : null,
+            ];
+        }, $rows);
+    }
+
+    /**
      * Whether the order carries a quote that is still open (requested or sent) and so
      * must not be mutated through the cart endpoints.
      */
@@ -403,6 +525,18 @@ class Quotes extends Component
         $validUntil = new DateTime((string) $row['validUntil'], new DateTimeZone('UTC'));
 
         return $validUntil <= new DateTime('now', new DateTimeZone('UTC'));
+    }
+
+    /**
+     * Reads a stored UTC datetime column into a DateTime, or null when the column is empty.
+     */
+    private function toUtcDateTime(mixed $value): ?DateTime
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        return new DateTime((string) $value, new DateTimeZone('UTC'));
     }
 
     private function orderIsQuote(int $orderId): bool

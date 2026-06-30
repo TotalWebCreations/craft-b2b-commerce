@@ -1,0 +1,54 @@
+{% extends '_layout' %}
+
+{# Storefront overview of the current company's quotes. craft.b2b.quotes returns
+   every quote for the signed-in user's company, newest first; any member may view.
+   Copy this template into your own site and restyle it to taste. #}
+{% requireLogin %}
+
+{% block content %}
+    <h1>{{ 'Your quotes'|t('b2b-commerce') }}</h1>
+
+    {% set statusLabels = {
+        requested: 'Requested'|t('b2b-commerce'),
+        sent: 'Sent'|t('b2b-commerce'),
+        accepted: 'Accepted'|t('b2b-commerce'),
+        declined: 'Declined'|t('b2b-commerce'),
+        expired: 'Expired'|t('b2b-commerce'),
+    } %}
+
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Reference'|t('b2b-commerce') }}</th>
+                <th>{{ 'Status'|t('b2b-commerce') }}</th>
+                <th>{{ 'Total'|t('b2b-commerce') }}</th>
+                <th>{{ 'Valid until'|t('b2b-commerce') }}</th>
+                <th>{{ 'Date'|t('b2b-commerce') }}</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for quote in craft.b2b.quotes %}
+                <tr>
+                    <td>{{ quote.reference }}</td>
+                    <td>{{ statusLabels[quote.status] ?? quote.status }}</td>
+                    <td>{{ quote.total is not null ? quote.total|commerceCurrency(quote.currency) : '' }}</td>
+                    <td>{{ quote.validUntil ? quote.validUntil|date('short') : '' }}</td>
+                    <td>{{ quote.dateCreated ? quote.dateCreated|date('short') : '' }}</td>
+                    <td>
+                        {# Only a still-sent quote can be accepted. The accept link carries the
+                           quote token, exactly like the quote email; point a site route at the
+                           accept template so the token resolves there (see quotes/accept.twig). #}
+                        {% if quote.status == 'sent' and quote.acceptToken %}
+                            <a href="{{ url('quotes/accept', { token: quote.acceptToken }) }}">{{ 'Accept quote'|t('b2b-commerce') }}</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6">{{ 'No quotes yet.'|t('b2b-commerce') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

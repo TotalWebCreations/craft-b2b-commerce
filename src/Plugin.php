@@ -147,6 +147,7 @@ class Plugin extends BasePlugin
                 $event->rules['b2b/companies/<companyId:\d+>/members'] = 'b2b-commerce/companies-cp/members';
                 $event->rules['b2b/companies/<companyId:\d+>/orders'] = 'b2b-commerce/companies-cp/orders';
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
+                $event->rules['b2b/quotes'] = 'b2b-commerce/quotes-cp/index';
             }
         );
 
@@ -159,6 +160,9 @@ class Plugin extends BasePlugin
                     'permissions' => [
                         'b2b-commerce:manageCompanies' => [
                             'label' => Craft::t('b2b-commerce', 'Manage companies'),
+                        ],
+                        'b2b-commerce:manageQuotes' => [
+                            'label' => Craft::t('b2b-commerce', 'Manage quotes'),
                         ],
                     ],
                 ];
@@ -372,6 +376,7 @@ class Plugin extends BasePlugin
         $item['url'] = 'b2b';
         $item['subnav'] = [
             'companies' => ['label' => Craft::t('b2b-commerce', 'Companies'), 'url' => 'b2b/companies'],
+            'quotes' => ['label' => Craft::t('b2b-commerce', 'Quotes'), 'url' => 'b2b/quotes'],
         ];
 
         return $item;
