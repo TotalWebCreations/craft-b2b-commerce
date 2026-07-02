@@ -71,9 +71,15 @@ class Approvals extends Component
      *   - the cart is not empty;
      *   - the order actually needs approval for this actor — an explicit submit of an order that
      *     does not require approval is confusing, so it is refused rather than silently accepted;
-     *   - the order has no approval row yet (the row's primary key is orderId, one per order);
-     *   - the order is not part of an open quote — the quote and approval flows are mutually
-     *     exclusive on a single order (the quote flow already governs completion).
+     *   - the order has no approval row yet (the row's primary key is orderId, one per order); the
+     *     refusal message is tailored to the existing row's status — pending is still awaiting a
+     *     decision, declined is terminal (start a fresh cart), approved is ready to resume;
+     *   - the order is not part of an OPEN quote (requested or sent) — while a quote is open its own
+     *     flow governs completion, so the two flows are mutually exclusive there. An ACCEPTED quote
+     *     is the deliberate exception: a purchaser who accepts an over-threshold quote MUST be able
+     *     to submit that order for approval, otherwise the accepted quote (line-item-frozen) and the
+     *     completion backstop (which demands an approved row) deadlock and the order can never be
+     *     placed. So the guard refuses only open quotes, never an accepted one.
      *
      * The thresholdAmount stored is a snapshot of the company's approvalThreshold at submit time,
      * so a later threshold change never rewrites the reason this order was held.
@@ -92,13 +98,13 @@ class Approvals extends Component
             );
         }
 
-        if ($this->orderHasApproval((int) $cart->id)) {
-            throw new InvalidArgumentException(
-                Craft::t('b2b-commerce', 'This order is already awaiting approval.')
-            );
+        $existing = $this->approvalRow((int) $cart->id);
+
+        if ($existing !== null) {
+            throw new InvalidArgumentException($this->existingRowMessage($existing));
         }
 
-        if (Plugin::getInstance()->quotes->orderHasLineItemFrozenQuote((int) $cart->id)) {
+        if (Plugin::getInstance()->quotes->orderHasOpenQuoteRow((int) $cart->id)) {
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'This cart is part of a quote.')
             );
@@ -136,8 +142,9 @@ class Approvals extends Component
      *     an approved approval before it completes. This stacks cleanly with the quote-completion
      *     veto (Quotes::enforceAcceptedBeforeCompletion): that guard demands the quote be
      *     accepted, this one demands the approval be approved, and an order that is BOTH accepted
-     *     and approved satisfies both and completes. The buyer path for such an order is to
-     *     submit it for approval first (submitForApproval); this message never strands them, it
+     *     and approved satisfies both and completes. The buyer path for such an order is to accept
+     *     the quote and then submit the accepted-quote order for approval (submitForApproval, which
+     *     refuses only OPEN quotes, never an accepted one); this message never strands them, it
      *     tells them plainly what is missing.
      *
      * Completion matrix for a purchaser whose order clears the threshold:
@@ -146,12 +153,21 @@ class Approvals extends Component
      *   approved approval    -> passes
      * An admin or approver, or any order under the threshold, never triggers this gate at all.
      *
+     * Disarmed entirely when the enableApprovals feature toggle is off: with the whole approval
+     * feature switched off there is no gate to enforce, so a gated purchaser completes as if no
+     * threshold existed (the reconciler stays armed but is harmless — a still-pending row it meets
+     * is simply auto-resolved on completion). This mirrors the controller-level feature gate.
+     *
      * Storefront-scoped like the other completion guards; console and control-panel completions
      * are the deliberate merchant override (a purchaser's order is placed either by an approver
      * approving it, or by an admin completing it from the control panel).
      */
     public function enforceApprovalBeforeCompletion(Order $order): void
     {
+        if (!Plugin::getInstance()->getSettings()->enableApprovals) {
+            return;
+        }
+
         $request = Craft::$app->getRequest();
 
         // Storefront-only guard: never intervene in console or control-panel completions.
@@ -186,21 +202,32 @@ class Approvals extends Component
     }
 
     /**
-     * Whether the order carries an approval request still awaiting a decision AND is not yet
-     * completed — the exact predicate the buyer-mutation save guard needs. The completed-order
-     * exclusion mirrors Quotes::orderHasLineItemFrozenQuote: once an order completes the freeze is
-     * spent, and a pending row that outlives completion (a threshold relaxed after submit, then
+     * Whether the order's line items must stay frozen against buyer mutation because of its
+     * approval: a PENDING or APPROVED row on an order that is not yet completed. Mirrors
+     * Quotes::orderHasLineItemFrozenQuote, and for the same reason it spans both live states:
+     *   - pending freezes the exact snapshot the approver is deciding on, so a buyer cannot inflate
+     *     the order while it awaits a decision;
+     *   - approved keeps the freeze through resume-checkout, so a buyer who is handed the approved
+     *     order back as their cart cannot then add line items and inflate it past the amount the
+     *     approver signed off on before it completes. approve()'s own direct completion never trips
+     *     this (markAsComplete does not change the line-item set), and resumeCheckout only re-adopts
+     *     the order as the session cart without saving it, so neither the plugin's own paths fire it.
+     * The completed-order exclusion mirrors the quote predicate: once an order completes the freeze
+     * is spent, and a row that outlives completion (a threshold relaxed after submit, then
      * reconciled by reconcilePendingApproval on AFTER_COMPLETE) must never keep freezing a placed
      * order's line items.
      */
-    public function orderHasPendingApproval(int $orderId): bool
+    public function orderHasLineItemFrozenApproval(int $orderId): bool
     {
         return (new Query())
             ->from(['a' => '{{%b2b_approvals}}'])
             ->innerJoin(['o' => '{{%commerce_orders}}'], '[[o.id]] = [[a.orderId]]')
             ->where([
                 'a.orderId' => $orderId,
-                'a.status' => ApprovalStatus::Pending->value,
+                'a.status' => [
+                    ApprovalStatus::Pending->value,
+                    ApprovalStatus::Approved->value,
+                ],
             ])
             ->andWhere(['not', ['o.isCompleted' => true]])
             ->exists();
@@ -231,10 +258,19 @@ class Approvals extends Component
     {
         $row = $this->requireResolvableRow($orderId, $approver);
 
-        Db::update('{{%b2b_approvals}}', [
+        // status = pending in the WHERE + the affected-row check close the concurrent-resolution
+        // race: if a second approver flipped the row between requireResolvableRow's read and this
+        // write, zero rows match and we surface the same terminal message rather than double-resolve.
+        $affected = Db::update('{{%b2b_approvals}}', [
             'status' => ApprovalStatus::Approved->value,
             'resolvedById' => $approver->id,
-        ], ['orderId' => $orderId]);
+        ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+
+        if ($affected === 0) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+            );
+        }
 
         $order = Order::find()->id($orderId)->status(null)->one();
 
@@ -273,11 +309,19 @@ class Approvals extends Component
             );
         }
 
-        Db::update('{{%b2b_approvals}}', [
+        // status = pending in the WHERE + the affected-row check close the concurrent-resolution
+        // race, exactly as approve() does.
+        $affected = Db::update('{{%b2b_approvals}}', [
             'status' => ApprovalStatus::Declined->value,
             'resolvedById' => $approver->id,
             'reason' => $reason,
-        ], ['orderId' => $orderId]);
+        ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+
+        if ($affected === 0) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+            );
+        }
 
         $order = Order::find()->id($orderId)->status(null)->one();
 
@@ -340,11 +384,14 @@ class Approvals extends Component
      * EVENT_AFTER_COMPLETE_ORDER, AFTER linkCompany, for the threshold-relaxed-after-submit
      * scenario: a purchaser submits an over-threshold order, the merchant then nulls or raises the
      * company threshold, live needsApproval drops to FALSE, so the completion backstop passes even
-     * though the row is still pending. Neither approved-by-an-approver nor declined would be honest
-     * here, so the row is flipped to approved with resolvedById = null and an auditable reason, so
-     * the queue is left clean and the history records exactly why. Only a genuinely pending row is
-     * touched (a row already resolved by approve/decline is left untouched); orderHasPendingApproval
-     * excludes completed orders, so this is queried directly.
+     * though the row is still pending. The other route here is a merchant override: an admin
+     * completes a still-gated purchaser's pending order from the control panel or console (both
+     * bypass the storefront backstop), so the order lands completed with its threshold still in
+     * force. Neither approved-by-an-approver nor declined would be honest for either case, so the
+     * row is flipped to approved with resolvedById = null and an auditable reason that names which
+     * route it was — the live needsApproval check distinguishes them. Only a genuinely pending row
+     * is touched (a row already resolved by approve/decline is left untouched); the freeze predicate
+     * excludes completed orders, so this pending check is queried directly.
      */
     public function reconcilePendingApproval(Order $order): void
     {
@@ -359,10 +406,17 @@ class Approvals extends Component
             return;
         }
 
+        $customer = $order->getCustomer();
+        $stillGated = $customer !== null && $this->needsApproval($order, $customer);
+
+        $reason = $stillGated
+            ? Craft::t('b2b-commerce', 'Auto-approved: completed via merchant override.')
+            : Craft::t('b2b-commerce', 'Auto-approved: the order no longer required approval at completion.');
+
         Db::update('{{%b2b_approvals}}', [
             'status' => ApprovalStatus::Approved->value,
             'resolvedById' => null,
-            'reason' => Craft::t('b2b-commerce', 'Auto-approved: the order no longer required approval at completion.'),
+            'reason' => $reason,
         ], ['orderId' => $orderId]);
     }
 
@@ -753,14 +807,38 @@ class Approvals extends Component
 
     /**
      * Whether the order carries any approval row at all, regardless of status. The row's primary
-     * key is orderId, so at most one ever exists; used to refuse a second submit.
+     * key is orderId, so at most one ever exists; used to refuse a second submit and, symmetrically,
+     * to refuse a quote request on an order already in the approval flow (Quotes::requestQuote).
      */
-    private function orderHasApproval(int $orderId): bool
+    public function orderHasApproval(int $orderId): bool
     {
         return (new Query())
             ->from('{{%b2b_approvals}}')
             ->where(['orderId' => $orderId])
             ->exists();
+    }
+
+    /**
+     * The refusal message for a submit against an order that already carries an approval row,
+     * tailored to that row's status so the buyer learns what to do next: a pending row is still
+     * awaiting a decision, a declined row is terminal (a new cart is the only way forward), and an
+     * approved row is ready to be resumed to checkout.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function existingRowMessage(array $row): string
+    {
+        $status = ApprovalStatus::from($row['status']);
+
+        if ($status === ApprovalStatus::Declined) {
+            return Craft::t('b2b-commerce', "This order's approval request was declined. Start a new cart to order again.");
+        }
+
+        if ($status === ApprovalStatus::Approved) {
+            return Craft::t('b2b-commerce', 'This order has already been approved. Resume checkout to place it.');
+        }
+
+        return Craft::t('b2b-commerce', 'This order is already awaiting approval.');
     }
 
     /**

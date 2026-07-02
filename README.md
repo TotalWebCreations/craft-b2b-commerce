@@ -73,8 +73,8 @@ This release delivers all five pillars. It ships:
   the first accept/decline touch. Open quote carts are protected against buyer-side
   edits.
 - **Order approvals**: a per-company spending threshold that holds a purchaser's over-threshold
-  order for a company approver. Purchasers **submit** the held order for approval (two approver
-  emails go out and the cart detaches); an approver **approves** — placing an invoice order
+  order for a company approver. Purchasers **submit** the held order for approval (every approver
+  and admin of the company is emailed and the cart detaches); an approver **approves** — placing an invoice order
   directly on account or emailing the requester a resume-checkout link for other gateways — or
   **declines** with a reason that reaches the requester. A hard completion backstop enforces the
   gate server-side even if the storefront submit step is bypassed, and a read-only
@@ -580,6 +580,24 @@ bypassed, and it applies equally to accepted-quote orders that clear the thresho
 Approve, decline and resume-checkout are the company's **own internal process**, driven from
 the storefront by its approvers — a merchant does **not** approve on the company's behalf. The
 four-eyes principle holds: an approver may never approve their own submission.
+
+A purchaser who accepts an over-threshold **quote** is not exempt: the accepted-quote order is
+still held by the backstop until it also carries an approved approval, so the purchaser submits
+that accepted-quote order for approval as normal (the submit step refuses only *open* quotes, not
+accepted ones). Both guards — quote-accepted and approval-approved — must be satisfied before it
+completes.
+
+When the `enableApprovals` setting is off the whole gate is disarmed: the completion backstop
+stands down and any cart left awaiting approval from when the feature was on becomes editable
+again.
+
+#### Payment capture caveat
+
+The approval gate is a **completion** backstop, not a payment-time gate. A gated purchaser who
+pays by card *without* first submitting for approval can still have their card charged by the
+gateway; completion is then refused, leaving a **paid but incomplete** order. Merchant recovery
+is either to place the order via a control-panel completion (the merchant override) or to refund
+the capture. A payment-time gate that refuses the charge up front is on the roadmap.
 
 #### Control-panel monitoring (`Manage approvals` permission)
 

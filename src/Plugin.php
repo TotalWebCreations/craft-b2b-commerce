@@ -220,7 +220,7 @@ class Plugin extends BasePlugin
             }
         );
 
-        // Buyer-side immutability of guarded carts: a line-item-frozen quote OR an order awaiting
+        // Buyer-side immutability of guarded carts: a line-item-frozen quote OR a line-item-frozen
         // approval. Under the sent-quote price freeze (recalculationMode = none) the charged total
         // still moves with quantity and a frozen absolute discount can be driven negative, and line
         // removal is otherwise unguarded — so the add-line-item guard above (new items only) is not
@@ -231,12 +231,18 @@ class Plugin extends BasePlugin
         // (isGuardedSaveAllowed). A quote stays frozen through the whole requested → sent → accepted
         // window until the order completes (orderHasLineItemFrozenQuote): an accepted quote is the
         // negotiated deal, so post-accept additions cannot ride in at resolve-time prices while tax
-        // and shipping stay unrecomputed under the persisting freeze. A pending approval freezes the
-        // exact snapshot the approver is deciding on, so a buyer cannot inflate the order after it is
-        // submitted. The two predicates are mutually exclusive on one order (submitForApproval
-        // refuses an order that is part of a quote), so the message is unambiguous. Scoped like the
-        // add-guard (skips console and CP requests), so merchant CP edits stay free. Address, gateway
-        // and completion saves never change the line-item set, so they pass freely.
+        // and shipping stay unrecomputed under the persisting freeze. An approval freezes the exact
+        // snapshot both while it is PENDING (so a buyer cannot inflate the order the approver is
+        // deciding on) AND once it is APPROVED (so a buyer who is handed the approved order back via
+        // resumeCheckout cannot then add line items and complete past the amount that was signed off)
+        // — orderHasLineItemFrozenApproval spans both live states. The two predicates are NOT
+        // strictly exclusive: an accepted quote submitted for approval carries both a (frozen)
+        // accepted-quote row and an approval row, so both freeze together — the quote message wins,
+        // which is accurate since the order genuinely is part of a quote. The approval freeze is
+        // itself disarmed when the enableApprovals toggle is off, so a pending cart left over from
+        // when the feature was on becomes editable again. Scoped like the add-guard (skips console
+        // and CP requests), so merchant CP edits stay free. Address, gateway and completion saves
+        // never change the line-item set, so they pass freely.
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_SAVE,
@@ -265,9 +271,10 @@ class Plugin extends BasePlugin
                 }
 
                 $frozenQuote = $quotes->orderHasLineItemFrozenQuote($orderId);
-                $pendingApproval = $this->approvals->orderHasPendingApproval($orderId);
+                $frozenApproval = $this->getSettings()->enableApprovals
+                    && $this->approvals->orderHasLineItemFrozenApproval($orderId);
 
-                if (!$frozenQuote && !$pendingApproval) {
+                if (!$frozenQuote && !$frozenApproval) {
                     return;
                 }
 

@@ -5,6 +5,7 @@ use craft\elements\User;
 use craft\web\Response as WebResponse;
 use totalwebcreations\b2bcommerce\controllers\QuotesController;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -112,6 +113,17 @@ it('refuses a second quote request for a cart that is already a quote', function
 
     expect(fn () => Plugin::getInstance()->quotes->requestQuote($cart, $user, null))
         ->toThrow(InvalidArgumentException::class, 'This cart is already a quote request.');
+});
+
+it('refuses a quote request for a cart that is part of an approval request', function () {
+    // Symmetric to Approvals::submitForApproval refusing an open-quote cart: the two flows are
+    // mutually exclusive at entry, so a cart already carrying an approval row cannot become a quote.
+    [$user, $company] = quoteMember();
+    $cart = quoteCartWithItem();
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Pending->value, $user->id, 500.0);
+
+    expect(fn () => Plugin::getInstance()->quotes->requestQuote($cart, $user, null))
+        ->toThrow(InvalidArgumentException::class, 'This cart is part of an approval request.');
 });
 
 it('short-circuits the quotes feature gate when the toggle is off', function () {

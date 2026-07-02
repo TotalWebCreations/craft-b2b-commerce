@@ -34,6 +34,13 @@ class Quotes extends Component
      * Turns the given cart into a quote request: records a requested quote row for the
      * actor's approved company and notifies an admin, then forgets the session cart so
      * the order survives untouched as the quote while the customer keeps a fresh cart.
+     *
+     * The quote and approval flows are mutually exclusive at the point of entry: a cart that
+     * already carries an approval row cannot also be turned into a quote (and, symmetrically,
+     * Approvals::submitForApproval refuses a cart that is part of an OPEN quote). The one place
+     * they meet is later, downstream: an ACCEPTED quote may be submitted for approval, because a
+     * purchaser accepting an over-threshold quote still needs an approver's sign-off before it
+     * can complete.
      */
     public function requestQuote(Order $cart, User $actor, ?string $notes): void
     {
@@ -54,6 +61,12 @@ class Quotes extends Component
         if ($this->orderIsQuote((int) $cart->id)) {
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'This cart is already a quote request.')
+            );
+        }
+
+        if (Plugin::getInstance()->approvals->orderHasApproval((int) $cart->id)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This cart is part of an approval request.')
             );
         }
 
@@ -416,6 +429,33 @@ class Quotes extends Component
                 ],
             ])
             ->andWhere(['not', ['o.isCompleted' => true]])
+            ->exists();
+    }
+
+    /**
+     * Whether the order carries an OPEN quote — one still in the requested or sent status. This
+     * is the narrower predicate the approval-submit guard needs: the quote and approval flows are
+     * mutually exclusive only while the quote is still open (its own flow governs completion). Once
+     * a quote is ACCEPTED it no longer blocks an approval submit — a purchaser who accepts an
+     * over-threshold quote must be able to submit that accepted-quote order for approval, so the
+     * two flows deliberately meet on that one order. Distinct from orderHasLineItemFrozenQuote,
+     * which additionally freezes an accepted quote's line items against buyer mutation.
+     */
+    public function orderHasOpenQuoteRow(?int $orderId): bool
+    {
+        if ($orderId === null) {
+            return false;
+        }
+
+        return (new Query())
+            ->from('{{%b2b_quotes}}')
+            ->where([
+                'orderId' => $orderId,
+                'status' => [
+                    QuoteStatus::Requested->value,
+                    QuoteStatus::Sent->value,
+                ],
+            ])
             ->exists();
     }
 

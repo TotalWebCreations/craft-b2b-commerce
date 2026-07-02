@@ -234,3 +234,22 @@ it('auto-approves a still-pending row when the order completes after the thresho
         ->and($row['resolvedById'])->toBeNull()
         ->and($row['reason'])->toBe('Auto-approved: the order no longer required approval at completion.');
 });
+
+it('auto-approves a still-pending row via merchant override with the override reason', function () {
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Pending->value, $purchaser->id, 500.0);
+
+    // The threshold is NOT relaxed — the purchaser is still gated. A merchant completes the order
+    // from the console/CP (a merchant override, which bypasses the storefront backstop), so the
+    // reconciler records the override reason rather than the threshold-relaxed one.
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+
+    expect($reloaded->markAsComplete())->toBeTrue();
+
+    $row = approvalRow($cart->id);
+
+    expect($row['status'])->toBe(ApprovalStatus::Approved->value)
+        ->and($row['resolvedById'])->toBeNull()
+        ->and($row['reason'])->toBe('Auto-approved: completed via merchant override.');
+});

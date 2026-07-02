@@ -294,6 +294,165 @@ it('excludes approval orders from the inactive-cart purge query', function () {
         ->and($ids)->toContain($plainCart->id);
 });
 
+it('submits an accepted-quote order for approval via the real submit path, then approves and completes it', function () {
+    // C1 mainline: a purchaser accepts an over-threshold quote, then submits THAT accepted-quote
+    // order for approval through submitForApproval itself (not a direct row insert). The submit
+    // guard must let an accepted quote through — it refuses only open quotes — so the deadlock
+    // (accepted-quote freeze vs. the approval backstop demanding an approved row) is resolved.
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $approver = createTestUser('appr_acceptedq_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($approver->id, $company->id, CompanyRole::Approver);
+
+    $cart = approvalCart($purchaser, 600.0);
+    insertQuoteRow($cart->id, QuoteStatus::Accepted->value, $company->id, $purchaser->id);
+
+    // Real path — must NOT be refused as "part of a quote".
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+
+    expect(approvalRow($cart->id))->not->toBeNull()
+        ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+
+    // The approver approves (non-invoice gateway → row flips to approved, order left for resume).
+    Plugin::getInstance()->approvals->approve($cart->id, $approver);
+
+    expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Approved->value);
+
+    // Both completion guards now stand down.
+    $quoteVetoRefused = false;
+    asSiteRequest(function () use ($cart, &$quoteVetoRefused) {
+        try {
+            Plugin::getInstance()->quotes->enforceAcceptedBeforeCompletion($cart);
+        } catch (Throwable) {
+            $quoteVetoRefused = true;
+        }
+    });
+
+    expect($quoteVetoRefused)->toBeFalse()
+        ->and(refuseApprovalAsSiteRequest($cart))->toBeFalse();
+
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+
+    expect($reloaded->markAsComplete())->toBeTrue()
+        ->and($reloaded->isCompleted)->toBeTrue();
+});
+
+it('tailors the submit refusal to the existing row status: declined and approved', function () {
+    // A declined row is terminal (start a new cart); an approved row points to resume checkout.
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+
+    $declinedCart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($declinedCart->id, $company->id, ApprovalStatus::Declined->value, $purchaser->id, 500.0);
+
+    expect(fn () => Plugin::getInstance()->approvals->submitForApproval($declinedCart, $purchaser))
+        ->toThrow(InvalidArgumentException::class, "This order's approval request was declined. Start a new cart to order again.");
+
+    $approvedCart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($approvedCart->id, $company->id, ApprovalStatus::Approved->value, $purchaser->id, 500.0);
+
+    expect(fn () => Plugin::getInstance()->approvals->submitForApproval($approvedCart, $purchaser))
+        ->toThrow(InvalidArgumentException::class, 'This order has already been approved. Resume checkout to place it.');
+});
+
+it('disarms the completion backstop for a gated purchaser when the feature toggle is off', function () {
+    [$purchaser] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($purchaser, 600.0);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableApprovals' => false]);
+
+    try {
+        // No approval row, gated purchaser, feature off → the backstop stands down entirely.
+        expect(refuseApprovalAsSiteRequest($cart))->toBeFalse();
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableApprovals' => true]);
+    }
+});
+
+it('lets a buyer edit a pending-approval cart when the feature toggle is off', function () {
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Pending->value, $purchaser->id, 500.0);
+
+    $plugin = Plugin::getInstance();
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableApprovals' => false]);
+
+    try {
+        $reloaded = Order::find()->id($cart->id)->status(null)->one();
+        $lineItem = $reloaded->getLineItems()[0];
+        $lineItem->qty = (int) $lineItem->qty + 3;
+        $reloaded->setLineItems([$lineItem]);
+
+        // Feature off → the mutation veto is disarmed. A full successful save cannot be driven under
+        // a faked console site request (Commerce reaches getIsSecureConnection), so the save is
+        // allowed to proceed into that pipeline and the resulting throw is swallowed; what matters is
+        // that the BEFORE_SAVE guard did NOT veto — it left no lineItems error behind.
+        $error = 'unset';
+        asSiteRequest(function () use ($reloaded, &$error) {
+            try {
+                craftApp()->getElements()->saveElement($reloaded);
+            } catch (Throwable) {
+                // Proceeded past our guard into Commerce's own save; not the guard's doing.
+            }
+
+            $error = $reloaded->getFirstError('lineItems');
+        });
+
+        expect($error)->toBeNull();
+    } finally {
+        Craft::$app->getPlugins()->savePluginSettings($plugin, ['enableApprovals' => true]);
+    }
+});
+
+it('vetoes a line-item addition on a resumed APPROVED cart (post-approval inflation)', function () {
+    // C3: after approval the mutation veto must stay armed on the approved-but-not-completed order,
+    // so a purchaser handed the order back via resumeCheckout cannot inflate it past what was signed
+    // off before it completes.
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Approved->value, $purchaser->id, 500.0);
+
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+    $lineItem = $reloaded->getLineItems()[0];
+    $lineItemId = $lineItem->id;
+    $storedQty = (int) $lineItem->qty;
+    $lineItem->qty = $storedQty + 5;
+    $reloaded->setLineItems([$lineItem]);
+
+    $saved = null;
+    asSiteRequest(function () use ($reloaded, &$saved) {
+        $saved = craftApp()->getElements()->saveElement($reloaded);
+    });
+
+    expect($saved)->toBeFalse()
+        ->and($reloaded->getFirstError('lineItems'))->toBe('This cart is awaiting approval and cannot be modified.')
+        ->and(storedLineItemQty($lineItemId))->toBe($storedQty);
+});
+
+it('still allows a non-line-item save on an approved cart', function () {
+    // Address/gateway/email edits never change the line-item set, so the freeze leaves them free.
+    [$purchaser, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($purchaser, 600.0);
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Approved->value, $purchaser->id, 500.0);
+
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+    $reloaded->email = 'resume_' . uniqid() . '@example.test';
+
+    // The line-item set is unchanged, so the freeze stands down and leaves no lineItems error (the
+    // save itself cannot finish under a faked console site request — see the note above).
+    $error = 'unset';
+    asSiteRequest(function () use ($reloaded, &$error) {
+        try {
+            craftApp()->getElements()->saveElement($reloaded);
+        } catch (Throwable) {
+            // Proceeded past our guard into Commerce's own save; not the guard's doing.
+        }
+
+        $error = $reloaded->getFirstError('lineItems');
+    });
+
+    expect($error)->toBeNull();
+});
+
 it('short-circuits the approvals feature gate when the toggle is off', function () {
     $probe = new ApprovalsFeatureGateProbe('approvals', Plugin::getInstance());
 
