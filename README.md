@@ -206,6 +206,7 @@ hard-enforced.
 | Quotes | `enableQuotes` | `true` | Enables quote requests from the cart and the quote workflow. When off, the request-quote endpoint returns a clean "feature not enabled" failure. |
 | Order approvals | `enableApprovals` | `true` | Lets purchasers submit orders above their company approval threshold for an approver to approve. When off, the submit-for-approval endpoint returns a clean "feature not enabled" failure and the completion backstop is not enforced. |
 | Pay on account | `enableInvoicing` | `true` | Governs whether the pay-on-account (invoice) gateway is offered at checkout. When off, the gateway is never available regardless of company settings. See [Pay on account](#6-pay-on-account-optional). |
+| Settled order statuses | `excludedOrderStatusHandles` | `cancelled, refunded` | Comma-separated Commerce order-status handles whose orders are treated as settled and never count towards a company's outstanding balance. See [Pay on account](#6-pay-on-account-optional). |
 | Quick order | `enableQuickOrder` | `true` | Enables quick order, order lists and reorder for approved buyers. When off, those front-end endpoints return a clean "feature not enabled" failure and `craft.b2b` exposes no order-list data. |
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
@@ -336,12 +337,15 @@ order status** / the payment actions). The company's outstanding balance and ava
 credit are derived live from those transactions, so recording an offline payment there
 immediately lowers the outstanding balance everywhere it is shown.
 
-**Refunds.** The outstanding balance is measured as each order's live outstanding balance
-(total minus paid). A refund lowers the paid amount, so a **fully refunded** invoice order
-counts as outstanding again — a deliberate fail-safe that overstates rather than understates
-what a company owes. To **write off** an order today, either adjust the company's credit
-limit or record a payment covering the balance; excluding an order by its order status is on
-the roadmap.
+**Settled orders (cancelled / refunded).** The outstanding balance is measured as each
+order's live outstanding balance (total minus paid), so a refund on its own lowers the paid
+amount and a **fully refunded** order would otherwise count as outstanding again. To stop
+that phantom debt, orders whose **Commerce order status** is one of the *settled* handles are
+dropped from the balance entirely. The default settled handles are `cancelled` and `refunded`;
+change them with the **Settled order statuses** setting (`excludedOrderStatusHandles`, a
+comma-separated list of order-status handles). Give a cancelled or refunded order that status
+and its receivable no longer eats into the company's credit room. To write off any other
+order, adjust the company's credit limit or record a payment covering the balance.
 
 ### Address book
 

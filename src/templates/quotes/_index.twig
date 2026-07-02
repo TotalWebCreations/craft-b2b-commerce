@@ -1,4 +1,5 @@
 {% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
 
 {% set title = 'Quotes'|t('b2b-commerce') %}
 
@@ -69,7 +70,9 @@
                                     {{ actionInput('b2b-commerce/quotes-cp/mark-sent') }}
                                     {{ redirectInput('b2b/quotes') }}
                                     {{ hiddenInput('orderId', quote.orderId) }}
-                                    <input type="date" name="validUntil">
+                                    {{ forms.date({
+                                        name: 'validUntil',
+                                    }) }}
                                     <button type="submit" class="btn submit">{{ 'Mark sent'|t('b2b-commerce') }}</button>
                                 </form>
                             {% endif %}

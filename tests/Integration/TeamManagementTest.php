@@ -1,11 +1,14 @@
 <?php
 
+use Craft;
 use craft\db\Query;
 use craft\elements\User;
+use totalwebcreations\b2bcommerce\console\controllers\TeamController;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
+use yii\console\ExitCode;
 
 /**
  * Reads the current role of a user within a company straight from the table.
@@ -225,6 +228,28 @@ it('refuses to remove a user who is not a member', function () {
 
     expect(fn () => Plugin::getInstance()->companyMembers->removeMember($company, $stranger->id))
         ->toThrow(InvalidArgumentException::class, 'This user is not a member of this company.');
+});
+
+it('moves a user cleanly to a new company on a forced console reassign, leaving no old membership', function () {
+    $companyA = approvedCompany();
+    $companyB = approvedCompany();
+    $email = 'reassign_' . uniqid() . '@example.test';
+    $user = createTestUser($email);
+
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $companyA->id, CompanyRole::Purchaser);
+
+    $controller = new TeamController('team', Craft::$app);
+    $controller->force = true;
+
+    $exitCode = $controller->actionAssignRole($companyB->id, $email, CompanyRole::Admin->value);
+
+    // The forced reassign is a move, not a copy: the old membership is gone, the new one carries the
+    // requested role, and getCompanyForUser resolves unambiguously to the new company rather than to
+    // whichever row happened to have the lowest id.
+    expect($exitCode)->toBe(ExitCode::OK)
+        ->and(membershipRole($companyA->id, $user->id))->toBeNull()
+        ->and(membershipRole($companyB->id, $user->id))->toBe(CompanyRole::Admin->value)
+        ->and(Plugin::getInstance()->companyMembers->getCompanyForUser($user->id)?->id)->toBe($companyB->id);
 });
 
 it('removes a member and deletes the membership row', function () {

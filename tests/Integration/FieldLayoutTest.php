@@ -6,6 +6,32 @@ use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 use totalwebcreations\b2bcommerce\elements\Company;
 
+beforeEach(function () {
+    // This is the only suite test that mutates GLOBAL field state (fields + field layouts) rather
+    // than tracked elements, and deleteTrackedElements() -- the suite's sole between-test cleanup --
+    // never touches it. A run interrupted between saveLayout() and the finally block (or a killed
+    // process) leaves a LIVE Company field layout behind; because Fields::getLayoutByType() returns
+    // the FIRST matching layout, that orphan then shadows the layout a test just created and the
+    // assertions read the wrong layout -- the intermittent failure this guards against. Hard-purge
+    // every Company layout (live or trashed, which also stops soft-deleted rows accumulating) and
+    // any leftover throwaway field, then reset the fields cache, so each test starts clean.
+    $fields = craftApp()->getFields();
+
+    craftApp()->getDb()->createCommand()
+        ->delete('{{%fieldlayouts}}', ['type' => Company::class])
+        ->execute();
+
+    foreach ($fields->getAllFields() as $field) {
+        if (str_starts_with((string) $field->handle, 'b2bTestNotes')) {
+            $fields->deleteField($field);
+        }
+    }
+
+    // Soft-deletes nothing now, but nulls the memoized layout cache so the next getLayoutByType()
+    // re-reads from the freshly purged table rather than a stale in-memory copy.
+    $fields->deleteLayoutsByType(Company::class);
+});
+
 it('persists a custom field value on a company through the configured layout', function () {
     $fieldsService = craftApp()->getFields();
 

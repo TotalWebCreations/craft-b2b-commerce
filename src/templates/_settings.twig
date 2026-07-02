@@ -36,6 +36,13 @@
     on: settings.enableInvoicing,
 }) }}
 
+{{ forms.textField({
+    label: 'Settled order statuses'|t('b2b-commerce'),
+    instructions: 'Comma-separated Commerce order status handles whose orders are treated as settled and never count towards a company outstanding balance (for example cancelled, refunded).'|t('b2b-commerce'),
+    name: 'excludedOrderStatusHandles',
+    value: settings.excludedOrderStatusHandles|join(', '),
+}) }}
+
 {{ forms.lightswitchField({
     label: 'Quick order'|t('b2b-commerce'),
     instructions: 'Enable quick order, order lists and reorder for approved buyers. When off, those endpoints return a clean failure and craft.b2b exposes no order-list data.'|t('b2b-commerce'),

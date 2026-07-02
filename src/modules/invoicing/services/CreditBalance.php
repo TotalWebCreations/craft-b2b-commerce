@@ -34,7 +34,15 @@ class CreditBalance extends Component
         // at completion, rather than by the live orders.gatewayId. Archiving a gateway nulls
         // gatewayId on every order that used it, so a gatewayId filter would silently drop archived
         // invoice orders and hand out phantom credit room; the snapshot is immune to that.
-        $orderIds = (new Query())
+        // Cancelled/refunded orders (by their Commerce order-status handle) are settled: their
+        // receivable is gone. Counting them would be phantom debt that eats into the company's real
+        // credit room, so they are excluded here. The set is configurable via the
+        // excludedOrderStatusHandles setting. orderStatusId -> commerce_orderstatuses.id carries the
+        // handle; a left join keeps orders that have no status set at all (a null handle), which
+        // must still count.
+        $excludedHandles = Plugin::getInstance()->getSettings()->excludedOrderStatusHandles;
+
+        $query = (new Query())
             ->select('orders.id')
             // A defensive DISTINCT: the inner join is one-to-one on orderId (b2b_order_company
             // keys on orderId), so duplicates cannot occur today, but a duplicated candidate id
@@ -42,12 +50,22 @@ class CreditBalance extends Component
             ->distinct()
             ->from(['orders' => Table::ORDERS])
             ->innerJoin(['oc' => '{{%b2b_order_company}}'], '[[oc.orderId]] = [[orders.id]]')
+            ->leftJoin(['os' => Table::ORDERSTATUSES], '[[os.id]] = [[orders.orderStatusId]]')
             ->where([
                 'oc.companyId' => $companyId,
                 'oc.isInvoice' => true,
                 'orders.isCompleted' => true,
-            ])
-            ->column();
+            ]);
+
+        if ($excludedHandles !== []) {
+            $query->andWhere([
+                'or',
+                ['os.handle' => null],
+                ['not', ['os.handle' => $excludedHandles]],
+            ]);
+        }
+
+        $orderIds = $query->column();
 
         $orders = Commerce::getInstance()->getOrders();
         $outstanding = 0.0;
@@ -112,8 +130,15 @@ class CreditBalance extends Component
         }
 
         // Money totals are summed as floats, so a charge that lands exactly on the limit can miss
-        // by a rounding hair (e.g. 49.999999 vs 50). The epsilon keeps "exactly at the limit"
-        // decisively allowed rather than tipping into a false refusal.
-        return $this->getOutstandingBalance($companyId) + $amount <= $company->creditLimit + 0.001;
+        // by a rounding hair (e.g. 49.999999 vs 50) and tip into a false refusal. Comparing as
+        // fixed-scale decimal strings removes that float artefact: bccomp works on the exact
+        // digits, not an IEEE approximation. Scale 4 is two places beyond currency precision, so a
+        // charge that is genuinely at (or under) the limit stays allowed while real overruns are
+        // still caught. bccomp returns <= 0 when the projected balance does not exceed the limit,
+        // which keeps "exactly at the limit" allowed.
+        $projected = number_format($this->getOutstandingBalance($companyId) + $amount, 4, '.', '');
+        $limit = number_format($company->creditLimit, 4, '.', '');
+
+        return bccomp($projected, $limit, 4) <= 0;
     }
 }

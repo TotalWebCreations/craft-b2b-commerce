@@ -66,11 +66,23 @@ class TeamController extends Controller
         }
 
         $existingCompany = Plugin::getInstance()->companyMembers->getCompanyForUser($user->id);
+        $isReassignment = $existingCompany !== null && $existingCompany->id !== $company->id;
 
-        if ($existingCompany !== null && $existingCompany->id !== $company->id && !$this->force) {
+        if ($isReassignment && !$this->force) {
             $this->stderr("User `{$user->email}` already belongs to company `{$existingCompany->title}` (#{$existingCompany->id}). Re-run with --force to reassign them to `{$company->title}` (#{$company->id}).\n");
 
             return ExitCode::UNSPECIFIED_ERROR;
+        }
+
+        if ($isReassignment) {
+            // Drop the old membership before adding the new one. b2b_company_users keys uniquely on
+            // (companyId, userId), so without this a forced reassignment would leave BOTH rows and
+            // the user would belong to two companies at once -- getCompanyForUser then silently
+            // returns whichever has the lowest row id, an ordering surprise rather than the company
+            // the operator just assigned. Removing it makes the reassignment a clean move.
+            $this->stdout("Reassigning `{$user->email}` from `{$existingCompany->title}` (#{$existingCompany->id}) to `{$company->title}` (#{$company->id}).\n");
+
+            Plugin::getInstance()->companyMembers->removeUserFromCompany($user->id, $existingCompany->id);
         }
 
         $this->stdout("Assigning role `{$companyRole->value}` to `{$user->email}` in company `{$company->title}` (#{$company->id})...\n");

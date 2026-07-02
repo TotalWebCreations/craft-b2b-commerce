@@ -4,9 +4,10 @@ namespace totalwebcreations\b2bcommerce\controllers;
 
 use Craft;
 use craft\commerce\elements\Order;
+use craft\helpers\DateTimeHelper;
 use craft\web\Controller;
 use DateTime;
-use Exception;
+use DateTimeZone;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -47,13 +48,13 @@ class QuotesCpController extends Controller
 
         $order = $this->findQuoteOrder();
 
-        $validUntilRaw = $this->stringBodyParam('validUntil');
+        $validUntilRaw = Craft::$app->getRequest()->getBodyParam('validUntil');
         $validUntil = null;
 
-        if ($validUntilRaw !== '') {
-            try {
-                $validUntil = new DateTime($validUntilRaw);
-            } catch (Exception) {
+        if ($this->hasValidUntilDate($validUntilRaw)) {
+            $validUntil = self::normalizeValidUntil($validUntilRaw);
+
+            if ($validUntil === null) {
                 return $this->asFailure(
                     Craft::t('b2b-commerce', 'The validity date is invalid.')
                 );
@@ -83,6 +84,49 @@ class QuotesCpController extends Controller
         }
 
         return $this->asSuccess(Craft::t('b2b-commerce', 'Quote declined.'));
+    }
+
+    /**
+     * Whether the posted validUntil actually carries a date. Craft's date field posts an array
+     * (a date, plus a timezone and locale) and an empty picker still posts an empty date, so this
+     * looks past the wrapper: an absent field or an empty picker is "no expiry", not a value to
+     * parse. Keeping this separate from parsing lets the caller tell "left blank" (allowed) apart
+     * from "filled with garbage" (rejected).
+     */
+    private function hasValidUntilDate(mixed $value): bool
+    {
+        if (is_array($value)) {
+            $value = $value['date'] ?? '';
+        }
+
+        return trim((string) $value) !== '';
+    }
+
+    /**
+     * Turns a date picked in the CP into the last instant of that calendar day in the site's own
+     * timezone. A quote's validity is a whole-day guarantee: "valid until the 9th" must leave the
+     * buyer the whole of the 9th, not expire at midnight as it starts, and the day is measured
+     * where the store lives (Craft::$app->getTimeZone()) rather than in UTC. The whole posted value
+     * is handed to DateTimeHelper so the CP date field's array shape -- and the locale it posts, so
+     * a localized short date still parses -- is honoured. Returns null when the value cannot be read
+     * as a date so the caller can fail cleanly.
+     */
+    public static function normalizeValidUntil(mixed $value): ?DateTime
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        $date = DateTimeHelper::toDateTime($value, true);
+
+        if ($date === false) {
+            return null;
+        }
+
+        $date->setTimezone(new DateTimeZone(Craft::$app->getTimeZone()));
+        $date->setTime(23, 59, 59);
+
+        return $date;
     }
 
     private function findQuoteOrder(): Order
