@@ -7,6 +7,9 @@ use craft\base\Model;
 
 class Settings extends Model
 {
+    public const TAX_ID_POLICY_LENIENT = 'lenient';
+    public const TAX_ID_POLICY_STRICT = 'strict';
+
     /**
      * Real registration form fields the honeypot must never collide with.
      */
@@ -27,6 +30,14 @@ class Settings extends Model
     public bool $hidePricesForGuests = false;
     public string $adminNotificationEmail = '';
     public string $honeypotFieldName = 'b2b_website';
+    public bool $validateTaxIds = false;
+
+    /**
+     * What to do when VIES is unreachable while a company VAT id is being validated:
+     * lenient = accept the VAT id and log a warning, strict = refuse the save with a clean error.
+     * A definitively invalid VAT id is refused under both policies.
+     */
+    public string $taxIdValidationPolicy = self::TAX_ID_POLICY_LENIENT;
 
     /**
      * Commerce order-status handles whose orders never count towards a company's outstanding
@@ -56,6 +67,7 @@ class Settings extends Model
             ['honeypotFieldName', 'required'],
             ['honeypotFieldName', 'validateHoneypotFieldName'],
             ['excludedOrderStatusHandles', 'validateExcludedOrderStatusHandles'],
+            ['taxIdValidationPolicy', 'in', 'range' => [self::TAX_ID_POLICY_LENIENT, self::TAX_ID_POLICY_STRICT]],
         ];
     }
 

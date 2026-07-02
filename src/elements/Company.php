@@ -14,6 +14,8 @@ use craft\models\FieldLayout;
 use totalwebcreations\b2bcommerce\elements\actions\ApproveCompanies;
 use totalwebcreations\b2bcommerce\elements\actions\BlockCompanies;
 use totalwebcreations\b2bcommerce\elements\db\CompanyQuery;
+use totalwebcreations\b2bcommerce\models\Settings;
+use totalwebcreations\b2bcommerce\Plugin;
 
 class Company extends Element
 {
@@ -167,6 +169,7 @@ class Company extends Element
             ]),
             Cp::textFieldHtml([
                 'label' => Craft::t('b2b-commerce', 'Tax ID'),
+                'instructions' => Craft::t('b2b-commerce', 'EU VAT ID with country prefix (e.g. NL123456789B01). Validated against VIES when VAT ID validation is enabled in the plugin settings.'),
                 'id' => 'taxId',
                 'name' => 'taxId',
                 'value' => $this->taxId,
@@ -268,11 +271,53 @@ class Company extends Element
     {
         return array_merge(parent::defineRules(), [
             [['registrationNumber', 'taxId'], 'safe'],
+            [
+                'taxId',
+                'validateTaxIdAgainstVies',
+                'skipOnEmpty' => true,
+                'when' => fn(): bool => Plugin::getInstance()->getSettings()->validateTaxIds,
+            ],
             ['companyStatus', 'in', 'range' => array_keys(self::statuses())],
             ['allowInvoicePayment', 'boolean'],
             [['creditLimit', 'approvalThreshold'], 'number', 'min' => 0],
             ['paymentTermDays', 'integer', 'min' => 0],
         ]);
+    }
+
+    /**
+     * Validates the company VAT id against VIES via the plugin's TaxIdValidation service. This
+     * rule is the single validation seam for every save path — control panel edits and frontend
+     * registration alike (Registration saves a Company element, so it inherits this rule).
+     *
+     * Outcome mapping: false = definitively invalid (refused under both policies); null = VIES
+     * unreachable, where the strict policy refuses with a distinct message and the lenient policy
+     * accepts with a logged warning.
+     */
+    public function validateTaxIdAgainstVies(string $attribute): void
+    {
+        $plugin = Plugin::getInstance();
+        $result = $plugin->taxIdValidation->validate((string) $this->$attribute);
+
+        if ($result === true) {
+            return;
+        }
+
+        if ($result === false) {
+            $this->addError($attribute, Craft::t('b2b-commerce', 'This VAT ID is invalid.'));
+
+            return;
+        }
+
+        if ($plugin->getSettings()->taxIdValidationPolicy === Settings::TAX_ID_POLICY_STRICT) {
+            $this->addError($attribute, Craft::t('b2b-commerce', 'This VAT ID could not be validated.'));
+
+            return;
+        }
+
+        Craft::warning(
+            "VIES was unreachable while validating VAT ID \"{$this->$attribute}\" for company \"{$this->title}\"; accepted under the lenient policy.",
+            'b2b-commerce'
+        );
     }
 
     public function afterSave(bool $isNew): void

@@ -211,6 +211,8 @@ hard-enforced.
 | Hide prices for guests | `hidePricesForGuests` | `false` | Hide prices and disable add-to-cart for visitors without an approved company account. |
 | Admin notification email | `adminNotificationEmail` | `''` | Receives a notification when a new company registers. Falls back to the system "from" address when empty. |
 | Honeypot field name | `honeypotFieldName` | `'b2b_website'` | Name of the hidden anti-spam field on the registration form. See [Security notes](#security-notes). |
+| Validate VAT IDs | `validateTaxIds` | `false` | Validate company VAT IDs against VIES when a company is registered or saved. See [VAT ID validation & reverse charge](#vat-id-validation--reverse-charge). |
+| VIES outage policy | `taxIdValidationPolicy` | `'lenient'` | What to do when VIES is unreachable during validation: `lenient` accepts and logs a warning, `strict` refuses the save. A definitively invalid VAT ID is refused under both. |
 
 ### Security notes
 
@@ -617,6 +619,69 @@ the same way every other completion guard is overridden — by completing the or
 control-panel order editor (console and control-panel completions bypass the storefront
 backstop by design).
 
+## VAT ID validation & reverse charge
+
+B2B Commerce builds directly on Craft Commerce's native EU VAT support (Commerce 5.3+):
+Commerce ships a VIES-backed `EU VAT ID` validator, an `organizationTaxId` field on every
+address and a *"Remove the included VAT if a valid VAT ID is present"* (`removeVatIncluded`)
+option on tax rates. The plugin adds the B2B glue: validating the **company** VAT ID at
+registration/save time, and carrying that company VAT ID onto the order at checkout so
+Commerce's tax engine can apply the reverse charge automatically.
+
+### Validating company VAT IDs
+
+Turn on **Validate VAT IDs** in the plugin settings. From then on, every company save with a
+non-empty Tax ID — frontend registration and control-panel edits alike — is validated:
+
+1. **Format check** (offline, via Commerce's country-prefix patterns): a malformed VAT ID such
+   as `FOO123` is refused immediately with *"This VAT ID is invalid."*
+2. **Existence check** against VIES (the EU's VAT number register, the same REST endpoint
+   Commerce uses). A VAT ID VIES reports as non-existent is refused with the same message.
+3. **VIES outage**: when VIES cannot be reached the outcome is undecidable, and the **VIES
+   outage policy** decides: `lenient` (default) accepts the save and logs a warning so
+   registration is never blocked by a third-party outage — revalidate later with the console
+   command below; `strict` refuses the save with *"This VAT ID could not be validated."*
+
+Valid results are cached under Commerce's own cache key (Craft's default cache duration,
+24 hours by default), so repeated saves don't re-query VIES and Commerce's checkout tax
+adjuster finds the VAT ID already known-valid. Invalid or undecidable results are never cached.
+
+### Automatic reverse charge at checkout (the full chain)
+
+For intra-EU B2B sales where the VAT shifts to the buyer (*btw verlegd*), configure it once and
+the whole chain is automatic:
+
+1. **Commerce** — create your VAT tax rate as usual (**Store Management → Tax → Tax Rates**),
+   with *Included in price?* on. Then enable **"Remove the included VAT if a valid VAT ID is
+   present"** (`removeVatIncluded`) on the rate and select the **EU VAT ID** validator.
+2. **B2B Commerce** — give the company a VAT ID (validated as above).
+3. **Checkout** — on every storefront cart save the plugin copies the customer's company VAT ID
+   into the order's shipping/billing address `organizationTaxId`, *only if the customer left
+   that field empty* (a VAT ID typed at checkout always wins). This happens before Commerce
+   recalculates the cart, so the very same save prices correctly.
+4. **Commerce's tax adjuster** — sees a matching zone plus a valid `organizationTaxId` on the
+   tax address and removes the included VAT from the order: the customer pays the ex-VAT price
+   and the order shows the removed-VAT adjustment. No custom tax logic in the plugin.
+
+The passthrough applies to storefront requests only (console and control-panel order edits are
+never touched) and stops once an order is completed. Note that Commerce validates the address
+VAT ID with its own VIES call at tax-calculation time when it is not in cache — with the plugin
+validating company VAT IDs beforehand, the cache is typically already warm.
+
+### Revalidating VAT IDs
+
+VAT registrations lapse, so revalidate periodically:
+
+```
+php craft b2b-commerce/tax-id/revalidate
+```
+
+It re-checks every company VAT ID against VIES (bypassing the known-valid cache), reports
+`valid` / `invalid` per company with a summary count, and skips VAT IDs it cannot check because
+VIES is unreachable. Exit code `0` when every VAT ID got a verdict; `75` (`TEMPFAIL`) when one
+or more were skipped, so a cron scheduler can flag or retry. Follow up on `invalid` results
+manually — the command reports, it never blocks a company.
+
 ## Known limitations
 
 - **Company field layout is stored in the database, not project config.** The custom-field
@@ -644,6 +709,11 @@ The plugin ships these Craft console commands:
   ```cron
   0 * * * * cd /path/to/project && php craft b2b-commerce/quotes/expire >> /dev/null 2>&1
   ```
+- `php craft b2b-commerce/tax-id/revalidate` — revalidates every company VAT ID against VIES,
+  bypassing the known-valid cache, and reports per company plus a summary. Skips (with a
+  warning) VAT IDs it cannot check because VIES is unreachable and then exits `75` (`TEMPFAIL`)
+  so schedulers can retry; exits `0` otherwise. Cron-able, for example weekly. See
+  [VAT ID validation & reverse charge](#vat-id-validation--reverse-charge).
 
 ## Uninstalling
 
@@ -656,9 +726,9 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 ## Roadmap
 
-The remaining pillars are planned for future phases:
+Planned for future phases:
 
-- **Tax ID / VIES validation** and Plugin Store polish.
+- Plugin Store polish.
 
 ## License
 

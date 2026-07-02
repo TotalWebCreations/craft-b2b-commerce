@@ -34,6 +34,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
@@ -58,6 +59,7 @@ use yii\base\Event;
  * @property-read QuickOrder $quickOrder
  * @property-read Quotes $quotes
  * @property-read Registration $registration
+ * @property-read TaxIdValidation $taxIdValidation
  */
 class Plugin extends BasePlugin
 {
@@ -95,6 +97,7 @@ class Plugin extends BasePlugin
             'quickOrder' => QuickOrder::class,
             'quotes' => Quotes::class,
             'registration' => Registration::class,
+            'taxIdValidation' => TaxIdValidation::class,
         ]);
 
         Event::on(
@@ -288,6 +291,25 @@ class Plugin extends BasePlugin
 
                 $event->isValid = false;
                 $order->addError('lineItems', $message);
+            }
+        );
+
+        // Checkout VAT-id passthrough: before every storefront cart save, fill the order's
+        // shipping/billing address organizationTaxId with the customer's company VAT id when the
+        // customer left it empty. Order::EVENT_BEFORE_SAVE is deliberately the hook: Commerce
+        // recalculates tax in Order::afterSave() BEFORE persisting the in-memory address elements,
+        // so a pre-save mutation is both seen by the tax adjuster (removeVatIncluded reverse
+        // charge) on this very save and persisted by Commerce itself — no extra saveElement(), no
+        // save loop. Site requests only (guarded inside the service).
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_SAVE,
+            function(ModelEvent $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->taxIdValidation->applyCompanyTaxIdToOrderAddresses($event->sender);
             }
         );
 

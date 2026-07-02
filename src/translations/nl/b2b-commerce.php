@@ -263,4 +263,13 @@ return [
     'Your requests' => 'Je aanvragen',
     'Resume checkout' => 'Afrekenen hervatten',
     'No approval requests yet.' => 'Nog geen goedkeuringsaanvragen.',
+    'This VAT ID is invalid.' => 'Dit btw-nummer is ongeldig.',
+    'This VAT ID could not be validated.' => 'Dit btw-nummer kon niet worden gevalideerd.',
+    'EU VAT ID with country prefix (e.g. NL123456789B01). Validated against VIES when VAT ID validation is enabled in the plugin settings.' => 'EU-btw-nummer met landcode (bijv. NL123456789B01). Wordt gevalideerd via VIES wanneer btw-nummervalidatie in de plugininstellingen is ingeschakeld.',
+    'Validate VAT IDs' => 'Btw-nummers valideren',
+    'Validate company VAT IDs against VIES (the EU VAT number register) when a company is registered or saved. Valid results are cached by Craft, so repeated saves do not re-query VIES.' => 'Valideer btw-nummers van bedrijven via VIES (het EU-btw-nummerregister) bij registratie en bij het opslaan van een bedrijf. Geldige resultaten worden door Craft gecachet, zodat herhaald opslaan VIES niet opnieuw bevraagt.',
+    'VIES outage policy' => 'Beleid bij VIES-storing',
+    'What to do when VIES is unreachable during validation. Lenient accepts the VAT ID and logs a warning (revalidate later via the console command); strict refuses the save with a clean error. A VAT ID that VIES reports as invalid is always refused.' => 'Wat er gebeurt als VIES onbereikbaar is tijdens de validatie. Soepel accepteert het btw-nummer en logt een waarschuwing (later hervalideren via het consolecommando); strikt weigert het opslaan met een nette foutmelding. Een btw-nummer dat VIES als ongeldig aanmerkt wordt altijd geweigerd.',
+    'Lenient — accept and log a warning' => 'Soepel — accepteren en een waarschuwing loggen',
+    'Strict — refuse the save' => 'Strikt — opslaan weigeren',
 ];

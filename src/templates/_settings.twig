@@ -72,6 +72,24 @@
     required: true,
 }) }}
 
+{{ forms.lightswitchField({
+    label: 'Validate VAT IDs'|t('b2b-commerce'),
+    instructions: 'Validate company VAT IDs against VIES (the EU VAT number register) when a company is registered or saved. Valid results are cached by Craft, so repeated saves do not re-query VIES.'|t('b2b-commerce'),
+    name: 'validateTaxIds',
+    on: settings.validateTaxIds,
+}) }}
+
+{{ forms.selectField({
+    label: 'VIES outage policy'|t('b2b-commerce'),
+    instructions: 'What to do when VIES is unreachable during validation. Lenient accepts the VAT ID and logs a warning (revalidate later via the console command); strict refuses the save with a clean error. A VAT ID that VIES reports as invalid is always refused.'|t('b2b-commerce'),
+    name: 'taxIdValidationPolicy',
+    options: [
+        { value: 'lenient', label: 'Lenient — accept and log a warning'|t('b2b-commerce') },
+        { value: 'strict', label: 'Strict — refuse the save'|t('b2b-commerce') },
+    ],
+    value: settings.taxIdValidationPolicy,
+}) }}
+
 <hr>
 
 <h2>{{ 'Company fields'|t('b2b-commerce') }}</h2>
