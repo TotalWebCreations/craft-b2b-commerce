@@ -239,6 +239,38 @@ it('accepts the save on a VIES outage under the lenient policy', function () {
     });
 });
 
+it('saves an unrelated edit during a strict-policy outage when the VAT id did not change', function () {
+    $company = companyWithTaxId(testVatId());
+    craftApp()->getElements()->saveElement($company);
+    trackElement($company);
+
+    stubViesLookup(null, $called);
+
+    withTaxIdValidation(Settings::TAX_ID_POLICY_STRICT, function () use ($company, &$called) {
+        $company->registrationNumber = 'CHANGED-' . uniqid();
+        $saved = craftApp()->getElements()->saveElement($company);
+
+        expect($saved)->toBeTrue()
+            ->and($called)->toBeFalse();
+    });
+});
+
+it('refuses a changed VAT id during a strict-policy outage', function () {
+    $company = companyWithTaxId(testVatId());
+    craftApp()->getElements()->saveElement($company);
+    trackElement($company);
+
+    stubViesLookup(null);
+
+    withTaxIdValidation(Settings::TAX_ID_POLICY_STRICT, function () use ($company) {
+        $company->taxId = testVatId();
+        $saved = craftApp()->getElements()->saveElement($company);
+
+        expect($saved)->toBeFalse()
+            ->and($company->getFirstError('taxId'))->toBe('This VAT ID could not be validated.');
+    });
+});
+
 it('rejects a registration carrying an invalid VAT id through the company save path', function () {
     stubViesLookup(false);
 

@@ -4,6 +4,7 @@ namespace totalwebcreations\b2bcommerce\elements;
 
 use Craft;
 use craft\base\Element;
+use craft\db\Query;
 use craft\elements\User;
 use craft\enums\Color;
 use craft\helpers\Cp;
@@ -275,7 +276,7 @@ class Company extends Element
                 'taxId',
                 'validateTaxIdAgainstVies',
                 'skipOnEmpty' => true,
-                'when' => fn(): bool => Plugin::getInstance()->getSettings()->validateTaxIds,
+                'when' => fn(): bool => Plugin::getInstance()->getSettings()->validateTaxIds && $this->taxIdHasChanged(),
             ],
             ['companyStatus', 'in', 'range' => array_keys(self::statuses())],
             ['allowInvoicePayment', 'boolean'],
@@ -318,6 +319,31 @@ class Company extends Element
             "VIES was unreachable while validating VAT ID \"{$this->$attribute}\" for company \"{$this->title}\"; accepted under the lenient policy.",
             'b2b-commerce'
         );
+    }
+
+    /**
+     * Reports whether the VAT id differs from the persisted value, so the VIES rule only fires
+     * when the number actually changed. New companies always count as changed; an unrelated edit
+     * to an existing company therefore never triggers a VIES call and cannot be refused by a
+     * strict-policy outage.
+     */
+    private function taxIdHasChanged(): bool
+    {
+        if ($this->id === null) {
+            return true;
+        }
+
+        $persisted = (new Query())
+            ->select(['taxId'])
+            ->from('{{%b2b_companies}}')
+            ->where(['id' => $this->id])
+            ->scalar();
+
+        if ($persisted === false) {
+            return true;
+        }
+
+        return trim((string) $this->taxId) !== trim((string) $persisted);
     }
 
     public function afterSave(bool $isNew): void

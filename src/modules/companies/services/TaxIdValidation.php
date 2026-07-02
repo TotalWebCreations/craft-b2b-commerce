@@ -5,6 +5,7 @@ namespace totalwebcreations\b2bcommerce\modules\companies\services;
 use Craft;
 use craft\commerce\elements\Order;
 use craft\commerce\taxidvalidators\EuVatIdValidator;
+use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 
@@ -41,6 +42,14 @@ class TaxIdValidation extends Component
      * @var (callable(string): ?bool)|null
      */
     public $existenceLookup = null;
+
+    /**
+     * Per-request memo for the checkout passthrough's company lookup, keyed by customer id, so a
+     * recalculating order that saves several times in one request queries the company only once.
+     *
+     * @var array<int, ?Company>
+     */
+    private array $companyForUserMemo = [];
 
     /**
      * Validates a VAT id: true = valid, false = definitively invalid (bad format or VIES says it
@@ -115,7 +124,7 @@ class TaxIdValidation extends Component
             return;
         }
 
-        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($customer->id);
+        $company = $this->companyForUser($customer->id);
 
         if ($company === null) {
             return;
@@ -140,14 +149,25 @@ class TaxIdValidation extends Component
         }
     }
 
+    private function companyForUser(int $userId): ?Company
+    {
+        if (!array_key_exists($userId, $this->companyForUserMemo)) {
+            $this->companyForUserMemo[$userId] = Plugin::getInstance()->companyMembers->getCompanyForUser($userId);
+        }
+
+        return $this->companyForUserMemo[$userId];
+    }
+
     private function lookUpExistence(string $taxId): ?bool
     {
         if ($this->existenceLookup !== null) {
             return ($this->existenceLookup)($taxId);
         }
 
+        // Mirror Commerce's EuVatIdValidator::_splitNumber(): the whole id is uppercased before
+        // splitting, so ids whose number part carries letters (NL, ES, IE) are sent uppercased.
         $countryCode = strtoupper(substr($taxId, 0, 2));
-        $number = substr($taxId, 2);
+        $number = strtoupper(substr($taxId, 2));
 
         try {
             $response = Craft::createGuzzleClient()->post(EuVatIdValidator::API_URL, [
