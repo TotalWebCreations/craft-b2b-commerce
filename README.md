@@ -32,7 +32,7 @@ B2B Commerce is organised around five pillars:
    own or a colleague's), and keep shared, company-wide order lists to drop into the
    cart in one go.
 
-This release delivers pillars 1, 2, 4 and 5. It ships:
+This release delivers all five pillars. It ships:
 
 - A **Company** element with control panel management, statuses and a
   `Manage companies` permission.
@@ -72,6 +72,14 @@ This release delivers pillars 1, 2, 4 and 5. It ships:
   (pay on account included). Overdue quotes lapse to `expired` via a console command or on
   the first accept/decline touch. Open quote carts are protected against buyer-side
   edits.
+- **Order approvals**: a per-company spending threshold that holds a purchaser's over-threshold
+  order for a company approver. Purchasers **submit** the held order for approval (two approver
+  emails go out and the cart detaches); an approver **approves** — placing an invoice order
+  directly on account or emailing the requester a resume-checkout link for other gateways — or
+  **declines** with a reason that reaches the requester. A hard completion backstop enforces the
+  gate server-side even if the storefront submit step is bypassed, and a read-only
+  **B2B → Approvals** monitoring queue (`Manage approvals` permission) surfaces every request to
+  merchants without letting them decide.
 - **Console commands**: `b2b-commerce/seed` to bootstrap demo data,
   `b2b-commerce/team/assign-role` to recover a company that lost its admin, and
   `b2b-commerce/quotes/expire` to lapse overdue quotes.
