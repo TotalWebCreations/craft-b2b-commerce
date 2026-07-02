@@ -367,6 +367,87 @@ class Approvals extends Component
     }
 
     /**
+     * Every approval for the control-panel monitoring page, newest first, optionally filtered to a
+     * single status. Built without an N+1: one query loads the rows, then the referenced orders,
+     * companies, requesters and resolvers are each batch-loaded once and stitched onto the rows.
+     * Mirrors Quotes::getQuotesForCp. The control panel is read-only monitoring — approval decisions
+     * belong to the customer's own approvers — so this method never mutates, it only reports.
+     *
+     * @return array<int, array{
+     *     orderId: int,
+     *     status: string,
+     *     companyId: int,
+     *     companyName: ?string,
+     *     requesterName: ?string,
+     *     resolverName: ?string,
+     *     thresholdAmount: ?float,
+     *     reason: ?string,
+     *     dateCreated: ?DateTime,
+     *     order: ?Order
+     * }>
+     */
+    public function getApprovalsForCp(?string $status = null): array
+    {
+        $query = (new Query())
+            ->from('{{%b2b_approvals}}')
+            ->orderBy(['dateCreated' => SORT_DESC]);
+
+        if ($status !== null) {
+            $query->where(['status' => $status]);
+        }
+
+        $rows = $query->all();
+
+        if ($rows === []) {
+            return [];
+        }
+
+        $orders = Order::find()
+            ->id(array_column($rows, 'orderId'))
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        // Companies are non-localized elements hosted on the primary site only, so query with site('*').
+        $companies = Company::find()
+            ->id(array_unique(array_column($rows, 'companyId')))
+            ->site('*')
+            ->unique()
+            ->status(null)
+            ->indexBy('id')
+            ->all();
+
+        $userIds = array_values(array_filter(array_merge(
+            array_column($rows, 'requestedById'),
+            array_column($rows, 'resolvedById'),
+        )));
+        $users = $userIds !== []
+            ? User::find()->id($userIds)->status(null)->indexBy('id')->all()
+            : [];
+
+        return array_map(function (array $row) use ($orders, $companies, $users): array {
+            $requesterId = $row['requestedById'] !== null ? (int) $row['requestedById'] : null;
+            $requester = $requesterId !== null ? ($users[$requesterId] ?? null) : null;
+
+            $resolverId = $row['resolvedById'] !== null ? (int) $row['resolvedById'] : null;
+            $resolver = $resolverId !== null ? ($users[$resolverId] ?? null) : null;
+
+            return [
+                'orderId' => (int) $row['orderId'],
+                'status' => (string) $row['status'],
+                'companyId' => (int) $row['companyId'],
+                'companyName' => ($companies[(int) $row['companyId']] ?? null)?->title,
+                'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
+                'resolverName' => $resolver !== null ? ($resolver->fullName ?: $resolver->email) : null,
+                'thresholdAmount' => $row['thresholdAmount'] !== null ? (float) $row['thresholdAmount'] : null,
+                'reason' => $row['reason'] !== null ? (string) $row['reason'] : null,
+                'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
+                'order' => $orders[(int) $row['orderId']] ?? null,
+            ];
+        }, $rows);
+    }
+
+    /**
      * Every pending approval of the company for its approver queue, newest first, batch-loaded with
      * no N+1: one row query, then the orders and requesters are each loaded once and stitched on.
      *

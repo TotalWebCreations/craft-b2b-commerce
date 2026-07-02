@@ -1,0 +1,77 @@
+{% extends '_layouts/cp' %}
+
+{% set title = 'Approvals'|t('b2b-commerce') %}
+
+{% set statusColors = {
+    pending: 'orange',
+    approved: 'green',
+    declined: 'red',
+} %}
+
+{% set statusLabels = {
+    pending: 'Pending'|t('b2b-commerce'),
+    approved: 'Approved'|t('b2b-commerce'),
+    declined: 'Declined'|t('b2b-commerce'),
+} %}
+
+{% block content %}
+    {# Read-only monitoring: approval decisions belong to the customer's own approvers. #}
+    <p class="light" style="margin-bottom: 16px;">
+        {{ 'Order approvals are decided by the company’s own approvers. This overview is read-only monitoring.'|t('b2b-commerce') }}
+    </p>
+
+    {# Status filter: a plain GET link set, so the chosen status round-trips as ?status=. #}
+    <div class="btngroup" style="margin-bottom: 24px;">
+        <a class="btn{{ currentStatus is null ? ' active' }}" href="{{ url('b2b/approvals') }}">{{ 'All'|t('b2b-commerce') }}</a>
+        {% for status in statuses %}
+            <a class="btn{{ currentStatus == status.value ? ' active' }}" href="{{ url('b2b/approvals', { status: status.value }) }}">{{ statusLabels[status.value] ?? status.value }}</a>
+        {% endfor %}
+    </div>
+
+    {% if approvals is empty %}
+        <p class="zilch">{{ 'No approvals yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Company'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Requester'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Resolver'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Threshold'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Date'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for approval in approvals %}
+                    <tr>
+                        <td>
+                            <span class="status {{ statusColors[approval.status] ?? 'grey' }}"></span>
+                            {{ statusLabels[approval.status] ?? approval.status }}
+                            {% if approval.status == 'declined' and approval.reason %}
+                                <div class="light" style="margin-top: 4px;">{{ 'Reason'|t('b2b-commerce') }}: {{ approval.reason }}</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ approval.companyName ?? '' }}</td>
+                        <td>{{ approval.requesterName ?? '' }}</td>
+                        <td>{{ approval.resolverName ?? '' }}</td>
+                        <td>
+                            {% if approval.thresholdAmount is not null and approval.order %}
+                                {{ approval.thresholdAmount|currency(approval.order.currency) }}
+                            {% elseif approval.thresholdAmount is not null %}
+                                {{ approval.thresholdAmount }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if approval.order %}
+                                <a href="{{ approval.order.cpEditUrl }}">{{ approval.order.totalPrice|currency(approval.order.currency) }}</a>
+                            {% endif %}
+                        </td>
+                        <td>{{ approval.dateCreated ? approval.dateCreated|datetime('short') : '' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

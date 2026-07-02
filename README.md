@@ -20,8 +20,9 @@ B2B Commerce is organised around five pillars:
    into a quote request; a merchant prices it in the control panel and sends it with an
    optional validity date that freezes the order's prices; the buyer accepts from an
    emailed link and checks out against the frozen prices — pay on account included.
-3. **Order approvals** — *on the roadmap.* Spending thresholds with an approve/decline
-   flow for purchasers and approvers.
+3. **Order approvals** — *available now.* Spending thresholds with an approve/decline
+   flow for purchasers and approvers, plus a read-only monitoring overview in the control
+   panel.
 4. **Pay on account** — *available now.* Offline "pay on account" gateway that lets
    approved companies with pay-on-account enabled check out on invoice, with credit
    limits enforced on the storefront and outstanding-balance overviews in both the
@@ -557,6 +558,35 @@ separate **completion veto** blocks any attempt to complete a quote order that r
 as a cart while its quote is not `accepted` (still requested at catalog prices, or sent,
 declined or expired) with *"This order is part of a quote that has not been accepted."*
 
+### Order approvals
+
+Each company sets an `approvalThreshold`. A **purchaser** whose order total clears that
+threshold cannot place the order directly: it is held for a company **approver** (or admin)
+to approve or decline. Approvers and admins always order directly; a company with a `null`
+threshold runs no approval gate, and an order exactly at the threshold is placed without
+approval (the comparison is strictly greater-than). The threshold in force at submit time is
+snapshotted onto the approval row, so a later threshold change never rewrites why an order was
+held. A hard completion backstop enforces the gate even if the storefront submit step is
+bypassed, and it applies equally to accepted-quote orders that clear the threshold.
+
+Approve, decline and resume-checkout are the company's **own internal process**, driven from
+the storefront by its approvers — a merchant does **not** approve on the company's behalf. The
+four-eyes principle holds: an approver may never approve their own submission.
+
+#### Control-panel monitoring (`Manage approvals` permission)
+
+**B2B → Approvals** lists every approval request newest-first, filterable by status (pending,
+approved, declined). Each row shows the status (with the decline reason on a declined request),
+company, requester, resolver, the snapshotted threshold, the order total (linking to the order
+editor) and the request date.
+
+**This overview is deliberately read-only.** Approval decisions belong to the customer's own
+approvers, not the store operator, so the control panel monitors the queue but never approves
+or declines from here. A merchant who genuinely needs to place a held order overrides the gate
+the same way every other completion guard is overridden — by completing the order from the
+control-panel order editor (console and control-panel completions bypass the storefront
+backstop by design).
+
 ## Known limitations
 
 - **Company field layout is stored in the database, not project config.** The custom-field
@@ -598,7 +628,6 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 The remaining pillars are planned for future phases:
 
-- **Order approvals** — spending thresholds with an approve/decline flow and emails.
 - **Tax ID / VIES validation** and Plugin Store polish.
 
 ## License
