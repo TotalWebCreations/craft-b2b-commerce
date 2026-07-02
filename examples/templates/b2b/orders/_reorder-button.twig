@@ -2,9 +2,10 @@
    available line items into the current cart. Include it in an order row or detail
    view with the order in scope, e.g. {% include 'b2b/orders/_reorder-button' with { order } %}.
    Copy this template into your own site and restyle it to taste. #}
-<form method="post" action="{{ actionUrl('b2b-commerce/quick-order/reorder') }}" accept-charset="UTF-8">
+<form method="post" accept-charset="UTF-8">
     {{ csrfInput() }}
-    <input type="hidden" name="orderId" value="{{ order.id }}">
+    {{ actionInput('b2b-commerce/quick-order/reorder') }}
+    {{ hiddenInput('orderId', order.id) }}
 
     <button type="submit">{{ 'Reorder'|t('b2b-commerce') }}</button>
 </form>

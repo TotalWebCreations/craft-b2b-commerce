@@ -129,6 +129,10 @@ This gives you:
 - `b2b/quotes/_request-button.twig` — a "request a quote" button for the cart page,
   `b2b/quotes/index.twig` — the company's quote overview, and `b2b/quotes/accept.twig` —
   the accept/decline page the sent-quote email links to.
+- `b2b/approvals/_submit-button.twig` — a "submit for approval" button for the cart page,
+  and `b2b/approvals/index.twig` — the storefront approver queue plus the buyer's own
+  requests with a resume-checkout button.
+- `b2b/account/credit.twig` — a credit summary page for the current user's company.
 
 ### 2. Configure the settings
 
@@ -585,7 +589,10 @@ bypassed, and it applies equally to accepted-quote orders that clear the thresho
 
 Approve, decline and resume-checkout are the company's **own internal process**, driven from
 the storefront by its approvers — a merchant does **not** approve on the company's behalf. The
-four-eyes principle holds: an approver may never approve their own submission.
+four-eyes principle holds: an approver may never approve their own submission. See
+`examples/templates/b2b/approvals/_submit-button.twig` for the cart submit button and
+`examples/templates/b2b/approvals/index.twig` for the storefront approver queue and the buyer's
+own requests.
 
 A purchaser who accepts an over-threshold **quote** is not exempt: the accepted-quote order is
 still held by the backstop until it also carries an approved approval, so the purchaser submits

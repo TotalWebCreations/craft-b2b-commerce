@@ -272,4 +272,10 @@ return [
     'What to do when VIES is unreachable during validation. Lenient accepts the VAT ID and logs a warning (revalidate later via the console command); strict refuses the save with a clean error. A VAT ID that VIES reports as invalid is always refused.' => 'Wat er gebeurt als VIES onbereikbaar is tijdens de validatie. Soepel accepteert het btw-nummer en logt een waarschuwing (later hervalideren via het consolecommando); strikt weigert het opslaan met een nette foutmelding. Een btw-nummer dat VIES als ongeldig aanmerkt wordt altijd geweigerd.',
     'Lenient — accept and log a warning' => 'Soepel — accepteren en een waarschuwing loggen',
     'Strict — refuse the save' => 'Strikt — opslaan weigeren',
+    'Create a business account' => 'Maak een zakelijk account aan',
+    'Company name' => 'Bedrijfsnaam',
+    'VAT / Tax ID' => 'Btw-nummer',
+    'Register' => 'Registreren',
+    'Leave this field empty' => 'Laat dit veld leeg',
+    'Sign in or register to see prices' => 'Log in of registreer om prijzen te zien',
 ];

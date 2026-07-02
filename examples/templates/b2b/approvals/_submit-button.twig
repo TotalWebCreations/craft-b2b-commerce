@@ -3,8 +3,9 @@
    cart page, e.g. {% include 'b2b/approvals/_submit-button' %}. Submitting an order that
    does not need approval is refused, so show this only when approval is required.
    Copy this template into your own site and restyle it to taste. #}
-<form method="post" action="{{ actionUrl('b2b-commerce/approvals/submit') }}" accept-charset="UTF-8">
+<form method="post" accept-charset="UTF-8">
     {{ csrfInput() }}
+    {{ actionInput('b2b-commerce/approvals/submit') }}
 
     <button type="submit">{{ 'Submit for approval'|t('b2b-commerce') }}</button>
 </form>

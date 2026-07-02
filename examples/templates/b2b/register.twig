@@ -1,7 +1,7 @@
 {% extends '_layout' %}
 
 {% block content %}
-    <h1>{{ 'Create a business account'|t }}</h1>
+    <h1>{{ 'Create a business account'|t('b2b-commerce') }}</h1>
 
     <form method="post" accept-charset="UTF-8">
         {{ csrfInput() }}
@@ -9,23 +9,23 @@
         {# 'b2b/register/thanks' is only an example route — create your own thanks template or change this redirect. #}
         {{ redirectInput('b2b/register/thanks') }}
 
-        <label>{{ 'Company name'|t }} <input type="text" name="companyName" required></label>
-        <label>{{ 'Registration number'|t }} <input type="text" name="registrationNumber"></label>
-        <label>{{ 'VAT / Tax ID'|t }} <input type="text" name="taxId"></label>
-        <label>{{ 'First name'|t }} <input type="text" name="firstName" required></label>
-        <label>{{ 'Last name'|t }} <input type="text" name="lastName" required></label>
-        <label>{{ 'Email'|t }} <input type="email" name="email" required></label>
+        <label>{{ 'Company name'|t('b2b-commerce') }} <input type="text" name="companyName" required></label>
+        <label>{{ 'Registration number'|t('b2b-commerce') }} <input type="text" name="registrationNumber"></label>
+        <label>{{ 'VAT / Tax ID'|t('b2b-commerce') }} <input type="text" name="taxId"></label>
+        <label>{{ 'First name'|t('b2b-commerce') }} <input type="text" name="firstName" required></label>
+        <label>{{ 'Last name'|t('b2b-commerce') }} <input type="text" name="lastName" required></label>
+        <label>{{ 'Email'|t('b2b-commerce') }} <input type="email" name="email" required></label>
 
         {# Honeypot field: a real visitor never sees or fills this. Bots that fill
            it get a success response but nothing is created. The field name must
            match the `honeypotFieldName` plugin setting (default `b2b_website`). #}
         {% set honeypotFieldName = craft.app.plugins.getPlugin('b2b-commerce').settings.honeypotFieldName %}
         <div style="position:absolute;left:-9999px;" aria-hidden="true">
-            <label>{{ 'Leave this field empty'|t }}
+            <label>{{ 'Leave this field empty'|t('b2b-commerce') }}
                 <input type="text" name="{{ honeypotFieldName }}" tabindex="-1" autocomplete="off">
             </label>
         </div>
 
-        <button type="submit">{{ 'Register'|t }}</button>
+        <button type="submit">{{ 'Register'|t('b2b-commerce') }}</button>
     </form>
 {% endblock %}

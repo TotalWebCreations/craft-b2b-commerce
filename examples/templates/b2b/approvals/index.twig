@@ -42,15 +42,17 @@
                         <td>{{ request.total is not null ? request.total|commerceCurrency(request.currency) : '' }}</td>
                         <td>{{ request.dateCreated ? request.dateCreated|date('short') : '' }}</td>
                         <td>
-                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/approve') }}" accept-charset="UTF-8">
+                            <form method="post" accept-charset="UTF-8">
                                 {{ csrfInput() }}
-                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                {{ actionInput('b2b-commerce/approvals/approve') }}
+                                {{ hiddenInput('orderId', request.orderId) }}
                                 <button type="submit">{{ 'Approve'|t('b2b-commerce') }}</button>
                             </form>
 
-                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/decline') }}" accept-charset="UTF-8">
+                            <form method="post" accept-charset="UTF-8">
                                 {{ csrfInput() }}
-                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                {{ actionInput('b2b-commerce/approvals/decline') }}
+                                {{ hiddenInput('orderId', request.orderId) }}
                                 <label>
                                     {{ 'Reason'|t('b2b-commerce') }}
                                     <input type="text" name="reason" required>
@@ -89,9 +91,10 @@
                         {# An approved request can be resumed: the order is handed back as the active
                            cart so the buyer can complete checkout. #}
                         {% if request.status == 'approved' %}
-                            <form method="post" action="{{ actionUrl('b2b-commerce/approvals/resume') }}" accept-charset="UTF-8">
+                            <form method="post" accept-charset="UTF-8">
                                 {{ csrfInput() }}
-                                <input type="hidden" name="orderId" value="{{ request.orderId }}">
+                                {{ actionInput('b2b-commerce/approvals/resume') }}
+                                {{ hiddenInput('orderId', request.orderId) }}
                                 <button type="submit">{{ 'Resume checkout'|t('b2b-commerce') }}</button>
                             </form>
                         {% endif %}
