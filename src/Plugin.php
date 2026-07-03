@@ -13,11 +13,13 @@ use craft\commerce\services\Gateways;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\events\DefineBehaviorsEvent;
+use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
+use craft\models\FieldLayout;
 use craft\services\Elements;
 use craft\services\SystemMessages;
 use craft\services\UserPermissions;
@@ -26,6 +28,13 @@ use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\AllowInvoicePaymentField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\ApprovalThresholdField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\CompanyTitleField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\CreditLimitField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\PaymentTermDaysField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\RegistrationNumberField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\approvals\services\Approvals;
@@ -78,8 +87,36 @@ class Plugin extends BasePlugin
         $this->registerComponents();
         $this->registerGateways();
         $this->attachCpHandlers();
+        $this->registerNativeFields();
         $this->attachCommerceHandlers();
         $this->attachSystemMessages();
+    }
+
+    /**
+     * Registers the core Company fields as native field-layout elements, so they always render in
+     * the main content area of the Company edit screen while merchants can still append their own
+     * custom fields through the field-layout designer. Marking them mandatory means they are
+     * prepended to the layout even when no custom layout has been configured.
+     */
+    private function registerNativeFields(): void
+    {
+        Event::on(
+            FieldLayout::class,
+            FieldLayout::EVENT_DEFINE_NATIVE_FIELDS,
+            function(DefineFieldLayoutFieldsEvent $event) {
+                if ($event->sender->type !== Company::class) {
+                    return;
+                }
+
+                $event->fields[] = CompanyTitleField::class;
+                $event->fields[] = RegistrationNumberField::class;
+                $event->fields[] = TaxIdField::class;
+                $event->fields[] = CreditLimitField::class;
+                $event->fields[] = PaymentTermDaysField::class;
+                $event->fields[] = AllowInvoicePaymentField::class;
+                $event->fields[] = ApprovalThresholdField::class;
+            }
+        );
     }
 
     private function registerComponents(): void

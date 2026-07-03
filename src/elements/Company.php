@@ -160,22 +160,6 @@ class Company extends Element
     {
         return implode('', [
             $this->relatedPagesFieldHtml(),
-            Cp::textFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Registration number'),
-                'instructions' => Craft::t('b2b-commerce', 'Company registration number (e.g. chamber of commerce).'),
-                'id' => 'registrationNumber',
-                'name' => 'registrationNumber',
-                'value' => $this->registrationNumber,
-                'disabled' => $static,
-            ]),
-            Cp::textFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Tax ID'),
-                'instructions' => Craft::t('b2b-commerce', 'EU VAT ID with country prefix (e.g. NL123456789B01). Validated against VIES when VAT ID validation is enabled in the plugin settings.'),
-                'id' => 'taxId',
-                'name' => 'taxId',
-                'value' => $this->taxId,
-                'disabled' => $static,
-            ]),
             Cp::selectFieldHtml([
                 'label' => Craft::t('b2b-commerce', 'Status'),
                 'id' => 'companyStatus',
@@ -185,43 +169,6 @@ class Company extends Element
                     ->values()
                     ->all(),
                 'value' => $this->companyStatus,
-                'disabled' => $static,
-            ]),
-            Cp::textFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Credit limit'),
-                'id' => 'creditLimit',
-                'name' => 'creditLimit',
-                'type' => 'number',
-                'step' => 'any',
-                'min' => 0,
-                'value' => $this->creditLimit,
-                'disabled' => $static,
-            ]),
-            Cp::textFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Payment term (days)'),
-                'id' => 'paymentTermDays',
-                'name' => 'paymentTermDays',
-                'type' => 'number',
-                'min' => 0,
-                'value' => $this->paymentTermDays,
-                'disabled' => $static,
-            ]),
-            Cp::lightswitchFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Allow pay on account'),
-                'id' => 'allowInvoicePayment',
-                'name' => 'allowInvoicePayment',
-                'on' => $this->allowInvoicePayment,
-                'disabled' => $static,
-            ]),
-            Cp::textFieldHtml([
-                'label' => Craft::t('b2b-commerce', 'Approval threshold'),
-                'instructions' => Craft::t('b2b-commerce', 'Orders above this amount require approval. Leave empty to disable.'),
-                'id' => 'approvalThreshold',
-                'name' => 'approvalThreshold',
-                'type' => 'number',
-                'step' => 'any',
-                'min' => 0,
-                'value' => $this->approvalThreshold,
                 'disabled' => $static,
             ]),
         ]);
