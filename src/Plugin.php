@@ -254,6 +254,18 @@ class Plugin extends BasePlugin
                     return;
                 }
 
+                // A completing (or completed) order is past the freeze: completion never changes
+                // the line-item set, and isCompleted is not buyer-settable through the cart
+                // endpoints. Standing down here is also REQUIRED for correctness during the
+                // completion save itself: markAsComplete() flips isCompleted before saving, which
+                // salts LineItem::getOptionsSignature() with the line-item id while the stored row
+                // still carries the unsalted cart signature — lineItemsDifferFromStored would read
+                // that as a phantom options edit and veto the storefront completion of every
+                // accepted quote or approved order (authorized payment, order stuck incomplete).
+                if ($event->sender->isCompleted) {
+                    return;
+                }
+
                 $request = Craft::$app->getRequest();
 
                 if ($request->getIsConsoleRequest() || $request->getIsCpRequest()) {

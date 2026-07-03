@@ -270,6 +270,31 @@ it('vetoes a line-item mutation on a pending-approval cart on a site request', f
         ->and(storedLineItemQty($lineItemId))->toBe($storedQty);
 });
 
+it('stands down the approval line-item freeze for the completion save on a storefront request', function () {
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    $cart = approvalCart($user, 600.0);
+    insertApprovalRow($cart->id, $company->id, ApprovalStatus::Approved->value, $user->id, 500.0);
+
+    // Regression twin of the accepted-quote stand-down test (QuoteAcceptanceTest): during
+    // approve()'s direct on-account placement over HTTP, markAsComplete() flips isCompleted
+    // BEFORE saving, LineItem::getOptionsSignature() becomes salted with the line-item id, and
+    // the approval freeze used to veto its own completion save as a phantom options edit (the
+    // payment already authorized, the order stuck incomplete). The exact completion-save state
+    // is reproduced (in-memory isCompleted flip + BEFORE_SAVE on a site request); the veto must
+    // stand down.
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+    $reloaded->isCompleted = true;
+
+    $event = new \craft\events\ModelEvent();
+
+    asSiteRequest(function () use ($reloaded, $event) {
+        $reloaded->trigger(Order::EVENT_BEFORE_SAVE, $event);
+    });
+
+    expect($event->isValid)->toBeTrue()
+        ->and($reloaded->getErrors('lineItems'))->toBe([]);
+});
+
 it('excludes approval orders from the inactive-cart purge query', function () {
     [$user, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
     $pendingApprovalOrder = approvalCart($user, 600.0);

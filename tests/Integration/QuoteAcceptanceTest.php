@@ -42,6 +42,35 @@ it('accepts a sent quote: flips the status, returns the quote order and complete
         ->and(Plugin::getInstance()->quotes->orderHasLineItemFrozenQuote($order->id))->toBeFalse();
 });
 
+it('stands down the line-item freeze for the completion save of an accepted quote on a storefront request', function () {
+    [$user, $company] = quoteMember();
+    $order = quoteCartWithItem();
+    $token = insertQuoteRow($order->id, QuoteStatus::Requested->value, $company->id, $user->id);
+
+    Plugin::getInstance()->quotes->markSent($order, null);
+    Plugin::getInstance()->quotes->acceptByToken($token, $user);
+
+    // Regression: markAsComplete() flips isCompleted BEFORE saving, which salts
+    // LineItem::getOptionsSignature() with the line-item id while the stored row still carries
+    // the unsalted cart signature. The buyer-mutation veto used to read that as a phantom
+    // options edit and block the storefront completion save of every accepted quote (the
+    // payment already authorized, the order stuck incomplete). A successful site-request
+    // completion cannot be driven end-to-end in this console harness (see
+    // CreditEnforcementTest), so the exact completion-save state is reproduced instead: the
+    // in-memory isCompleted flip, then the BEFORE_SAVE guard is triggered on a site request.
+    $reloaded = Order::find()->id($order->id)->status(null)->one();
+    $reloaded->isCompleted = true;
+
+    $event = new \craft\events\ModelEvent();
+
+    asSiteRequest(function () use ($reloaded, $event) {
+        $reloaded->trigger(Order::EVENT_BEFORE_SAVE, $event);
+    });
+
+    expect($event->isValid)->toBeTrue()
+        ->and($reloaded->getErrors('lineItems'))->toBe([]);
+});
+
 it('lazily expires a sent quote past its validity and refuses to accept it', function () {
     [$user, $company] = quoteMember();
     $order = bareQuoteOrder();
