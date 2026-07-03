@@ -4,13 +4,19 @@
     "type": "craft-plugin",
     "version": "1.0.0-alpha.1",
     "license": "proprietary",
-    "keywords": ["craft", "craftcms", "craft-plugin", "commerce", "b2b", "wholesale"],
+    "keywords": ["craft", "craftcms", "craft-plugin", "craft-commerce", "commerce", "b2b", "wholesale", "companies", "quotes", "order-approvals", "pay-on-account", "quick-order"],
     "authors": [
         {
             "name": "TotalWebCreations",
             "homepage": "https://totalwebcreations.nl"
         }
     ],
+    "support": {
+        "email": "bryan@totalwebcreations.nl",
+        "issues": "https://github.com/TotalWebCreations/craft-b2b-commerce/issues",
+        "docs": "https://github.com/TotalWebCreations/craft-b2b-commerce/blob/main/README.md",
+        "source": "https://github.com/TotalWebCreations/craft-b2b-commerce"
+    },
     "require": {
         "php": "^8.2",
         "craftcms/cms": "^5.0.0",

@@ -1,50 +1,114 @@
 # Release Notes for B2B Commerce
 
-## 1.0.0-alpha.1 - Unreleased
+## 1.0.0-beta.1 - Unreleased
+
+First public release. B2B Commerce turns a standard Craft Commerce store into a
+wholesale/business storefront, built around five pillars: company accounts, quotes,
+order approvals, pay on account and quick order.
 
 ### Added
-- Order approvals: a per-company `approvalThreshold` holds a purchaser's over-threshold order for a company approver. The threshold in force at submit time is snapshotted onto the approval row; a `null` threshold runs no gate and an order exactly at the threshold is placed without approval (strictly greater-than)
-- Submit-for-approval flow: a purchaser submits the held order, which detaches it from the session cart and emails every company approver and admin the `B2B: order approval requested` message. A pending cart is immutable — the update-cart guard vetoes edits while it awaits approval
-- Approve / decline / resume resolution driven by the company's own approvers, enforcing the four-eyes rule (an approver can never approve their own submission). Approving an invoice order places it directly on account (credit check applied); approving a non-invoice order emails the requester a resume-checkout link to finish payment. Declining records a reason that reaches the requester in the `B2B: order declined` email
-- Hard completion backstop that enforces the approval gate server-side even when the storefront submit step is bypassed, applied equally to accepted-quote orders that clear the threshold. Auto-approve reconciliation: if a pending order no longer needs approval at completion (e.g. the threshold was raised or cleared), its row is auto-approved with an audit reason instead of blocking the order
-- Control-panel approvals monitoring (B2B → Approvals) listing every request newest-first, filterable by status, showing company, requester, resolver, snapshotted threshold, order total and decline reason, gated by a new `Manage approvals` permission. The overview is deliberately read-only: decisions belong to the customer's approvers, and a merchant override runs through a control-panel order completion
-- Storefront approvals exposed as `craft.b2b.pendingApprovals` (the approver queue) and `craft.b2b.myApprovalRequests` (a requester's own requests), plus example templates for the submit button and the approvals overview
-- Quotes: approved buyers turn a cart into a quote request; merchants send a quote with an optional validity date, which freezes the order's prices (Commerce `recalculationMode = none`, persisted) and emails the requester accept and decline links, or decline it (notifying the requester, or the store admin when the buyer declines)
-- `b2b-commerce/quotes/expire` console command that lapses open, overdue quotes to `expired` in one update — run it on a cron
-- Cart-mutation guard that vetoes buyer-side line-item changes (quantity, options, additions and removals) on an order that still carries an open quote, so a reactivated quote cart cannot be re-priced; merchant control-panel edits stay free
-- Control-panel quote workbench (B2B → Quotes) listing every quote newest-first, filterable by status, with Mark sent (optional validity date) and Decline (with reason) actions, gated by a new `Manage quotes` permission
-- Storefront quote overview exposed as `craft.b2b.quotes`, and read-only token data for the accept page as `craft.b2b.quoteByToken(token)`
-- Token-authorized accept and decline: the sent-quote email links carry a quote token; accepting adopts the frozen order as the buyer's cart, declining records a reason and notifies the store admin. An unknown token and another company's token return the same generic message, so a guessed token cannot be probed
-- Example templates for the quote request button, the company quote overview and the accept/decline page
-- Pay on account: an offline "pay on account" gateway (Commerce → System Settings → Gateways → New gateway → Pay on account) that lets approved companies with pay-on-account enabled check out on invoice; the order completes unpaid so you can capture and invoice out of band
-- Per-company credit limit enforced on the storefront: the gateway is only offered while a new order fits inside the company's remaining credit, and the limit is re-checked under a per-company lock at order completion so two orders completing at once cannot both slip past it. An empty credit limit means no credit room at all, not unlimited credit. Enforcement is scoped to storefront requests; control-panel completions are treated as a merchant override
-- Credit balance overview: outstanding balance and available credit exposed as `craft.b2b.creditSummary` on the storefront and shown to merchants on a company's Orders page, alongside a per-order paid / partially paid / unpaid status
-- `order.b2bPaymentDueDate`: a completed invoice order's payment due date, derived from the order date plus the company's payment term
-- Quick order: paste SKUs (one per line, Excel-style) to add many products to the cart at once, with per-line error reporting keyed to the original line number
-- Quick order CSV upload, fed through the same SKU parser as the textarea
-- Re-order action that copies a completed order's still-available line items into the cart, for the buyer's own and colleague orders
-- Shared, company-scoped order lists with a create/rename/delete flow, an item editor and add-to-cart, exposed as `craft.b2b.orderLists` and `craft.b2b.getOrderListItems`
-- `b2b-commerce/team/assign-role` console command to recover a company that lost its last admin
-- Example templates for quick order, the re-order button and order lists
-- Company element with control panel management, statuses and permissions
-- Company roles (admin, purchaser, approver)
-- Frontend company registration with admin approval flow
-- Registration honeypot anti-spam field and a cancelable before-register event
-- Frontend team management for company admins (invite, change role, remove) with a last-admin guard
-- Shared company address book stored as native Craft `Address` elements
-- Order–company linking for completed orders, exposed as `order.b2bCompany`
-- Checkout backstop that refuses order completion for guests and unapproved/blocked accounts
-- Control panel per-company member and order overview pages
-- Configurable custom-field layout for companies
-- `craft.b2b.teamMembers` and `craft.b2b.companyAddresses` template variables
-- Price visibility: hide prices and block ordering for guests and unapproved accounts
-- Dutch translations
+
+#### Company accounts
+- **Company element** with its own control-panel section, statuses (pending, approved,
+  blocked), roles (admin, purchaser, approver) and a `Manage companies` permission.
+- **Frontend registration**: businesses register from the storefront, creating a pending
+  company plus its admin user and notifying a store manager by email. Includes a honeypot
+  anti-spam field and a cancelable before-register event for custom checks.
+- **Approval flow**: approve or block a company from the control panel with element
+  actions. Approving activates its members and emails them the `B2B: company approved`
+  message alongside an activation email so they can set a password.
+- **Team management** for company admins from the storefront: invite colleagues, change
+  roles and remove members, guarded so a company always keeps at least one admin.
+- **Shared address book**: native Craft `Address` elements owned by the company, so the
+  whole team sees and reuses the same addresses.
+- **Order–company linking**: completed orders are linked to the buyer's company, exposed
+  as `order.b2bCompany`, with a checkout backstop that refuses completion for guests and
+  unapproved or blocked accounts.
+- **Control-panel company pages** with per-company member and order overviews, plus a
+  configurable custom-field layout.
+- **Price visibility**: optionally hide prices and block ordering for guests and
+  unapproved accounts.
+
+#### Quotes
+- **Request for quote**: an approved buyer turns a cart into a quote request; the request
+  survives as a non-completed order while the buyer keeps a fresh cart.
+- **Quote workbench** (B2B → Quotes, `Manage quotes` permission): every quote newest-first,
+  filterable by status, with Mark sent (optional validity date) and Decline (with reason)
+  actions.
+- **Frozen prices**: sending a quote pins the order's prices (Commerce `recalculationMode
+  = none`, persisted and restored on load) so the buyer pays exactly what the merchant
+  left on each line item.
+- **Token-authorized accept and decline** from an emailed link: accepting adopts the
+  frozen order as the buyer's cart to check out against, declining records a reason. An
+  unknown token and another company's token return the same generic message so a token
+  cannot be probed.
+- **Cart-mutation guard** that vetoes buyer-side line-item changes on an open or accepted
+  quote order, so a reactivated quote cart cannot be re-priced; merchant edits stay free.
+- Storefront `craft.b2b.quotes` overview and `craft.b2b.quoteByToken(token)` accept data.
+- `b2b-commerce/quotes/expire` console command to lapse overdue quotes, plus lazy
+  expiry on the first accept/decline touch.
+
+#### Order approvals
+- **Spending threshold**: a per-company `approvalThreshold` holds a purchaser's
+  over-threshold order for a company approver. The threshold in force is snapshotted onto
+  the request; a `null` threshold runs no gate and the comparison is strictly greater-than.
+- **Submit / approve / decline** driven by the company's own approvers, enforcing the
+  four-eyes rule (an approver can never approve their own submission). Approving an invoice
+  order places it on account; approving other orders emails the requester a
+  resume-checkout link; declining records a reason that reaches the requester by email.
+- **Completion backstop** that enforces the gate server-side even when the storefront
+  submit step is bypassed, applied equally to accepted-quote orders. Auto-approves a
+  pending order that no longer needs approval at completion instead of blocking it.
+- **Monitoring overview** (B2B → Approvals, `Manage approvals` permission): read-only,
+  newest-first, filterable by status, showing company, requester, resolver, snapshotted
+  threshold, order total and decline reason. Decisions belong to the customer's approvers.
+- Storefront `craft.b2b.pendingApprovals` (approver queue) and
+  `craft.b2b.myApprovalRequests` (a requester's own requests).
+
+#### Pay on account
+- **Offline "pay on account" gateway** that lets approved companies with pay-on-account
+  enabled check out on invoice; the order completes unpaid so you can capture and invoice
+  out of band.
+- **Per-company credit limit** enforced on the storefront: the gateway is only offered
+  while an order fits inside the remaining credit, and the limit is re-checked under a
+  per-company lock at completion. An empty limit means no credit room, not unlimited.
+- **Credit summary**: outstanding balance and available credit exposed as
+  `craft.b2b.creditSummary` on the storefront and shown to merchants on a company's Orders
+  page, alongside a per-order paid / partially paid / unpaid status.
+- `order.b2bPaymentDueDate`: a completed invoice order's payment due date, derived from
+  the order date plus the company's payment term.
+
+#### Quick order
+- **Paste SKUs** (one per line, Excel-style) to add many products to the cart at once,
+  with per-line error reporting keyed to the original line number.
+- **CSV upload** fed through the same SKU parser as the textarea.
+- **Re-order** a completed order's still-available line items — the buyer's own or a
+  colleague's.
+- **Shared, company-scoped order lists** with a create/rename/delete flow and an item
+  editor, exposed as `craft.b2b.orderLists` and `craft.b2b.getOrderListItems`.
+
+#### VAT & platform
+- **EU VAT ID validation and reverse charge** built on Commerce's native VAT support:
+  validates the company VAT ID against VIES at registration/save time and carries it onto
+  the order at checkout so Commerce applies the reverse charge automatically. Configurable
+  VIES outage policy (lenient/strict) and a `b2b-commerce/tax-id/revalidate` console
+  command.
+- `b2b-commerce/team/assign-role` console command to recover a company that lost its last
+  admin, and `b2b-commerce/seed` to bootstrap demo data.
+- Example storefront templates for registration, price display, team, address book, quick
+  order, re-order, order lists, quotes and approvals.
+- `craft.b2b` template variables including `company`, `teamMembers`, `companyAddresses`,
+  `canViewPrices` and `canPurchase`.
+- Dutch translations for all control-panel and frontend strings.
 
 ### Changed
-- The `enableInvoicing` and `enableQuickOrder` settings are now functional: turning them off makes the pay-on-account gateway unavailable everywhere and returns a clean "feature not enabled" failure from the quick-order endpoints
-- The `B2B: company approved` email is now accompanied by an activation email so new members can set a password
+- The `enableInvoicing`, `enableQuotes`, `enableApprovals` and `enableQuickOrder` settings
+  are functional: turning one off cleanly disables its endpoints and features (and disarms
+  the approval completion backstop for `enableApprovals`).
 
 ### Fixed
-- Surface company field layout save failures instead of discarding them silently
-- Exempt already-paid orders from the checkout purchase backstop, so a blocked company's paid order can still be completed
-- Link orders to their company after completion is persisted, so the association survives the completion transaction
+- Surface company field-layout save failures instead of discarding them silently.
+- Exempt already-paid orders from the checkout purchase backstop, so a blocked company's
+  paid order can still be completed.
+- Link orders to their company after completion is persisted, so the association survives
+  the completion transaction.

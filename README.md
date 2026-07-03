@@ -1,12 +1,13 @@
 # B2B Commerce
 
-A B2B suite for Craft Commerce. B2B Commerce turns a standard Craft Commerce store
-into a wholesale/business storefront with company accounts, roles and a registration
-approval workflow. It is built around five pillars, delivered across multiple phases.
+B2B Commerce turns a standard Craft Commerce store into a wholesale/business storefront.
+Businesses register and are approved by a store manager, their team orders on behalf of
+the company, and merchants sell the way B2B works: negotiated quotes, spending approvals,
+invoicing on account and fast repeat ordering — all on top of native Craft Commerce.
 
 ## What it does
 
-B2B Commerce is organised around five pillars:
+B2B Commerce is organised around five pillars, all live in this release:
 
 1. **Company accounts** — *available now.* Companies are first-class elements with
    their own control panel section, statuses (pending, approved, blocked), roles
@@ -32,58 +33,11 @@ B2B Commerce is organised around five pillars:
    own or a colleague's), and keep shared, company-wide order lists to drop into the
    cart in one go.
 
-This release delivers all five pillars. It ships:
-
-- A **Company** element with control panel management, statuses and a
-  `Manage companies` permission.
-- Company **roles** (admin, purchaser, approver) linking users to a company.
-- A **frontend registration** flow that creates a pending company plus its admin user
-  and notifies a store manager by email.
-- An **approval flow** using element actions (Approve / Block) in the control panel.
-  Approving a company activates its members and sends them the
-  `B2B: company approved` system message.
-- **Frontend team management** for company admins: invite colleagues, change roles and
-  remove members, guarded so a company always keeps at least one admin. Invited people
-  receive the `B2B: added to a company` (existing users) or an activation email (new
-  users).
-- A **shared company address book**: native Craft `Address` elements owned by the
-  company, so the whole team sees and reuses the same addresses.
-- **Order–company linking**: a completed order is linked to the buyer's company, and a
-  checkout backstop refuses completion for guests and unapproved/blocked accounts when
-  price hiding is on.
-- **Control panel company pages**: per-company member and order overviews.
-- A **configurable custom-field layout** for companies, editable from the plugin
-  settings.
-- **Price visibility**: optionally hide prices and block add-to-cart for guests and
-  unapproved accounts.
-- **Quick order**: a SKU textarea (Excel-style paste), CSV upload, a re-order button
-  (own and colleague orders) and shared, company-scoped **order lists**, all guarded by
-  the same purchase check as the storefront.
-- **Pay on account**: an offline "pay on account" gateway for approved companies, with a
-  per-company **credit limit** enforced on the storefront (and re-checked under a lock at
-  order completion), a **payment term** that drives a per-order payment due date, and
-  outstanding-balance / available-credit overviews in the control panel and on the
-  storefront.
-- **Quotes**: approved buyers turn a cart into a quote request; a merchant works it in a
-  control-panel workbench (`Manage quotes` permission), edits line-item prices in the
-  Commerce order editor, and either **sends** it with an optional validity date — which
-  freezes the prices — or **declines** it with a reason. Sent quotes email the buyer accept
-  and decline links; accepting adopts the frozen order as the buyer's cart to check out
-  (pay on account included). Overdue quotes lapse to `expired` via a console command or on
-  the first accept/decline touch. Open quote carts are protected against buyer-side
-  edits.
-- **Order approvals**: a per-company spending threshold that holds a purchaser's over-threshold
-  order for a company approver. Purchasers **submit** the held order for approval (every approver
-  and admin of the company is emailed and the cart detaches); an approver **approves** — placing an invoice order
-  directly on account or emailing the requester a resume-checkout link for other gateways — or
-  **declines** with a reason that reaches the requester. A hard completion backstop enforces the
-  gate server-side even if the storefront submit step is bypassed, and a read-only
-  **B2B → Approvals** monitoring queue (`Manage approvals` permission) surfaces every request to
-  merchants without letting them decide.
-- **Console commands**: `b2b-commerce/seed` to bootstrap demo data,
-  `b2b-commerce/team/assign-role` to recover a company that lost its admin, and
-  `b2b-commerce/quotes/expire` to lapse overdue quotes.
-- **Dutch translations** for all control panel and frontend strings.
+It also validates company **EU VAT IDs** against VIES and applies the intra-EU reverse
+charge automatically at checkout, ships example storefront templates for every flow, adds
+a `craft.b2b` template variable, and includes **Dutch translations** for all control-panel
+and frontend strings. Full feature detail is in the sections below and in the
+[changelog](CHANGELOG.md).
 
 ## Requirements
 
@@ -733,10 +687,16 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 ## Roadmap
 
-Planned for future phases:
+Planned for future releases:
 
-- Plugin Store polish.
+- A **payment-time approval gate** that refuses the charge up front, rather than the
+  current completion backstop (see [Payment capture caveat](#payment-capture-caveat)).
+- **Project-config storage** for the company field layout (see [Known limitations](#known-limitations)).
 
 ## License
 
-Proprietary. © TotalWebCreations.
+This is commercial software. Once it is available on the Craft Plugin Store, a licence
+must be purchased through the store for each production install. See [LICENSE.md](LICENSE.md)
+for the full licence terms.
+
+© TotalWebCreations.
