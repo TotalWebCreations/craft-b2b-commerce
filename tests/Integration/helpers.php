@@ -139,7 +139,7 @@ function createTestVariant(string $sku, float $price = 10.0, bool $enabled = tru
  */
 function mailDir(): string
 {
-    return dirname(__DIR__, 3) . '/b2b-dev/storage/runtime/mail';
+    return b2bTestSitePath() . '/storage/runtime/mail';
 }
 
 /**

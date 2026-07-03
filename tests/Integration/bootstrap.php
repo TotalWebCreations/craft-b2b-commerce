@@ -17,7 +17,7 @@ function craftApp(): Application
         return $app;
     }
 
-    $devPath = dirname(__DIR__, 3) . '/b2b-dev';
+    $devPath = b2bTestSitePath();
 
     // Vendor code still carries PHP 8.4 implicit-nullable signatures whose
     // one-time compile-time deprecations would otherwise clutter Pest's output.
@@ -41,7 +41,28 @@ function craftApp(): Application
  */
 function devSiteAvailable(): bool
 {
-    return file_exists(dirname(__DIR__, 3) . '/b2b-dev/bootstrap.php');
+    return file_exists(b2bTestSitePath() . '/bootstrap.php');
+}
+
+/**
+ * Absolute path to the sibling Craft site the integration/HTTP suites run
+ * against. Defaults to the dev site (../b2b-dev) but can be repointed at any
+ * sibling install (e.g. the release-gate QA site) via the B2B_TEST_SITE_PATH
+ * environment variable. A relative value is resolved against the plugin root.
+ */
+function b2bTestSitePath(): string
+{
+    $configured = getenv('B2B_TEST_SITE_PATH');
+
+    if ($configured === false || $configured === '') {
+        return dirname(__DIR__, 3) . '/b2b-dev';
+    }
+
+    if (str_starts_with($configured, '/')) {
+        return rtrim($configured, '/');
+    }
+
+    return dirname(__DIR__, 2) . '/' . rtrim($configured, '/');
 }
 
 /**

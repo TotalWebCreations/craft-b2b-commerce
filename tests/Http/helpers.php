@@ -11,7 +11,11 @@ use Psr\Http\Message\ResponseInterface;
  */
 function httpBaseUri(): string
 {
-    return 'https://b2b-dev.test';
+    $configured = getenv('B2B_TEST_BASE_URI');
+
+    return $configured !== false && $configured !== ''
+        ? rtrim($configured, '/')
+        : 'https://b2b-dev.test';
 }
 
 /**
