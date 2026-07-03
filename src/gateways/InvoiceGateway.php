@@ -26,6 +26,14 @@ use totalwebcreations\b2bcommerce\Plugin;
  */
 class InvoiceGateway extends Gateway
 {
+    /**
+     * Authorize is the only payment type this gateway supports (getPaymentTypeOptions offers
+     * nothing else in the CP), so it is also the default: the inherited 'purchase' default would
+     * leave a programmatically created gateway refusing every payment with "Gateway doesn't
+     * support purchase".
+     */
+    public string $paymentType = 'authorize';
+
     public static function displayName(): string
     {
         return Craft::t('b2b-commerce', 'Pay on account');

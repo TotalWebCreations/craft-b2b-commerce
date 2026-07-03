@@ -69,6 +69,17 @@ it('names the gateway "Pay on account"', function () {
     expect(InvoiceGateway::displayName())->toBe('Pay on account');
 });
 
+it('defaults to the authorize payment type, the only one it supports', function () {
+    // The inherited default is 'purchase', which this gateway does not support: a
+    // programmatically created gateway would refuse every payment ("Gateway doesn't support
+    // purchase"). The CP form only offers authorize, and the default must match it.
+    $gateway = new InvoiceGateway();
+
+    expect($gateway->paymentType)->toBe('authorize')
+        ->and($gateway->getPaymentTypeOptions())->toBe(['authorize' => 'Authorize Only (Manually Capture)'])
+        ->and($gateway->supportsPurchase())->toBeFalse();
+});
+
 it('is unavailable for a guest order', function () {
     $gateway = new InvoiceGateway();
     $order = createGatewayTestOrder(null);
