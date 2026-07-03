@@ -1,6 +1,6 @@
 # Release Notes for B2B Commerce
 
-## 1.0.0-beta.1 - Unreleased
+## 1.0.0-beta.1 - 2026-07-09
 
 First public release. B2B Commerce turns a standard Craft Commerce store into a
 wholesale/business storefront, built around five pillars: company accounts, quotes,
@@ -112,3 +112,12 @@ order approvals, pay on account and quick order.
   paid order can still be completed.
 - Link orders to their company after completion is persisted, so the association survives
   the completion transaction.
+- Stand down the line-item freeze during storefront completion saves. `markAsComplete()`
+  salts the line-item options signature while the stored row still carries the cart
+  signature, which the buyer-mutation veto read as a phantom edit and used to block the
+  completion of every accepted quote and approved order (leaving a paid-but-incomplete
+  order). Completion never changes the line-item set, so the guard now stands down for a
+  completing or completed order.
+- Default the pay-on-account (invoice) gateway to the authorize-only payment type it
+  supports. It previously inherited Commerce's `purchase` default and refused every payment
+  with "Gateway doesn't support purchase".

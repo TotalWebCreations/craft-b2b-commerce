@@ -43,8 +43,14 @@ and frontend strings. Full feature detail is in the sections below and in the
 
 - **Craft CMS 5, Pro edition** — required, because business accounts rely on multiple
   users. The Solo edition only supports a single user and cannot run the B2B flows.
-- **Craft Commerce 5**
-- **PHP 8.2** or newer
+- **Craft Commerce 5** (`^5.0`). The **EU VAT ID validation & reverse charge** feature is
+  built on Commerce's native VAT support, which arrived in **Commerce 5.3**; on Commerce
+  5.0–5.2 every other feature works, but leave **Validate VAT IDs** off. All other pillars
+  have no minimum beyond Commerce 5.0.
+- **PHP 8.2** or newer.
+- **MySQL or PostgreSQL** — both are supported and verified against clean installs. The
+  plugin uses only Craft's query builder, so it runs on either of Craft's supported
+  databases.
 
 ## Installation
 
