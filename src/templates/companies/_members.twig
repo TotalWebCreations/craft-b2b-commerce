@@ -1,4 +1,5 @@
 {% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
 
 {% set title = 'Members'|t('b2b-commerce') %}
 
@@ -17,6 +18,7 @@
                     <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Email'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Role'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Actions'|t('b2b-commerce') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -30,10 +32,77 @@
                             {% endif %}
                         </td>
                         <td>{{ member.user ? member.user.email : '' }}</td>
-                        <td>{{ member.roleLabel }}</td>
+                        <td>
+                            {% if member.user %}
+                                {# Change role: posts to the CP controller, which re-checks the last-admin guard. #}
+                                <form method="post" accept-charset="UTF-8" style="display: inline-flex; gap: 8px; align-items: center;">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('b2b-commerce/companies-cp/change-member-role') }}
+                                    {{ hiddenInput('companyId', company.id) }}
+                                    {{ hiddenInput('userId', member.user.id) }}
+                                    {{ forms.select({
+                                        name: 'role',
+                                        options: roleOptions,
+                                        value: member.roleValue,
+                                    }) }}
+                                    <button type="submit" class="btn">{{ 'Save'|t('b2b-commerce') }}</button>
+                                </form>
+                            {% else %}
+                                {{ member.roleLabel }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if member.user %}
+                                {# Remove: posts to the CP controller, which refuses to drop the last admin. #}
+                                <form method="post" accept-charset="UTF-8">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('b2b-commerce/companies-cp/remove-member') }}
+                                    {{ hiddenInput('companyId', company.id) }}
+                                    {{ hiddenInput('userId', member.user.id) }}
+                                    <button type="submit" class="btn">{{ 'Remove'|t('b2b-commerce') }}</button>
+                                </form>
+                            {% endif %}
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     {% endif %}
+
+    <div class="pane" style="margin-top: 24px;">
+        <h2>{{ 'Add contact person'|t('b2b-commerce') }}</h2>
+
+        <form method="post" accept-charset="UTF-8">
+            {{ csrfInput() }}
+            {{ actionInput('b2b-commerce/companies-cp/add-member') }}
+            {{ hiddenInput('companyId', company.id) }}
+
+            {{ forms.textField({
+                label: 'First name'|t('b2b-commerce'),
+                name: 'firstName',
+                required: true,
+            }) }}
+
+            {{ forms.textField({
+                label: 'Last name'|t('b2b-commerce'),
+                name: 'lastName',
+                required: true,
+            }) }}
+
+            {{ forms.textField({
+                label: 'Email'|t('b2b-commerce'),
+                name: 'email',
+                type: 'email',
+                required: true,
+            }) }}
+
+            {{ forms.selectField({
+                label: 'Role'|t('b2b-commerce'),
+                name: 'role',
+                options: roleOptions,
+            }) }}
+
+            <button type="submit" class="btn submit">{{ 'Add contact person'|t('b2b-commerce') }}</button>
+        </form>
+    </div>
 {% endblock %}
