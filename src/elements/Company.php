@@ -24,6 +24,8 @@ class Company extends Element
     public const STATUS_APPROVED = 'approved';
     public const STATUS_BLOCKED = 'blocked';
 
+    public const GQL_TYPE_NAME = 'Company';
+
     public ?string $registrationNumber = null;
     public ?string $taxId = null;
     public string $companyStatus = self::STATUS_PENDING;
@@ -74,6 +76,16 @@ class Company extends Element
     public function getStatus(): ?string
     {
         return $this->companyStatus;
+    }
+
+    public function getGqlTypeName(): string
+    {
+        return self::GQL_TYPE_NAME;
+    }
+
+    public static function gqlScopesByContext(mixed $context): array
+    {
+        return ['b2bCompanies.all'];
     }
 
     public function canView(User $user): bool

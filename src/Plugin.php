@@ -20,10 +20,14 @@ use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
+use craft\events\RegisterGqlQueriesEvent;
+use craft\events\RegisterGqlSchemaComponentsEvent;
+use craft\events\RegisterGqlTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\models\FieldLayout;
 use craft\services\Elements;
+use craft\services\Gql;
 use craft\services\SystemMessages;
 use craft\services\UserPermissions;
 use craft\web\twig\variables\CraftVariable;
@@ -39,6 +43,9 @@ use totalwebcreations\b2bcommerce\fieldlayoutelements\PaymentTermDaysField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\RegistrationNumberField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
+use totalwebcreations\b2bcommerce\gql\interfaces\elements\Company as GqlCompanyInterface;
+use totalwebcreations\b2bcommerce\gql\queries\B2bContext as GqlB2bContextQueries;
+use totalwebcreations\b2bcommerce\gql\queries\Company as GqlCompanyQueries;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\approvals\services\Approvals;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyAddresses;
@@ -99,6 +106,51 @@ class Plugin extends BasePlugin
         $this->registerNativeFields();
         $this->attachCommerceHandlers();
         $this->attachSystemMessages();
+        $this->registerGraphql();
+    }
+
+    /**
+     * Registers the read-only GraphQL schema: the Company element type/queries and the top-level
+     * b2bContext query. Both are gated behind their own schema components so a merchant opts in per
+     * schema in the control panel. The b2bContext query always scopes to the authenticated user's own
+     * company, so enabling it can never let one company read another's data.
+     */
+    private function registerGraphql(): void
+    {
+        Event::on(
+            Gql::class,
+            Gql::EVENT_REGISTER_GQL_TYPES,
+            static function(RegisterGqlTypesEvent $event): void {
+                $event->types[] = GqlCompanyInterface::class;
+            }
+        );
+
+        Event::on(
+            Gql::class,
+            Gql::EVENT_REGISTER_GQL_QUERIES,
+            static function(RegisterGqlQueriesEvent $event): void {
+                $event->queries = array_merge(
+                    $event->queries,
+                    GqlCompanyQueries::getQueries(),
+                    GqlB2bContextQueries::getQueries(),
+                );
+            }
+        );
+
+        Event::on(
+            Gql::class,
+            Gql::EVENT_REGISTER_GQL_SCHEMA_COMPONENTS,
+            static function(RegisterGqlSchemaComponentsEvent $event): void {
+                $label = Craft::t('b2b-commerce', 'B2B Commerce');
+
+                $event->queries[$label]['b2bCompanies.all:read'] = [
+                    'label' => Craft::t('b2b-commerce', 'View companies'),
+                ];
+                $event->queries[$label]['b2bContext.self:read'] = [
+                    'label' => Craft::t('b2b-commerce', 'View the current user’s B2B context'),
+                ];
+            }
+        );
     }
 
     /**

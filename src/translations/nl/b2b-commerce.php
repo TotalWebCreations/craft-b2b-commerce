@@ -301,4 +301,7 @@ return [
     'Budget saved.' => 'Budget opgeslagen.',
     'Budget removed.' => 'Budget verwijderd.',
     'You have no spending limit.' => 'Je hebt geen bestedingslimiet.',
+    'B2B Commerce' => 'B2B Commerce',
+    'View companies' => 'Bedrijven bekijken',
+    'View the current user’s B2B context' => 'De B2B-context van de huidige gebruiker bekijken',
 ];

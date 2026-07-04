@@ -3,6 +3,12 @@
 ## 1.0.0-beta.2 - Unreleased
 
 ### Added
+- Read-only GraphQL API for headless storefronts. Exposes the `Company` element type
+  (`companies` / `company` / `companyCount` queries, including custom fields) and a top-level
+  `b2bContext` query returning the authenticated user's company, role, spending budget, company
+  credit summary, members, quotes, approvals and order lists. Both are gated behind opt-in
+  **B2B Commerce** schema scopes; `b2bContext` is always scoped to the caller's own company and
+  never exposes another company's data. No mutations — writes stay on the action controllers.
 - Manage a company's contact persons (members) directly from the control panel: add or invite
   a member with a role, change a member's role, and remove a member — from the company's
   Members page. Reuses the same guards as the front-end team management (approved company,

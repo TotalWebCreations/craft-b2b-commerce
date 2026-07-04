@@ -708,6 +708,52 @@ VIES is unreachable. Exit code `0` when every VAT ID got a verdict; `75` (`TEMPF
 or more were skipped, so a cron scheduler can flag or retry. Follow up on `invalid` results
 manually — the command reports, it never blocks a company.
 
+## GraphQL API
+
+The plugin exposes its B2B data through GraphQL for headless / decoupled storefronts. The schema is
+**read-only**: every write still goes through the existing action controllers (registration, team
+management, quotes, approvals, order lists, checkout) — there are no GraphQL mutations. GraphQL only
+lets a storefront *render* B2B context.
+
+Nothing is queryable until you opt in per schema. Under **GraphQL → Schemas** (or the public schema)
+in the control panel, enable the **B2B Commerce** scopes:
+
+- **View companies** (`b2bCompanies.all`) — enables the `companies`, `company` and `companyCount`
+  queries for the `Company` element type: `name`, `registrationNumber`, `taxId`, `status`,
+  `creditLimit`, `paymentTermDays`, `allowInvoicePayment`, `approvalThreshold` and any custom fields
+  on the company field layout.
+- **View the current user's B2B context** (`b2bContext.self`) — enables the top-level `b2bContext`
+  query.
+
+```graphql
+query {
+    b2bContext {
+        role
+        company { id name creditLimit }
+        memberBudget { amount period spent remaining }
+        creditSummary { outstanding creditLimit available }
+        members { role user { id email fullName } }
+        quotes { status total currency validUntil }
+        pendingApprovals { orderId reference total requesterName }
+        myApprovalRequests { orderId status reason }
+        orderLists { id name itemCount }
+    }
+}
+```
+
+**Security.** `b2bContext` takes no arguments: it always resolves from the authenticated user and is
+scoped to *their own* company, so one company can never read another's members, quotes, approvals,
+budgets or order lists — there is no id by which to cross company boundaries. `pendingApprovals` is
+returned only to approvers (admins and approvers); everyone else gets an empty list. For a request
+with no signed-in user (for example a public token), `b2bContext` resolves to `null` rather than an
+error.
+
+The `Company` element type behaves like any other Craft element type: once the **View companies**
+scope is enabled on a schema, that schema can read **all** companies. Treat it like enabling any
+element type on a public schema — only turn it on for schemas you intend to expose company records
+to. The per-user, per-company sensitive data (budgets, credit, members, quotes, approvals, order
+lists) is never reachable through the element type; it lives only under the user-scoped `b2bContext`.
+
 ## Known limitations
 
 - **Company field layout is stored in the database, not project config.** The custom-field
