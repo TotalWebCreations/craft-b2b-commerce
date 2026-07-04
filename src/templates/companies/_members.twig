@@ -18,6 +18,7 @@
                     <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Email'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Role'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Budget'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Actions'|t('b2b-commerce') }}</th>
                 </tr>
             </thead>
@@ -49,6 +50,51 @@
                                 </form>
                             {% else %}
                                 {{ member.roleLabel }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if member.user %}
+                                {% if member.budget %}
+                                    <p>
+                                        <strong>{{ member.budget.amount|currency(currency) }}</strong>
+                                        &middot; {{ member.budget.periodLabel }}<br>
+                                        {{ 'Spent'|t('b2b-commerce') }}: {{ member.budget.spent|currency(currency) }}
+                                        &middot; {{ 'Remaining'|t('b2b-commerce') }}: {{ member.budget.remaining|currency(currency) }}
+                                    </p>
+                                {% else %}
+                                    <p class="light">{{ 'No budget'|t('b2b-commerce') }}</p>
+                                {% endif %}
+
+                                {# Set budget: posts to the CP controller, which validates the period and re-checks membership. #}
+                                <form method="post" accept-charset="UTF-8" style="display: inline-flex; gap: 8px; align-items: center;">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('b2b-commerce/companies-cp/set-budget') }}
+                                    {{ hiddenInput('companyId', company.id) }}
+                                    {{ hiddenInput('userId', member.user.id) }}
+                                    {{ forms.text({
+                                        name: 'amount',
+                                        value: member.budget ? member.budget.amount : '',
+                                        placeholder: 'Amount'|t('b2b-commerce'),
+                                        size: 8,
+                                    }) }}
+                                    {{ forms.select({
+                                        name: 'period',
+                                        options: budgetPeriodOptions,
+                                        value: member.budget ? member.budget.periodValue : 'monthly',
+                                    }) }}
+                                    <button type="submit" class="btn">{{ 'Set budget'|t('b2b-commerce') }}</button>
+                                </form>
+
+                                {% if member.budget %}
+                                    {# Remove budget: deletes the row so the member becomes unlimited again. #}
+                                    <form method="post" accept-charset="UTF-8" style="display: inline;">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('b2b-commerce/companies-cp/remove-budget') }}
+                                        {{ hiddenInput('companyId', company.id) }}
+                                        {{ hiddenInput('userId', member.user.id) }}
+                                        <button type="submit" class="btn">{{ 'Remove budget'|t('b2b-commerce') }}</button>
+                                    </form>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <td>

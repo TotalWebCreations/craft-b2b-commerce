@@ -93,6 +93,7 @@ This gives you:
   and `b2b/approvals/index.twig` — the storefront approver queue plus the buyer's own
   requests with a resume-checkout button.
 - `b2b/account/credit.twig` — a credit summary page for the current user's company.
+- `b2b/account/budget.twig` — a spending-budget page for the current user.
 
 ### 2. Configure the settings
 
@@ -312,6 +313,49 @@ change them with the **Settled order statuses** setting (`excludedOrderStatusHan
 comma-separated list of order-status handles). Give a cancelled or refunded order that status
 and its receivable no longer eats into the company's credit room. To write off any other
 order, adjust the company's credit limit or record a payment covering the balance.
+
+### Spending budgets
+
+A **spending budget** caps how much a single team member may spend for their company within a
+period. It is separate from — and layers on top of — the company credit limit: a member can be
+under budget while their company is over its credit limit, and vice versa, so both are checked
+independently at checkout.
+
+Budgets are set per member in the control panel on a company's **Members** page (**B2B →
+Companies →** a company **→ Members**). For each member you set an **amount** and a **period**,
+or remove the budget entirely. The page also shows the member's spend this period and the room
+remaining. Setting a budget requires the `manageCompanies` permission.
+
+The **period** decides the window spend is counted over, and therefore when it resets:
+
+- **Monthly / Quarterly / Yearly** — spend is counted from the start of the current calendar
+  period (measured in the site timezone) and resets when the next one begins.
+- **None** — an all-time cap that never resets (a lifetime ceiling).
+- **No budget at all** — the member has unlimited spending. This is distinct from a *None*
+  budget, which still caps.
+
+Spend is the sum of the member's completed orders for that company in the current period, minus
+settled statuses (the same cancelled/refunded exclusion the credit balance uses). It counts the
+order's full total on **every** gateway, not just pay-on-account — a budget caps what a member
+spends, not what the company owes on account.
+
+Enforcement runs at checkout, storefront only (control-panel and console completions are the
+deliberate merchant override): the payment step refuses an order that would push the member over
+budget, and order completion is checked again as a backstop.
+
+`craft.b2b.memberBudget` exposes the signed-in user's own budget as a
+`{ amount, period, spent, remaining }` array, or `null` when they have no budget (unlimited) or
+no company. `remaining` is the room left this period, never below zero. See
+`examples/templates/b2b/account/budget.twig` for a complete page:
+
+```twig
+{% set budget = craft.b2b.memberBudget %}
+
+{% if budget %}
+    <p>{{ 'Spent'|t('b2b-commerce') }}: {{ budget.spent|currency }} / {{ budget.amount|currency }}</p>
+    <p>{{ 'Remaining'|t('b2b-commerce') }}: {{ budget.remaining|currency }}</p>
+{% endif %}
+```
 
 ### Address book
 

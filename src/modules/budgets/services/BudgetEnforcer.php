@@ -29,9 +29,11 @@ use yii\base\Exception;
  * handed to {@see releaseBudgetLock()} on EVENT_AFTER_COMPLETE_ORDER (registered AFTER
  * OrderCompanyLink::linkCompany) so it spans BOTH balance-affecting writes — the completion save and
  * the b2b_order_company link row that makes the order count towards spend. The same fail-safe residual
- * leak as the credit lock applies: a lock held past its use (a failed completion save, or a throw in
- * an earlier after-handler) is released at request teardown, never fails open, and can only cause a
- * temporary, self-healing refusal.
+ * leak as the credit lock applies: a lock held past its use is released at request teardown, never
+ * fails open, and can only cause a temporary, self-healing refusal. Two vectors leave a lock held:
+ * a failed completion save (the after-complete release never runs), or — the common case — a later
+ * before-complete handler (credit) refuses AFTER this gate passes and records the held lock, so the
+ * order never completes and the budget after-complete release never runs. Both self-heal at teardown.
  */
 class BudgetEnforcer extends Component
 {

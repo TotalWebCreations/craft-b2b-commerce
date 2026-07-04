@@ -7,6 +7,7 @@ use craft\commerce\elements\Order;
 use craft\elements\Address;
 use craft\elements\User;
 use DateTime;
+use DateTimeImmutable;
 use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -55,6 +56,46 @@ class B2bVariable
         }
 
         return Plugin::getInstance()->creditBalance->getSummary($company->id);
+    }
+
+    /**
+     * The current user's own spending budget for their company as
+     * `{amount, period, spent, remaining}`, or null when they have no budget (unlimited), no company,
+     * or are a guest. `spent` is this member's spend in the current period; `remaining` is the room
+     * left under the budget, never below zero. Mirrors {@see getCreditSummary} as a read-only view.
+     *
+     * @return array{amount: float, period: string, spent: float, remaining: float}|null
+     */
+    public function getMemberBudget(): ?array
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if ($user === null) {
+            return null;
+        }
+
+        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($user->id);
+
+        if ($company === null) {
+            return null;
+        }
+
+        $budgets = Plugin::getInstance()->budgets;
+        $budget = $budgets->getBudget($company->id, $user->id);
+
+        if ($budget === null) {
+            return null;
+        }
+
+        $amount = (float) $budget['amount'];
+        $spent = $budgets->getSpent($company->id, $user->id, new DateTimeImmutable('now'));
+
+        return [
+            'amount' => $amount,
+            'period' => (string) $budget['period'],
+            'spent' => $spent,
+            'remaining' => max(0.0, $amount - $spent),
+        ];
     }
 
     /** @return array<int, array{user: User, role: string}> */

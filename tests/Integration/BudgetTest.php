@@ -7,6 +7,7 @@ use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\BudgetPeriod;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
+use totalwebcreations\b2bcommerce\variables\B2bVariable;
 use yii\base\InvalidArgumentException;
 
 // createTestCompany/createTestUser/asSiteRequest live in helpers.php; creditTestInvoiceGateway(),
@@ -343,4 +344,55 @@ it('refuses on budget even when the company is within its credit limit', functio
     $cart = budgetCart($user, 20.0, creditTestManualGateway()->id);
 
     expect(Plugin::getInstance()->paymentGate->paymentRefusalReason($cart))->toBe(BUDGET_MESSAGE);
+});
+
+it('allows an invoice order under both the member budget and the company credit limit', function () {
+    // Company credit limit 500, member budget 500. A prior 40 invoice order plus a fresh 20 invoice
+    // cart stay under the budget (60 <= 500) AND under the credit limit (60 <= 500), so both gates
+    // pass and payment is not refused — the both-pass corner of the budget/credit matrix.
+    [$user, $company] = budgetMember(500.0);
+    Plugin::getInstance()->budgets->setBudget($company, $user->id, 500.0, BudgetPeriod::Monthly);
+    budgetCompletedOrder($user, 40.0, creditTestInvoiceGateway()->id);
+
+    $cart = budgetCart($user, 20.0, creditTestInvoiceGateway()->id);
+
+    expect(Plugin::getInstance()->paymentGate->paymentRefusalReason($cart))->toBeNull();
+});
+
+// --- storefront variable: getMemberBudget ---
+
+it('exposes the member budget shape to the current user', function () {
+    [$user, $company] = budgetMember();
+    Plugin::getInstance()->budgets->setBudget($company, $user->id, 100.0, BudgetPeriod::Monthly);
+    budgetCompletedOrder($user, 30.0);
+
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($user, function () use ($variable) {
+        $budget = $variable->getMemberBudget();
+
+        expect($budget)->not->toBeNull()
+            ->and($budget['amount'])->toBe(100.0)
+            ->and($budget['period'])->toBe('monthly')
+            ->and($budget['spent'])->toBe(30.0)
+            ->and($budget['remaining'])->toBe(70.0);
+    });
+});
+
+it('reports no member budget for a member who has none', function () {
+    [$user] = budgetMember();
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($user, function () use ($variable) {
+        expect($variable->getMemberBudget())->toBeNull();
+    });
+});
+
+it('reports no member budget for a visitor without a company', function () {
+    $user = createTestUser('budget_nocompany_' . uniqid() . '@example.test');
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($user, function () use ($variable) {
+        expect($variable->getMemberBudget())->toBeNull();
+    });
 });

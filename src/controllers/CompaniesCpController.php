@@ -6,10 +6,13 @@ use Craft;
 use craft\commerce\elements\Order;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
+use craft\elements\User;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
+use DateTimeImmutable;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\enums\BudgetPeriod;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -36,11 +39,15 @@ class CompaniesCpController extends Controller
     {
         $company = $this->findCompany($companyId);
 
+        $budgets = Plugin::getInstance()->budgets;
+        $now = new DateTimeImmutable('now');
+
         $members = array_map(
             fn(array $row): array => [
                 'user' => $row['user'],
                 'roleValue' => $row['role']->value,
                 'roleLabel' => Craft::t('b2b-commerce', $row['role']->name),
+                'budget' => $this->budgetInfo($company, $row['user'], $now),
             ],
             Plugin::getInstance()->companyMembers->getMemberUsers($company->id),
         );
@@ -53,11 +60,75 @@ class CompaniesCpController extends Controller
             CompanyRole::cases(),
         );
 
+        $budgetPeriodOptions = array_map(
+            fn(BudgetPeriod $period): array => [
+                'label' => Craft::t('b2b-commerce', $period->name),
+                'value' => $period->value,
+            ],
+            BudgetPeriod::cases(),
+        );
+
+        // Budgets are single-currency like credit limits: format every budget figure in the primary
+        // store's currency rather than the request locale.
+        $currency = Commerce::getInstance()->getStores()->getPrimaryStore()?->getCurrency()?->getCode();
+
         return $this->renderTemplate('b2b-commerce/companies/_members', [
             'company' => $company,
             'members' => $members,
             'roleOptions' => $roleOptions,
+            'budgetPeriodOptions' => $budgetPeriodOptions,
+            'currency' => $currency,
         ]);
+    }
+
+    public function actionSetBudget(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        $period = BudgetPeriod::tryFrom($this->requiredStringBodyParam('period'));
+
+        if ($period === null) {
+            $session->setError(Craft::t('b2b-commerce', 'Invalid budget period.'));
+
+            return $this->redirectToMembers($company);
+        }
+
+        try {
+            Plugin::getInstance()->budgets->setBudget(
+                $company,
+                (int) Craft::$app->getRequest()->getRequiredBodyParam('userId'),
+                (float) Craft::$app->getRequest()->getRequiredBodyParam('amount'),
+                $period,
+            );
+        } catch (InvalidArgumentException $exception) {
+            $session->setError($exception->getMessage());
+
+            return $this->redirectToMembers($company);
+        }
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Budget saved.'));
+
+        return $this->redirectToMembers($company);
+    }
+
+    public function actionRemoveBudget(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        Plugin::getInstance()->budgets->removeBudget(
+            $company,
+            (int) Craft::$app->getRequest()->getRequiredBodyParam('userId'),
+        );
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Budget removed.'));
+
+        return $this->redirectToMembers($company);
     }
 
     public function actionOrders(int $companyId): Response
@@ -177,6 +248,44 @@ class CompaniesCpController extends Controller
         $session->setNotice(Craft::t('b2b-commerce', 'Contact person removed.'));
 
         return $this->redirectToMembers($company);
+    }
+
+    /**
+     * The member's current budget as a display row, or null when they have no budget (unlimited) or
+     * no linked user. `remaining` is the room left this period, never below zero.
+     *
+     * @return array{
+     *     amount: float,
+     *     periodValue: string,
+     *     periodLabel: string,
+     *     spent: float,
+     *     remaining: float
+     * }|null
+     */
+    private function budgetInfo(Company $company, ?User $user, DateTimeImmutable $now): ?array
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $budgets = Plugin::getInstance()->budgets;
+        $budget = $budgets->getBudget($company->id, $user->id);
+
+        if ($budget === null) {
+            return null;
+        }
+
+        $period = BudgetPeriod::from((string) $budget['period']);
+        $amount = (float) $budget['amount'];
+        $spent = $budgets->getSpent($company->id, $user->id, $now);
+
+        return [
+            'amount' => $amount,
+            'periodValue' => $period->value,
+            'periodLabel' => Craft::t('b2b-commerce', $period->name),
+            'spent' => $spent,
+            'remaining' => max(0.0, $amount - $spent),
+        ];
     }
 
     private function redirectToMembers(Company $company): Response

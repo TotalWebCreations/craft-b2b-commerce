@@ -1,0 +1,25 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <h1>{{ 'Spending budget'|t('b2b-commerce') }}</h1>
+
+    {# craft.b2b.memberBudget returns {amount, period, spent, remaining} for the current user's own
+       budget, or null when they have no budget (unlimited spending) or no company. #}
+    {% set budget = craft.b2b.memberBudget %}
+
+    {% if budget %}
+        <dl>
+            <dt>{{ 'Budget'|t('b2b-commerce') }}</dt>
+            <dd>{{ budget.amount|currency }}</dd>
+
+            <dt>{{ 'Spent'|t('b2b-commerce') }}</dt>
+            <dd>{{ budget.spent|currency }}</dd>
+
+            <dt>{{ 'Remaining'|t('b2b-commerce') }}</dt>
+            <dd>{{ budget.remaining|currency }}</dd>
+        </dl>
+    {% else %}
+        {# No budget row means unlimited spending for this member. #}
+        <p>{{ 'You have no spending limit.'|t('b2b-commerce') }}</p>
+    {% endif %}
+{% endblock %}
