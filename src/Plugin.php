@@ -6,10 +6,13 @@ use Craft;
 use craft\base\Model;
 use craft\base\Plugin as BasePlugin;
 use craft\commerce\elements\Order;
+use craft\commerce\errors\PaymentException;
 use craft\commerce\events\AddLineItemEvent;
 use craft\commerce\events\CartPurgeEvent;
+use craft\commerce\events\ProcessPaymentEvent;
 use craft\commerce\services\Carts;
 use craft\commerce\services\Gateways;
+use craft\commerce\services\Payments;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\events\DefineBehaviorsEvent;
@@ -44,6 +47,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
+use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
@@ -64,6 +68,7 @@ use yii\base\Event;
  * @property-read CreditEnforcer $creditEnforcer
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
+ * @property-read PaymentGate $paymentGate
  * @property-read PriceVisibility $priceVisibility
  * @property-read QuickOrder $quickOrder
  * @property-read Quotes $quotes
@@ -130,6 +135,7 @@ class Plugin extends BasePlugin
             'creditEnforcer' => CreditEnforcer::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
+            'paymentGate' => PaymentGate::class,
             'priceVisibility' => PriceVisibility::class,
             'quickOrder' => QuickOrder::class,
             'quotes' => Quotes::class,
@@ -221,6 +227,41 @@ class Plugin extends BasePlugin
 
     private function attachCommerceHandlers(): void
     {
+        // Payment-time refusal — the EARLIER of the two approval/credit enforcement layers.
+        // EVENT_BEFORE_PROCESS_PAYMENT fires before Commerce creates the transaction or asks the
+        // gateway to authorize/capture (Payments::processPayment triggers it before its try block),
+        // so refusing here means a gated purchaser paying by card is NEVER charged — the fix for the
+        // paid-but-incomplete order that a completion-only gate would leave behind. The
+        // EVENT_BEFORE_COMPLETE_ORDER backstops below (enforceApprovalBeforeCompletion,
+        // enforceCreditLimit) stay armed as the defence-in-depth net for the paths this event never
+        // reaches: zero-payment / free orders, an approver placing an approved invoice order
+        // directly, and any other markAsComplete() that does not run through processPayment().
+        //
+        // A PaymentException thrown here propagates straight out of processPayment (the trigger is
+        // before its own try/catch) and is caught by Commerce's PaymentsController::actionPay, which
+        // surfaces its message as a clean storefront failure — no 500, and no transaction was ever
+        // created. Storefront-scoped like every other guard: console and CP payments are the
+        // merchant override.
+        Event::on(
+            Payments::class,
+            Payments::EVENT_BEFORE_PROCESS_PAYMENT,
+            function(ProcessPaymentEvent $event) {
+                $request = Craft::$app->getRequest();
+
+                if ($request->getIsConsoleRequest() || $request->getIsCpRequest()) {
+                    return;
+                }
+
+                $reason = $this->paymentGate->paymentRefusalReason($event->order);
+
+                if ($reason === null) {
+                    return;
+                }
+
+                throw new PaymentException($reason);
+            }
+        );
+
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_ADD_LINE_ITEM,

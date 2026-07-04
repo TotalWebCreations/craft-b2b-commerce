@@ -564,13 +564,28 @@ When the `enableApprovals` setting is off the whole gate is disarmed: the comple
 stands down and any cart left awaiting approval from when the feature was on becomes editable
 again.
 
-#### Payment capture caveat
+#### Two-layer enforcement: payment-time and completion-time
 
-The approval gate is a **completion** backstop, not a payment-time gate. A gated purchaser who
-pays by card *without* first submitting for approval can still have their card charged by the
-gateway; completion is then refused, leaving a **paid but incomplete** order. Merchant recovery
-is either to place the order via a control-panel completion (the merchant override) or to refund
-the capture. A payment-time gate that refuses the charge up front is on the roadmap.
+The approval and credit gates are enforced in **two coexisting layers**, so a gated purchaser is
+never charged for an order that cannot be placed:
+
+1. **Payment-time (the charge is refused up front).** On `Payments::EVENT_BEFORE_PROCESS_PAYMENT`
+   — before Commerce creates a transaction or asks the gateway to authorize or capture — a gated
+   purchaser with no approved approval (or a pay-on-account order over the company credit limit) is
+   refused. Because this fires *before* the charge, a purchaser paying by card is **never charged**;
+   Commerce returns a clean storefront failure carrying the reason, with no transaction created.
+
+2. **Completion-time (the defence-in-depth net).** The same gates are re-checked on
+   `Order::EVENT_BEFORE_COMPLETE_ORDER` (`Approvals::enforceApprovalBeforeCompletion`,
+   `CreditEnforcer::enforceCreditLimit`). This net catches the paths that never run a payment call
+   at all: a zero-payment or free order that completes without a charge, an approver placing an
+   approved invoice order directly, and any other completion that does not go through the payment
+   service.
+
+Both layers share the same decision logic, so the two can never disagree: the payment-time gate
+only re-times the refusal to *before* the charge. Console and control-panel payments and
+completions bypass both layers by design — that is the merchant override for placing a held order
+by hand.
 
 #### Control-panel monitoring (`Manage approvals` permission)
 
@@ -695,8 +710,6 @@ reinstall picks up exactly where you left off — no manual SQL required.
 
 Planned for future releases:
 
-- A **payment-time approval gate** that refuses the charge up front, rather than the
-  current completion backstop (see [Payment capture caveat](#payment-capture-caveat)).
 - **Project-config storage** for the company field layout (see [Known limitations](#known-limitations)).
 
 ## License

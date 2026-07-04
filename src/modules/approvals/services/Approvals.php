@@ -126,11 +126,45 @@ class Approvals extends Component
     }
 
     /**
+     * The pure approval-gate decision, shared by the plugin's two enforcement layers so neither
+     * re-derives it: the payment-time gate (PaymentGate::paymentRefusalReason, which refuses the
+     * charge up front) and the completion backstop (enforceApprovalBeforeCompletion, the net).
+     * Returns true when the order must be held — its customer still needs approval (a purchaser
+     * over the company threshold) and it carries no approved approval row. Carries NO request
+     * scoping: each caller applies its own storefront/console guard. Disarmed entirely when the
+     * enableApprovals toggle is off (see enforceApprovalBeforeCompletion for the full rationale).
+     */
+    public function mustHoldForApproval(Order $order): bool
+    {
+        if (!Plugin::getInstance()->getSettings()->enableApprovals) {
+            return false;
+        }
+
+        $customer = $order->getCustomer();
+
+        if ($customer === null) {
+            return false;
+        }
+
+        if (!$this->needsApproval($order, $customer)) {
+            return false;
+        }
+
+        return !$this->orderHasApprovedApproval((int) $order->id);
+    }
+
+    /**
      * Hard completion backstop for the approval gate, wired on EVENT_BEFORE_COMPLETE_ORDER.
      *
      * Refuses to place an order whose customer still needs approval (a purchaser over the
      * company's threshold) unless an approved approval row exists for the order. This is the
      * permission-to-order gate; the buyer-facing submit flow is the sanctioned way past it.
+     *
+     * This is the LATER of two coexisting layers. The payment-time gate (PaymentGate) refuses the
+     * charge up front on EVENT_BEFORE_PROCESS_PAYMENT so a card is never charged; this backstop
+     * stays armed as the net for the paths that never run a payment call — a zero-payment or free
+     * order, an approver placing an approved invoice order directly, and any other markAsComplete()
+     * that does not go through Payments::processPayment(). Both layers share mustHoldForApproval().
      *
      * Design decisions, and how the completion matrix resolves:
      *   - NO paid-order exemption (unlike the account-status backstop). Approval governs
@@ -164,10 +198,6 @@ class Approvals extends Component
      */
     public function enforceApprovalBeforeCompletion(Order $order): void
     {
-        if (!Plugin::getInstance()->getSettings()->enableApprovals) {
-            return;
-        }
-
         $request = Craft::$app->getRequest();
 
         // Storefront-only guard: never intervene in console or control-panel completions.
@@ -175,17 +205,10 @@ class Approvals extends Component
             return;
         }
 
-        $customer = $order->getCustomer();
-
-        if ($customer === null) {
-            return;
-        }
-
-        if (!$this->needsApproval($order, $customer)) {
-            return;
-        }
-
-        if ($this->orderHasApprovedApproval((int) $order->id)) {
+        // mustHoldForApproval folds in the enableApprovals toggle, the missing-customer short
+        // circuit, the needsApproval check and the approved-row exemption — the exact decision the
+        // payment-time gate reuses.
+        if (!$this->mustHoldForApproval($order)) {
             return;
         }
 
