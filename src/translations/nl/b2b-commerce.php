@@ -4,6 +4,7 @@ return [
     'Company' => 'Bedrijf',
     'Companies' => 'Bedrijven',
     'All companies' => 'Alle bedrijven',
+    'New company' => 'Nieuw bedrijf',
     'Pending' => 'In afwachting',
     'Approved' => 'Goedgekeurd',
     'Blocked' => 'Geblokkeerd',

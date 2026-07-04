@@ -3,3 +3,15 @@
 {% set title = 'Companies'|t('b2b-commerce') %}
 {% set elementType = 'totalwebcreations\\b2bcommerce\\elements\\Company' %}
 {% set canHaveDrafts = false %}
+
+{% block actionButton %}
+    {% if currentUser.can('b2b-commerce:manageCompanies') %}
+        {{ tag('a', {
+            class: 'btn submit add icon',
+            href: actionUrl('elements/create', {
+                elementType: elementType,
+            }),
+            text: 'New company'|t('b2b-commerce'),
+        }) }}
+    {% endif %}
+{% endblock %}

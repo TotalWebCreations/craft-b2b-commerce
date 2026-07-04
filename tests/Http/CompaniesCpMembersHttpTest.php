@@ -1,47 +1,9 @@
 <?php
 
 use craft\elements\User;
-use GuzzleHttp\Client;
-use Psr\Http\Message\ResponseInterface;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
-
-/**
- * Posts a control-panel action request. CP controllers require a CP request, so the
- * action is posted under the /admin prefix (not the bare /actions endpoint) with a
- * freshly fetched CSRF token, mirroring how a CP form submits.
- *
- * @param array<string, mixed> $params
- */
-function postCpAction(Client $client, string $action, array $params = []): ResponseInterface
-{
-    $token = csrfToken($client);
-
-    return $client->post("/admin/actions/{$action}", [
-        'headers' => [
-            'Accept' => 'text/html',
-            'X-CSRF-Token' => $token,
-        ],
-        'form_params' => $params + ['CRAFT_CSRF_TOKEN' => $token],
-    ]);
-}
-
-/**
- * Creates a logged-in CP client for a fresh user granted the manageCompanies permission.
- *
- * @return array{0: Client, 1: User}
- */
-function cpManagerClient(): array
-{
-    $user = createTestUserWithPassword('cp_manager_' . uniqid() . '@example.test');
-    craftApp()->getUserPermissions()->saveUserPermissions($user->id, ['accessCp', 'b2b-commerce:manageCompanies']);
-
-    $client = httpClient();
-    loginAs($client, $user->email, httpTestPassword());
-
-    return [$client, $user];
-}
 
 it('renders the add contact person form and role selects on the CP members page', function () {
     $company = createTestCompany(Company::STATUS_APPROVED, 'CP Http Co');
