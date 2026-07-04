@@ -151,6 +151,24 @@ class Install extends Migration
             $this->addForeignKey(null, '{{%b2b_approvals}}', ['resolvedById'], Table::USERS, ['id'], 'SET NULL');
         }
 
+        if (!$this->db->tableExists('{{%b2b_member_budgets}}')) {
+            $this->createTable('{{%b2b_member_budgets}}', [
+                'id' => $this->primaryKey(),
+                'companyId' => $this->integer()->notNull(),
+                'userId' => $this->integer()->notNull(),
+                'amount' => $this->decimal(14, 4)->notNull(),
+                'period' => $this->string()->notNull()->defaultValue('monthly'),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_member_budgets}}', ['companyId', 'userId'], true);
+            $this->createIndex(null, '{{%b2b_member_budgets}}', ['companyId']);
+            $this->addForeignKey(null, '{{%b2b_member_budgets}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_member_budgets}}', ['userId'], Table::USERS, ['id'], 'CASCADE');
+        }
+
         return true;
     }
 }

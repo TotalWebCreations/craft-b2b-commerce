@@ -47,6 +47,8 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
+use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
+use totalwebcreations\b2bcommerce\modules\budgets\services\Budgets;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
@@ -61,6 +63,8 @@ use yii\base\Event;
  * @method static Plugin getInstance()
  * @method Settings getSettings()
  * @property-read Approvals $approvals
+ * @property-read BudgetEnforcer $budgetEnforcer
+ * @property-read Budgets $budgets
  * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
@@ -77,7 +81,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.5';
+    public string $schemaVersion = '1.0.6';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -128,6 +132,8 @@ class Plugin extends BasePlugin
     {
         $this->setComponents([
             'approvals' => Approvals::class,
+            'budgetEnforcer' => BudgetEnforcer::class,
+            'budgets' => Budgets::class,
             'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
@@ -450,6 +456,24 @@ class Plugin extends BasePlugin
             }
         );
 
+        // Spending-budget completion backstop. Registered after the approval and account-status
+        // guards but BEFORE the credit-limit check, mirroring the payment-time gate's order
+        // (approval, budget, credit): a member's personal spend cap is a permission-shaped gate that
+        // is judged before the company credit position. It applies on any gateway — a budget caps
+        // spend, not what is owed — and takes its own per-member lock, so it precedes the credit lock
+        // to keep the common refusal path clean. See BudgetEnforcer for the fail-safe lock rationale.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->budgetEnforcer->enforceBudget($event->sender);
+            }
+        );
+
         // Registered AFTER enforcePurchasePolicy so the account-status backstop runs first and the
         // hard credit-limit check second. The two are independent: the backstop's paid-order
         // exemption does not skip this check (a partially paid invoice order is still checked for
@@ -494,6 +518,21 @@ class Plugin extends BasePlugin
                 }
 
                 $this->creditEnforcer->releaseCreditLock($event->sender);
+            }
+        );
+
+        // Release the per-member budget lock. Like the credit-lock release, this MUST stay registered
+        // AFTER linkCompany above so the lock spans BOTH the completion save and the b2b_order_company
+        // link row that makes the order count towards the member's spend. See BudgetEnforcer.
+        Event::on(
+            Order::class,
+            Order::EVENT_AFTER_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->budgetEnforcer->releaseBudgetLock($event->sender);
             }
         );
 
