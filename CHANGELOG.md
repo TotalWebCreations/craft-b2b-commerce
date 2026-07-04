@@ -1,5 +1,21 @@
 # Release Notes for B2B Commerce
 
+## 1.0.0-beta.2 - Unreleased
+
+### Added
+- Manage a company's contact persons (members) directly from the control panel: add or invite
+  a member with a role, change a member's role, and remove a member — from the company's
+  Members page. Reuses the same guards as the front-end team management (approved company,
+  duplicate-membership check, last-admin protection).
+- A "New company" button on the control-panel Companies index, so companies can be created
+  from the CP.
+
+### Changed
+- The company edit screen now renders the core fields (name, registration number, VAT ID,
+  credit limit, payment term, pay-on-account, approval threshold) in the main content area
+  instead of only the sidebar, so the screen is never empty and the field-layout designer
+  still manages any custom fields you add.
+
 ## 1.0.0-beta.1 - 2026-07-09
 
 First public release. B2B Commerce turns a standard Craft Commerce store into a
