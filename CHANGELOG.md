@@ -3,6 +3,12 @@
 ## 1.0.0-beta.3 - 2026-07-09
 
 ### Added
+- **Company-specific pricing.** Assign a company to a Craft user group; the plugin keeps every
+  approved member of that company in the group (and never touches their other group
+  memberships). Build a Craft Commerce **Catalog Pricing Rule** with a customer condition
+  matching that group and each company automatically sees its own wholesale prices — no custom
+  pricing engine, all native Commerce. Members of pending or blocked companies are not placed in
+  the group, so unapproved accounts never get wholesale pricing.
 - **Per-member spending budgets.** A budget caps how much a single team member may spend
   for their company within a period, independently of (and on top of) the company credit
   limit. Set each member's **amount** and **period** (monthly, quarterly, yearly, or a
