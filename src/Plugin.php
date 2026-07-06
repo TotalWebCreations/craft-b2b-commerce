@@ -26,6 +26,7 @@ use craft\events\RegisterGqlTypesEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\models\FieldLayout;
+use craft\services\Dashboard;
 use craft\services\Elements;
 use craft\services\Gql;
 use craft\services\SystemMessages;
@@ -59,6 +60,7 @@ use totalwebcreations\b2bcommerce\modules\pricing\services\CustomerGroupSync;
 use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
 use totalwebcreations\b2bcommerce\modules\budgets\services\Budgets;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
+use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
@@ -66,6 +68,7 @@ use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\modules\quotes\services\Quotes;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
 use totalwebcreations\b2bcommerce\variables\B2bVariable;
+use totalwebcreations\b2bcommerce\widgets\Overview as OverviewWidget;
 use yii\base\Event;
 
 /**
@@ -82,6 +85,7 @@ use yii\base\Event;
  * @property-read CreditEnforcer $creditEnforcer
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
+ * @property-read Overview $overview
  * @property-read PaymentGate $paymentGate
  * @property-read PriceVisibility $priceVisibility
  * @property-read QuickOrder $quickOrder
@@ -201,6 +205,7 @@ class Plugin extends BasePlugin
             'creditEnforcer' => CreditEnforcer::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
+            'overview' => Overview::class,
             'paymentGate' => PaymentGate::class,
             'priceVisibility' => PriceVisibility::class,
             'quickOrder' => QuickOrder::class,
@@ -259,13 +264,21 @@ class Plugin extends BasePlugin
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function(RegisterUrlRulesEvent $event) {
-                $event->rules['b2b'] = ['template' => 'b2b-commerce/companies/_index'];
+                $event->rules['b2b'] = 'b2b-commerce/dashboard-cp/index';
                 $event->rules['b2b/companies'] = ['template' => 'b2b-commerce/companies/_index'];
                 $event->rules['b2b/companies/<companyId:\d+>/members'] = 'b2b-commerce/companies-cp/members';
                 $event->rules['b2b/companies/<companyId:\d+>/orders'] = 'b2b-commerce/companies-cp/orders';
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
                 $event->rules['b2b/quotes'] = 'b2b-commerce/quotes-cp/index';
                 $event->rules['b2b/approvals'] = 'b2b-commerce/approvals-cp/index';
+            }
+        );
+
+        Event::on(
+            Dashboard::class,
+            Dashboard::EVENT_REGISTER_WIDGET_TYPES,
+            function(RegisterComponentTypesEvent $event) {
+                $event->types[] = OverviewWidget::class;
             }
         );
 
@@ -712,6 +725,7 @@ class Plugin extends BasePlugin
         $item['label'] = Craft::t('b2b-commerce', 'B2B');
         $item['url'] = 'b2b';
         $item['subnav'] = [
+            'overview' => ['label' => Craft::t('b2b-commerce', 'Overview'), 'url' => 'b2b'],
             'companies' => ['label' => Craft::t('b2b-commerce', 'Companies'), 'url' => 'b2b/companies'],
             'quotes' => ['label' => Craft::t('b2b-commerce', 'Quotes'), 'url' => 'b2b/quotes'],
             'approvals' => ['label' => Craft::t('b2b-commerce', 'Approvals'), 'url' => 'b2b/approvals'],

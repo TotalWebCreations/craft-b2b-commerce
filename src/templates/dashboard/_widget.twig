@@ -1,0 +1,30 @@
+{% set companies = stats.companies %}
+
+<table class="data fullwidth">
+    <tbody>
+        <tr>
+            <th scope="row">{{ 'Companies'|t('b2b-commerce') }}</th>
+            <td class="rightalign"><a href="{{ url('b2b/companies') }}">{{ companies.total }}</a></td>
+        </tr>
+        <tr>
+            <th scope="row">{{ 'Pending registrations'|t('b2b-commerce') }}</th>
+            <td class="rightalign"><a href="{{ url('b2b/companies') }}">{{ stats.pendingRegistrations }}</a></td>
+        </tr>
+        <tr>
+            <th scope="row">{{ 'Open quotes'|t('b2b-commerce') }}</th>
+            <td class="rightalign"><a href="{{ url('b2b/quotes') }}">{{ stats.openQuotes }}</a></td>
+        </tr>
+        <tr>
+            <th scope="row">{{ 'Pending approvals'|t('b2b-commerce') }}</th>
+            <td class="rightalign"><a href="{{ url('b2b/approvals', { status: 'pending' }) }}">{{ stats.pendingApprovals }}</a></td>
+        </tr>
+        <tr>
+            <th scope="row">{{ 'Members'|t('b2b-commerce') }}</th>
+            <td class="rightalign">{{ stats.members }}</td>
+        </tr>
+        <tr>
+            <th scope="row">{{ 'Outstanding on account'|t('b2b-commerce') }}</th>
+            <td class="rightalign">{{ stats.outstanding|currency(currency) }}</td>
+        </tr>
+    </tbody>
+</table>

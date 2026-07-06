@@ -39,6 +39,15 @@ a `craft.b2b` template variable, and includes **Dutch translations** for all con
 and frontend strings. Full feature detail is in the sections below and in the
 [changelog](CHANGELOG.md).
 
+### Control panel overview
+
+The **B2B** section opens on an **Overview** landing page (Companies, Quotes and Approvals
+sit alongside it in the subnav). The overview shows the headline figures at a glance —
+companies by status, the pending-registration queue, open quotes, pending approvals, the
+distinct member count and the total outstanding on account — each linking through to its
+list. The same figures are available as a **B2B overview** widget on Craft's dashboard.
+Both are gated behind the *Manage companies* permission.
+
 ## Requirements
 
 - **Craft CMS 5, Pro edition** — required, because business accounts rely on multiple

@@ -1,0 +1,117 @@
+{% extends '_layouts/cp' %}
+
+{% set title = 'Overview'|t('b2b-commerce') %}
+
+{% css %}
+.b2b-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+}
+.b2b-overview .pane {
+    margin: 0;
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 118px;
+}
+.b2b-overview a.pane {
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.b2b-overview a.pane:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+}
+.b2b-stat__label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--medium-text-color);
+}
+.b2b-stat__value {
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1.05;
+    color: var(--text-color);
+}
+.b2b-stat__meta {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--light-text-color);
+    margin-top: auto;
+}
+.b2b-stat__meta .status {
+    margin-right: 6px;
+}
+{% endcss %}
+
+{% block content %}
+    {% set companies = stats.companies %}
+
+    <div class="b2b-overview">
+
+        {# Companies — total, with the per-status split underneath. #}
+        <a class="pane" href="{{ url('b2b/companies') }}">
+            <span class="b2b-stat__label">{{ 'Companies'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ companies.total }}</span>
+            <span class="b2b-stat__meta">
+                <span class="status green"></span>{{ '{n} approved'|t('b2b-commerce', { n: companies.approved }) }}<br>
+                <span class="status orange"></span>{{ '{n} pending'|t('b2b-commerce', { n: companies.pending }) }}<br>
+                <span class="status red"></span>{{ '{n} blocked'|t('b2b-commerce', { n: companies.blocked }) }}
+            </span>
+        </a>
+
+        {# Pending registrations — the sign-up review queue. #}
+        <a class="pane" href="{{ url('b2b/companies') }}">
+            <span class="b2b-stat__label">{{ 'Pending registrations'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ stats.pendingRegistrations }}</span>
+            <span class="b2b-stat__meta">
+                {{ stats.pendingRegistrations > 0
+                    ? 'Awaiting your review.'|t('b2b-commerce')
+                    : 'Nothing to review.'|t('b2b-commerce') }}
+            </span>
+        </a>
+
+        {# Open quotes — requested + sent. #}
+        <a class="pane" href="{{ url('b2b/quotes') }}">
+            <span class="b2b-stat__label">{{ 'Open quotes'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ stats.openQuotes }}</span>
+            <span class="b2b-stat__meta">
+                {{ stats.openQuotes > 0
+                    ? 'Requested or awaiting the buyer.'|t('b2b-commerce')
+                    : 'No open quotes.'|t('b2b-commerce') }}
+            </span>
+        </a>
+
+        {# Pending approvals. #}
+        <a class="pane" href="{{ url('b2b/approvals', { status: 'pending' }) }}">
+            <span class="b2b-stat__label">{{ 'Pending approvals'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ stats.pendingApprovals }}</span>
+            <span class="b2b-stat__meta">
+                {{ stats.pendingApprovals > 0
+                    ? 'Orders awaiting a company approver.'|t('b2b-commerce')
+                    : 'No orders awaiting approval.'|t('b2b-commerce') }}
+            </span>
+        </a>
+
+        {# Members — distinct users across all companies. #}
+        <div class="pane">
+            <span class="b2b-stat__label">{{ 'Members'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ stats.members }}</span>
+            <span class="b2b-stat__meta">{{ 'People across all companies.'|t('b2b-commerce') }}</span>
+        </div>
+
+        {# Outstanding on account — the total live receivable. #}
+        <div class="pane">
+            <span class="b2b-stat__label">{{ 'Outstanding on account'|t('b2b-commerce') }}</span>
+            <span class="b2b-stat__value">{{ stats.outstanding|currency(currency) }}</span>
+            <span class="b2b-stat__meta">{{ 'Unpaid across all invoice orders.'|t('b2b-commerce') }}</span>
+        </div>
+
+    </div>
+{% endblock %}
