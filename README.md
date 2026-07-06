@@ -719,9 +719,13 @@ Nothing is queryable until you opt in per schema. Under **GraphQL → Schemas** 
 in the control panel, enable the **B2B Commerce** scopes:
 
 - **View companies** (`b2bCompanies.all`) — enables the `companies`, `company` and `companyCount`
-  queries for the `Company` element type: `name`, `registrationNumber`, `taxId`, `status`,
-  `creditLimit`, `paymentTermDays`, `allowInvoicePayment`, `approvalThreshold` and any custom fields
-  on the company field layout.
+  queries for the `Company` element type. This scope exposes only non-sensitive company **identity**:
+  `id`, `name`, `registrationNumber`, `status` and any custom fields on the company field layout. The
+  sensitive financial fields (`taxId`, `creditLimit`, `paymentTermDays`, `allowInvoicePayment`,
+  `approvalThreshold`) resolve to `null` under this scope alone.
+- **View company financial fields** (`b2bCompanies.financials`) — a separate, opt-in add-on that
+  unlocks the financial fields above across **all** companies in the `companies`/`company` queries.
+  Off by default. Do not enable it on a public schema.
 - **View the current user's B2B context** (`b2bContext.self`) — enables the top-level `b2bContext`
   query.
 
@@ -749,10 +753,19 @@ with no signed-in user (for example a public token), `b2bContext` resolves to `n
 error.
 
 The `Company` element type behaves like any other Craft element type: once the **View companies**
-scope is enabled on a schema, that schema can read **all** companies. Treat it like enabling any
-element type on a public schema — only turn it on for schemas you intend to expose company records
-to. The per-user, per-company sensitive data (budgets, credit, members, quotes, approvals, order
-lists) is never reachable through the element type; it lives only under the user-scoped `b2bContext`.
+scope is enabled on a schema, that schema can read **all** companies — but only their identity
+(`name`, `registrationNumber`, `status`, `id`), not their financials. Each sensitive financial field
+carries a per-field resolver that returns `null` unless **either** the active schema also has the
+dedicated **View company financial fields** (`b2bCompanies.financials`) scope, **or** the field
+belongs to the signed-in user's *own* company (a caller reading their own financials is always
+permitted). So enabling **View companies** on a public token can never dump every company's tax IDs,
+credit limits or approval thresholds to competitors; that requires the explicit financials scope.
+
+A signed-in user's own per-company sensitive data (their company's financials, plus budgets, credit,
+members, quotes, approvals and order lists) is always available — with no extra scope — through the
+user-scoped `b2bContext`, which resolves solely from the authenticated user and cannot be pointed at
+another company. Aggregate data (members, quotes, approvals, order lists, budgets) is never reachable
+through the element type at all; it lives only under `b2bContext`.
 
 ## Known limitations
 

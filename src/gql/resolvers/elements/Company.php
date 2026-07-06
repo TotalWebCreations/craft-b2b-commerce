@@ -3,7 +3,6 @@
 namespace totalwebcreations\b2bcommerce\gql\resolvers\elements;
 
 use craft\elements\db\ElementQuery;
-use craft\elements\ElementCollection;
 use craft\gql\base\ElementResolver;
 use totalwebcreations\b2bcommerce\elements\Company as CompanyElement;
 use totalwebcreations\b2bcommerce\gql\helpers\Gql as GqlHelper;
@@ -40,7 +39,7 @@ class Company extends ElementResolver
         }
 
         if (!GqlHelper::canQueryCompanies()) {
-            return ElementCollection::empty();
+            return [];
         }
 
         return $query;

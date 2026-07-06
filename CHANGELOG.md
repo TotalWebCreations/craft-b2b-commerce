@@ -9,6 +9,12 @@
   credit summary, members, quotes, approvals and order lists. Both are gated behind opt-in
   **B2B Commerce** schema scopes; `b2bContext` is always scoped to the caller's own company and
   never exposes another company's data. No mutations — writes stay on the action controllers.
+  The **View companies** (`b2bCompanies.all`) scope exposes only company *identity* (name,
+  registration number, status); sensitive financial fields (tax ID, credit limit, payment term,
+  pay-on-account, approval threshold) resolve to `null` unless the caller reads their own company
+  or the separate, opt-in **View company financial fields** (`b2bCompanies.financials`) scope is
+  enabled — so enabling **View companies** on a public token can no longer leak every company's
+  financials.
 - Manage a company's contact persons (members) directly from the control panel: add or invite
   a member with a role, change a member's role, and remove a member — from the company's
   Members page. Reuses the same guards as the front-end team management (approved company,

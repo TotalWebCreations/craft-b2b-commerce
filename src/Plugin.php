@@ -146,6 +146,9 @@ class Plugin extends BasePlugin
                 $event->queries[$label]['b2bCompanies.all:read'] = [
                     'label' => Craft::t('b2b-commerce', 'View companies'),
                 ];
+                $event->queries[$label]['b2bCompanies.financials:read'] = [
+                    'label' => Craft::t('b2b-commerce', 'View company financial fields'),
+                ];
                 $event->queries[$label]['b2bContext.self:read'] = [
                     'label' => Craft::t('b2b-commerce', 'View the current user’s B2B context'),
                 ];

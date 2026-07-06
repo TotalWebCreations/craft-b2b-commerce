@@ -10,9 +10,14 @@ use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 
 /**
- * Scope covering both B2B GraphQL components.
+ * Scope covering both B2B GraphQL components, but NOT the sensitive-financials add-on.
  */
 const B2B_GQL_FULL_SCOPE = ['b2bCompanies.all:read', 'b2bContext.self:read'];
+
+/**
+ * Scope that additionally opts in to reading company financial fields across all companies.
+ */
+const B2B_GQL_FINANCIALS_SCOPE = ['b2bCompanies.all:read', 'b2bCompanies.financials:read', 'b2bContext.self:read'];
 
 /**
  * Builds a transient GraphQL schema with the given scope. A null id keeps executeQuery from caching
@@ -45,6 +50,8 @@ function runB2bGql(GqlSchema $schema, string $query): array
     GqlEntityRegistry::flush();
     TypeLoader::flush();
 
+    // Couples to craft\services\Gql's private memoization props; kept in sync with Craft manually
+    // because there is no public API to rebuild a transient schema definition mid-request.
     Closure::bind(function (): void {
         $this->_schema = null;
         $this->_schemaDef = null;
@@ -97,7 +104,7 @@ function gqlCompanyWithAdmin(array $attributes = []): array
     return [$company, $admin];
 }
 
-it('exposes company fields through the company element query', function () {
+it('exposes company financial fields through the element query with the financials scope', function () {
     [$company] = gqlCompanyWithAdmin([
         'registrationNumber' => 'REG-123',
         'taxId' => 'NL123456789B01',
@@ -107,7 +114,7 @@ it('exposes company fields through the company element query', function () {
         'approvalThreshold' => 500.0,
     ]);
 
-    $result = runB2bGql(b2bGqlSchema(B2B_GQL_FULL_SCOPE), <<<GQL
+    $result = runB2bGql(b2bGqlSchema(B2B_GQL_FINANCIALS_SCOPE), <<<GQL
         query {
             company(id: {$company->id}) {
                 id
@@ -137,6 +144,109 @@ it('exposes company fields through the company element query', function () {
         ->and($data['paymentTermDays'])->toBe(30)
         ->and($data['allowInvoicePayment'])->toBeTrue()
         ->and($data['approvalThreshold'])->toBe(500.0);
+});
+
+it('exposes company identity but nulls financial fields without the financials scope', function () {
+    [$company] = gqlCompanyWithAdmin([
+        'registrationNumber' => 'REG-456',
+        'taxId' => 'NL987654321B01',
+        'creditLimit' => 2000.0,
+        'paymentTermDays' => 45,
+        'allowInvoicePayment' => true,
+        'approvalThreshold' => 750.0,
+    ]);
+
+    // No signed-in user: a public token bearing only b2bCompanies.all — the leak this fix closes.
+    asGqlIdentity(null, function () use ($company) {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_FULL_SCOPE), <<<GQL
+            query {
+                company(id: {$company->id}) {
+                    id
+                    name
+                    registrationNumber
+                    status
+                    taxId
+                    creditLimit
+                    paymentTermDays
+                    allowInvoicePayment
+                    approvalThreshold
+                }
+            }
+        GQL);
+
+        expect($result['errors'] ?? null)->toBeNull();
+
+        $data = $result['data']['company'];
+
+        expect($data['name'])->toBe($company->title)
+            ->and($data['registrationNumber'])->toBe('REG-456')
+            ->and($data['status'])->toBe(Company::STATUS_APPROVED)
+            ->and($data['taxId'])->toBeNull()
+            ->and($data['creditLimit'])->toBeNull()
+            ->and($data['paymentTermDays'])->toBeNull()
+            ->and($data['allowInvoicePayment'])->toBeNull()
+            ->and($data['approvalThreshold'])->toBeNull();
+    });
+});
+
+it('never exposes another company’s financials through the element query without the scope', function () {
+    [$companyA, $adminA] = gqlCompanyWithAdmin(['creditLimit' => 1111.0, 'taxId' => 'NL-A']);
+    [$companyB] = gqlCompanyWithAdmin(['creditLimit' => 2222.0, 'taxId' => 'NL-B']);
+
+    // adminA is signed in but the schema has no financials scope: they may read their OWN financials,
+    // never company B's.
+    asGqlIdentity($adminA, function () use ($companyA, $companyB) {
+        $query = fn(int $id) => runB2bGql(b2bGqlSchema(B2B_GQL_FULL_SCOPE), <<<GQL
+            query {
+                company(id: {$id}) { taxId creditLimit }
+            }
+        GQL)['data']['company'];
+
+        $own = $query($companyA->id);
+        $other = $query($companyB->id);
+
+        expect($own['taxId'])->toBe('NL-A')
+            ->and($own['creditLimit'])->toBe(1111.0)
+            ->and($other['taxId'])->toBeNull()
+            ->and($other['creditLimit'])->toBeNull();
+    });
+});
+
+it('always exposes the caller’s own company financials through b2bContext regardless of scope', function () {
+    [$company, $admin] = gqlCompanyWithAdmin([
+        'taxId' => 'NL-OWN',
+        'creditLimit' => 3000.0,
+        'paymentTermDays' => 60,
+        'allowInvoicePayment' => true,
+        'approvalThreshold' => 900.0,
+    ]);
+
+    // Schema deliberately omits b2bCompanies.financials: own-company financials must still resolve.
+    asGqlIdentity($admin, function () use ($company) {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_FULL_SCOPE), <<<'GQL'
+            query {
+                b2bContext {
+                    company {
+                        taxId
+                        creditLimit
+                        paymentTermDays
+                        allowInvoicePayment
+                        approvalThreshold
+                    }
+                }
+            }
+        GQL);
+
+        expect($result['errors'] ?? null)->toBeNull();
+
+        $data = $result['data']['b2bContext']['company'];
+
+        expect($data['taxId'])->toBe('NL-OWN')
+            ->and($data['creditLimit'])->toBe(3000.0)
+            ->and($data['paymentTermDays'])->toBe(60)
+            ->and($data['allowInvoicePayment'])->toBeTrue()
+            ->and($data['approvalThreshold'])->toBe(900.0);
+    });
 });
 
 it('returns the authenticated member’s own company, role, budget and credit summary', function () {

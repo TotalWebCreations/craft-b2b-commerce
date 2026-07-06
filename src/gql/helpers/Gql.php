@@ -34,4 +34,16 @@ class Gql extends BaseGqlHelper
 
         return isset($allowedEntities['b2bContext']);
     }
+
+    /**
+     * Whether the active (or given) schema may read a company's sensitive financial fields (taxId,
+     * creditLimit, paymentTermDays, allowInvoicePayment, approvalThreshold) across all companies.
+     * Gated by the separate, opt-in `b2bCompanies.financials` schema component so that enabling the
+     * plain `b2bCompanies.all` scope exposes only non-sensitive company identity. Reading one's own
+     * company's financials never requires this scope; that path is served by `b2bContext`.
+     */
+    public static function canReadCompanyFinancials(?GqlSchema $schema = null): bool
+    {
+        return self::canSchema('b2bCompanies.financials', 'read', $schema);
+    }
 }
