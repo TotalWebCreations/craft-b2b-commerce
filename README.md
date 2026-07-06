@@ -67,15 +67,24 @@ Alternatively install it from the control panel under **Settings → Plugins**.
 
 ### 1. Copy the example templates
 
-Example frontend templates live in `examples/templates/b2b/`. Copy them into your
-project's `templates/` directory as a starting point:
+Example frontend templates live in `examples/templates/b2b/`. They are a cohesive,
+copy-pasteable starter set — a shared `_layout.twig` with a B2B account navigation
+that every page extends — but they are deliberately **unstyled**: no CSS framework,
+minimal inline structure, meant to be restyled to match your storefront. Copy the
+whole directory into your project's `templates/` directory as a starting point:
 
 ```bash
 cp -R vendor/totalwebcreations/craft-b2b-commerce/examples/templates/b2b templates/b2b
 ```
 
+See [`examples/README.md`](examples/README.md) for the full walkthrough, including the
+site routes you must register (the `quotes/accept` / `quotes/decline` email links and
+the `b2b/order-lists/<listId>` detail route) and how to include the button partials.
+
 This gives you:
 
+- `b2b/_layout.twig` — the shared, unstyled base layout with the B2B account nav.
+- `b2b/account/index.twig` — the account landing page (company + status).
 - `b2b/register.twig` — the company registration form.
 - `b2b/product-price.twig` — a price/add-to-cart partial that respects price
   visibility.
@@ -802,18 +811,28 @@ The plugin ships these Craft console commands:
 
 ## Uninstalling
 
-Uninstalling the plugin intentionally leaves its database tables (`b2b_companies`,
-`b2b_company_users`, `b2b_order_company`, `b2b_order_lists`, `b2b_order_list_items` and
-`b2b_quotes`) and
-their data behind. The install migration is
+Uninstalling the plugin intentionally leaves its eight database tables
+(`b2b_companies`, `b2b_company_users`, `b2b_order_company`, `b2b_quotes`,
+`b2b_order_lists`, `b2b_order_list_items`, `b2b_approvals` and `b2b_member_budgets`)
+and their data behind. The install migration is
 idempotent: if the tables already exist it skips creation and keeps your data, so a later
 reinstall picks up exactly where you left off — no manual SQL required.
 
 ## Roadmap
 
-Planned for future releases:
+The five pillars, per-member budgets, the two-layer payment/completion enforcement and
+the read-only GraphQL API all ship in this release. Genuinely planned for future
+releases:
 
 - **Project-config storage** for the company field layout (see [Known limitations](#known-limitations)).
+- **Configurable roles** beyond the built-in admin / purchaser / approver set.
+- **Departments** — sub-groups within a company, with **department-level budgets**
+  layered above the per-member budgets shipping now.
+- **PunchOut and accounting integrations** (cXML/OCI procurement punchout, and
+  export to accounting packages).
+- **Per-store credit** — credit limits and outstanding balances tracked per Commerce
+  store rather than the single primary-store currency used today.
+- **Lite / Pro editions** — a tiered edition split once the feature set settles.
 
 ## License
 

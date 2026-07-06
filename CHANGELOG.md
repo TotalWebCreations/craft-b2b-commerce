@@ -1,8 +1,26 @@
 # Release Notes for B2B Commerce
 
-## 1.0.0-beta.2 - Unreleased
+## 1.0.0-beta.3 - 2026-07-09
 
 ### Added
+- **Per-member spending budgets.** A budget caps how much a single team member may spend
+  for their company within a period, independently of (and on top of) the company credit
+  limit. Set each member's **amount** and **period** (monthly, quarterly, yearly, or a
+  never-resetting *None*) on the company's **Members** page in the control panel — or
+  leave a member with no budget for unlimited spending. Spend is the member's completed
+  orders for that company in the current period (on every gateway, minus settled
+  cancelled/refunded orders). The member's own budget is exposed on the storefront as
+  `craft.b2b.memberBudget` (`{ amount, period, spent, remaining }`), with an example
+  `b2b/account/budget.twig` page.
+- **Payment-time enforcement — the approval and credit gates now refuse the charge up
+  front.** A gated purchaser with no approved approval, an over-budget member, or a
+  pay-on-account order over the company credit limit is now refused on
+  `Payments::EVENT_BEFORE_PROCESS_PAYMENT`, *before* Commerce creates a transaction or the
+  gateway authorizes — so a buyer paying by card is never charged for an order that cannot
+  be placed. This layers on top of (and shares its decision logic with) the existing
+  completion-time backstop, which still catches zero-payment and free-order completions.
+  Console and control-panel payments and completions bypass both layers by design (the
+  merchant override).
 - Read-only GraphQL API for headless storefronts. Exposes the `Company` element type
   (`companies` / `company` / `companyCount` queries, including custom fields) and a top-level
   `b2bContext` query returning the authenticated user's company, role, spending budget, company

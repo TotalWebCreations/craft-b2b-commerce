@@ -2,7 +2,7 @@
     "name": "totalwebcreations/craft-b2b-commerce",
     "description": "B2B suite for Craft Commerce: company accounts, quotes, order approvals, pay on account, and quick ordering",
     "type": "craft-plugin",
-    "version": "1.0.0-beta.2",
+    "version": "1.0.0-beta.3",
     "license": "proprietary",
     "keywords": ["craft", "craftcms", "craft-plugin", "craft-commerce", "commerce", "b2b", "wholesale", "companies", "quotes", "order-approvals", "pay-on-account", "quick-order"],
     "authors": [
