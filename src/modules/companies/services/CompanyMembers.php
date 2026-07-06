@@ -8,6 +8,7 @@ use craft\elements\User;
 use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
+use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\InvalidArgumentException;
 
@@ -118,6 +119,15 @@ class CompanyMembers extends Component
             'userId' => $userId,
             'role' => $role->value,
         ]);
+
+        // Single seam for every add path (invite, register, console, role change): place the member
+        // in the company's pricing group. The sync is a no-op when the company is not approved or
+        // has no group, and is idempotent, so re-running it on a role change is harmless.
+        $company = $this->getCompanyById($companyId);
+
+        if ($company !== null) {
+            Plugin::getInstance()->customerGroupSync->syncMember($userId, $company);
+        }
     }
 
     public function removeUserFromCompany(int $userId, int $companyId): void
@@ -126,6 +136,8 @@ class CompanyMembers extends Component
             'companyId' => $companyId,
             'userId' => $userId,
         ]);
+
+        Plugin::getInstance()->customerGroupSync->unsyncMember($userId);
     }
 
     public function getCompanyForUser(int $userId): ?Company

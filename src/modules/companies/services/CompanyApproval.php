@@ -39,6 +39,10 @@ class CompanyApproval extends Component
 
         $company->companyStatus = $target->value;
 
+        // Pricing-group membership follows the status change automatically: saving the company here
+        // fires Company::afterSave, which resyncs members whenever the status changed — approving
+        // places members in the pricing group, blocking removes them. See Company::afterSave and
+        // CustomerGroupSync.
         if (!Craft::$app->getElements()->saveElement($company)) {
             throw new InvalidArgumentException(implode(' ', $company->getFirstErrors()));
         }

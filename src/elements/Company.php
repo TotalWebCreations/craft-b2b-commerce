@@ -33,6 +33,7 @@ class Company extends Element
     public ?int $paymentTermDays = null;
     public bool $allowInvoicePayment = false;
     public ?float $approvalThreshold = null;
+    public ?int $customerGroupId = null;
 
     public static function displayName(): string
     {
@@ -220,8 +221,10 @@ class Company extends Element
             }
         }
 
-        if (array_key_exists('paymentTermDays', $values)) {
-            $values['paymentTermDays'] = $this->normalizeInt($values['paymentTermDays']);
+        foreach (['paymentTermDays', 'customerGroupId'] as $attribute) {
+            if (array_key_exists($attribute, $values)) {
+                $values[$attribute] = $this->normalizeInt($values[$attribute]);
+            }
         }
 
         parent::setAttributesFromRequest($values);
@@ -241,6 +244,7 @@ class Company extends Element
             ['allowInvoicePayment', 'boolean'],
             [['creditLimit', 'approvalThreshold'], 'number', 'min' => 0],
             ['paymentTermDays', 'integer', 'min' => 0],
+            ['customerGroupId', 'integer'],
         ]);
     }
 
@@ -308,6 +312,8 @@ class Company extends Element
     public function afterSave(bool $isNew): void
     {
         if (!$this->propagating) {
+            $previous = $this->persistedPricingState();
+
             Db::upsert('{{%b2b_companies}}', [
                 'id' => $this->id,
                 'name' => $this->title,
@@ -318,10 +324,62 @@ class Company extends Element
                 'paymentTermDays' => $this->paymentTermDays,
                 'allowInvoicePayment' => $this->allowInvoicePayment,
                 'approvalThreshold' => $this->approvalThreshold,
+                'customerGroupId' => $this->customerGroupId,
             ]);
+
+            $this->syncPricingGroupIfChanged($previous);
         }
 
         parent::afterSave($isNew);
+    }
+
+    /**
+     * Reads the pricing-relevant state persisted for this company before the current save, so
+     * afterSave can tell whether the pricing group or approval status just changed.
+     *
+     * @return array{customerGroupId: ?int, status: ?string}
+     */
+    private function persistedPricingState(): array
+    {
+        if ($this->id === null) {
+            return ['customerGroupId' => null, 'status' => null];
+        }
+
+        $row = (new Query())
+            ->select(['customerGroupId', 'status'])
+            ->from('{{%b2b_companies}}')
+            ->where(['id' => $this->id])
+            ->one();
+
+        if ($row === false || $row === null) {
+            return ['customerGroupId' => null, 'status' => null];
+        }
+
+        return [
+            'customerGroupId' => $row['customerGroupId'] !== null ? (int) $row['customerGroupId'] : null,
+            'status' => $row['status'],
+        ];
+    }
+
+    /**
+     * Resyncs the company's members into the correct pricing group whenever the group or the
+     * approval status changed. Both matter: the group determines which prices apply, and only
+     * approved companies place their members in the group at all (approve → members join, block →
+     * members leave). The previous group is passed through so members are moved out of it even when
+     * the change orphaned it.
+     *
+     * @param array{customerGroupId: ?int, status: ?string} $previous
+     */
+    private function syncPricingGroupIfChanged(array $previous): void
+    {
+        $groupChanged = $previous['customerGroupId'] !== $this->customerGroupId;
+        $statusChanged = $previous['status'] !== $this->companyStatus;
+
+        if (!$groupChanged && !$statusChanged) {
+            return;
+        }
+
+        Plugin::getInstance()->customerGroupSync->syncCompany($this, $previous['customerGroupId']);
     }
 
     private function normalizeFloat(mixed $value): ?float

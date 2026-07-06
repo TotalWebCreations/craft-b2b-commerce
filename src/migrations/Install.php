@@ -20,6 +20,7 @@ class Install extends Migration
                 'paymentTermDays' => $this->integer(),
                 'allowInvoicePayment' => $this->boolean()->notNull()->defaultValue(false),
                 'approvalThreshold' => $this->decimal(14, 4),
+                'customerGroupId' => $this->integer(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
@@ -28,6 +29,7 @@ class Install extends Migration
 
             $this->createIndex(null, '{{%b2b_companies}}', ['status']);
             $this->addForeignKey(null, '{{%b2b_companies}}', ['id'], Table::ELEMENTS, ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_companies}}', ['customerGroupId'], Table::USERGROUPS, ['id'], 'SET NULL');
         }
 
         if (!$this->db->tableExists('{{%b2b_company_users}}')) {
@@ -95,6 +97,19 @@ class Install extends Migration
                 'isInvoice',
                 $this->boolean()->notNull()->defaultValue(false)->after('companyId')
             );
+        }
+
+        // Column parity for installs whose companies table predates the customer-group link. An
+        // existing install reaches this column through the m260711_000000 migration; this guard
+        // keeps a fresh Install::safeUp() consistent when the createTable branch above was skipped.
+        if (!$this->db->columnExists('{{%b2b_companies}}', 'customerGroupId')) {
+            $this->addColumn(
+                '{{%b2b_companies}}',
+                'customerGroupId',
+                $this->integer()->after('approvalThreshold')
+            );
+
+            $this->addForeignKey(null, '{{%b2b_companies}}', ['customerGroupId'], Table::USERGROUPS, ['id'], 'SET NULL');
         }
 
         if (!$this->db->tableExists('{{%b2b_order_lists}}')) {

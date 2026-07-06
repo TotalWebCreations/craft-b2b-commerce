@@ -39,6 +39,7 @@ use totalwebcreations\b2bcommerce\fieldlayoutelements\AllowInvoicePaymentField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\ApprovalThresholdField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CompanyTitleField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CreditLimitField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\CustomerGroupField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\PaymentTermDaysField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\RegistrationNumberField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
@@ -54,6 +55,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
 use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
+use totalwebcreations\b2bcommerce\modules\pricing\services\CustomerGroupSync;
 use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
 use totalwebcreations\b2bcommerce\modules\budgets\services\Budgets;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
@@ -75,6 +77,7 @@ use yii\base\Event;
  * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
  * @property-read CompanyMembers $companyMembers
+ * @property-read CustomerGroupSync $customerGroupSync
  * @property-read CreditBalance $creditBalance
  * @property-read CreditEnforcer $creditEnforcer
  * @property-read OrderCompanyLink $orderCompanyLink
@@ -88,7 +91,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.6';
+    public string $schemaVersion = '1.0.7';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -179,6 +182,7 @@ class Plugin extends BasePlugin
                 $event->fields[] = PaymentTermDaysField::class;
                 $event->fields[] = AllowInvoicePaymentField::class;
                 $event->fields[] = ApprovalThresholdField::class;
+                $event->fields[] = CustomerGroupField::class;
             }
         );
     }
@@ -192,6 +196,7 @@ class Plugin extends BasePlugin
             'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
             'companyMembers' => CompanyMembers::class,
+            'customerGroupSync' => CustomerGroupSync::class,
             'creditBalance' => CreditBalance::class,
             'creditEnforcer' => CreditEnforcer::class,
             'orderCompanyLink' => OrderCompanyLink::class,
