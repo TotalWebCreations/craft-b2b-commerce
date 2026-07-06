@@ -1,4 +1,13 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Company credit summary.
+    Reads `craft.b2b.creditSummary` ({ outstanding, creditLimit, available }, or null
+    when the visitor has no company) — the company's pay-on-account position.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Credit summary'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Credit summary'|t('b2b-commerce') }}</h1>

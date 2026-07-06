@@ -1,0 +1,39 @@
+{% extends 'b2b/_layout' %}
+
+{#
+    Account overview — the landing page for the B2B account area.
+    Reads the signed-in member's company through `craft.b2b.company` (the Company
+    element, or null when the visitor is not linked to a company) and links out to
+    the other sections via the shared nav in b2b/_layout.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'My account'|t('b2b-commerce') }}{% endblock %}
+
+{% block content %}
+    <h1>{{ 'My account'|t('b2b-commerce') }}</h1>
+
+    {% set company = craft.b2b.company %}
+
+    {% if company %}
+        <dl>
+            <dt>{{ 'Company'|t('b2b-commerce') }}</dt>
+            <dd>{{ company.title }}</dd>
+
+            {% if company.registrationNumber %}
+                <dt>{{ 'Registration number'|t('b2b-commerce') }}</dt>
+                <dd>{{ company.registrationNumber }}</dd>
+            {% endif %}
+
+            {% if company.taxId %}
+                <dt>{{ 'VAT / Tax ID'|t('b2b-commerce') }}</dt>
+                <dd>{{ company.taxId }}</dd>
+            {% endif %}
+
+            <dt>{{ 'Status'|t('b2b-commerce') }}</dt>
+            <dd>{{ company.companyStatus }}</dd>
+        </dl>
+    {% else %}
+        <p>{{ 'Your account is not linked to a company yet.'|t('b2b-commerce') }}</p>
+    {% endif %}
+{% endblock %}

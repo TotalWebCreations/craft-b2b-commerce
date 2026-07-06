@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'Account' => 'Account',
+    'My account' => 'Mijn account',
+    'B2B account' => 'B2B-account',
+    'Addresses' => 'Adressen',
+    'Credit' => 'Krediet',
+    'Ordering on behalf of' => 'Bestellen namens',
+    'Your account is not linked to a company yet.' => 'Je account is nog niet gekoppeld aan een bedrijf.',
     'Company' => 'Bedrijf',
     'Companies' => 'Bedrijven',
     'All companies' => 'Alle bedrijven',

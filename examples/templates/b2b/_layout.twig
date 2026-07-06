@@ -1,0 +1,54 @@
+{#
+    B2B Commerce — example base layout
+
+    A deliberately plain, UNSTYLED starting point that every b2b/* page template
+    extends. There is no CSS framework and only minimal inline structure on
+    purpose: copy the whole `examples/templates/b2b` directory into your own
+    site's `templates/` folder and restyle everything to match your storefront.
+    See examples/README.md for the site routes these pages expect.
+
+    It renders a doctype, a simple B2B account navigation linking every section,
+    and a `content` block the page templates fill. The nav only appears for a
+    signed-in company member (so the anonymous registration page stays clean).
+#}
+{% set b2bCompany = craft.b2b.company %}
+{% set b2bNav = [
+    { url: url('b2b/account'), label: 'Account'|t('b2b-commerce') },
+    { url: url('b2b/team'), label: 'Team'|t('b2b-commerce') },
+    { url: url('b2b/addresses'), label: 'Addresses'|t('b2b-commerce') },
+    { url: url('b2b/quick-order'), label: 'Quick order'|t('b2b-commerce') },
+    { url: url('b2b/order-lists'), label: 'Order lists'|t('b2b-commerce') },
+    { url: url('b2b/quotes'), label: 'Quotes'|t('b2b-commerce') },
+    { url: url('b2b/approvals'), label: 'Approvals'|t('b2b-commerce') },
+    { url: url('b2b/account/budget'), label: 'Budget'|t('b2b-commerce') },
+    { url: url('b2b/account/credit'), label: 'Credit'|t('b2b-commerce') },
+] %}
+<!doctype html>
+<html lang="{{ craft.app.language }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ 'My account'|t('b2b-commerce') }}{% endblock %} — B2B</title>
+</head>
+<body>
+    <header>
+        {% if b2bCompany %}
+            <p>{{ 'Ordering on behalf of'|t('b2b-commerce') }} <strong>{{ b2bCompany.title }}</strong></p>
+
+            {# B2B account navigation. Every link needs a matching site route —
+               see the "Register the routes" section of examples/README.md. #}
+            <nav aria-label="{{ 'B2B account'|t('b2b-commerce') }}">
+                <ul>
+                    {% for item in b2bNav %}
+                        <li><a href="{{ item.url }}">{{ item.label }}</a></li>
+                    {% endfor %}
+                </ul>
+            </nav>
+        {% endif %}
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

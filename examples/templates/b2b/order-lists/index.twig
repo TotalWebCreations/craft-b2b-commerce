@@ -1,4 +1,14 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Order lists overview.
+    Lists the company's shared lists from `craft.b2b.orderLists` and posts to the
+    `b2b-commerce/order-lists/create`, `.../rename` and `.../delete` actions. Any
+    company member may manage lists; a list opens in b2b/order-lists/_detail.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Order lists'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Order lists'|t('b2b-commerce') }}</h1>

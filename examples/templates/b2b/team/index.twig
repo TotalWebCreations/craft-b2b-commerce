@@ -1,4 +1,14 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Team management for company admins.
+    Lists colleagues from `craft.b2b.teamMembers` ({ user, role } rows) and posts to
+    the `b2b-commerce/team/invite`, `.../change-role` and `.../remove` actions. The
+    service keeps at least one admin per company.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Team'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Team'|t('b2b-commerce') }}</h1>

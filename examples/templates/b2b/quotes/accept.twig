@@ -1,4 +1,4 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
 
 {# Accept / decline page for a sent quote, reached from the token link in the
    quote email. The plugin does NOT register this route: point a site route at
@@ -19,6 +19,8 @@
 {% if not quote %}
     {% exit 404 %}
 {% endif %}
+
+{% block title %}{{ 'Your quote'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Your quote'|t('b2b-commerce') }}</h1>

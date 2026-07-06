@@ -1,4 +1,14 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Quick order.
+    A SKU textarea and a CSV upload, both posting to the quick-order controller
+    (`b2b-commerce/quick-order/add` and `.../upload-csv`) via fetch so the added
+    count and per-line errors render without a full page reload.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Quick order'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Quick order'|t('b2b-commerce') }}</h1>

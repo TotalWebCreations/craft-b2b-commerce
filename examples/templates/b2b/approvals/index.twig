@@ -1,4 +1,4 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
 
 {# Storefront approvals overview. Two sections:
      - the approver queue (craft.b2b.pendingApprovals): only populated for an admin or approver of
@@ -9,6 +9,8 @@
        hands the order back as the active cart so the buyer can finish checkout.
    Copy this template into your own site and restyle it to taste. #}
 {% requireLogin %}
+
+{% block title %}{{ 'Order approvals'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     {% set statusLabels = {

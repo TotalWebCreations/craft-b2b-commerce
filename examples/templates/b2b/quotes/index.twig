@@ -1,9 +1,11 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
 
 {# Storefront overview of the current company's quotes. craft.b2b.quotes returns
    every quote for the signed-in user's company, newest first; any member may view.
    Copy this template into your own site and restyle it to taste. #}
 {% requireLogin %}
+
+{% block title %}{{ 'Your quotes'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Your quotes'|t('b2b-commerce') }}</h1>

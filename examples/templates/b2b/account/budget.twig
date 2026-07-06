@@ -1,4 +1,14 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Per-member spending budget.
+    Reads `craft.b2b.memberBudget` ({ amount, period, spent, remaining }, or null for
+    an unlimited member or no company) — the signed-in member's own budget, set by an
+    admin in the control panel on the company's Members page.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Spending budget'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Spending budget'|t('b2b-commerce') }}</h1>

@@ -1,4 +1,14 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Shared company address book.
+    Lists the company's native Craft Address elements from `craft.b2b.companyAddresses`
+    and posts to the `b2b-commerce/addresses/save` and `.../delete` actions. Editing
+    reloads the page with an `?edit=<id>` query param.
+#}
+{% requireLogin %}
+
+{% block title %}{{ 'Address book'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Address book'|t('b2b-commerce') }}</h1>

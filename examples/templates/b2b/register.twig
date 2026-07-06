@@ -1,4 +1,13 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
+
+{#
+    Company registration form.
+    Posts to the `b2b-commerce/registration/register` controller action, which
+    creates a pending company plus its admin user. This is a public page, so it
+    does not require a login (the shared nav in b2b/_layout stays hidden here).
+#}
+
+{% block title %}{{ 'Create a business account'|t('b2b-commerce') }}{% endblock %}
 
 {% block content %}
     <h1>{{ 'Create a business account'|t('b2b-commerce') }}</h1>

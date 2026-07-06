@@ -1,4 +1,4 @@
-{% extends '_layout' %}
+{% extends 'b2b/_layout' %}
 
 {# Detail view for a single order list. Wire it up with a site route that captures
    the list id, e.g. 'b2b/order-lists/<listId:\d+>' => 'b2b/order-lists/_detail',
@@ -19,6 +19,8 @@
 {% if not current %}
     {% exit 404 %}
 {% endif %}
+
+{% block title %}{{ current.name }}{% endblock %}
 
 {% block content %}
     <h1>{{ current.name }}</h1>
