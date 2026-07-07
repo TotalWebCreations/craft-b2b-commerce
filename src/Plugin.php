@@ -36,6 +36,7 @@ use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
+use totalwebcreations\b2bcommerce\elements\Approval;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\AllowInvoicePaymentField;
@@ -97,7 +98,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.8';
+    public string $schemaVersion = '1.0.9';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -260,6 +261,7 @@ class Plugin extends BasePlugin
             function(RegisterComponentTypesEvent $event) {
                 $event->types[] = Company::class;
                 $event->types[] = Quote::class;
+                $event->types[] = Approval::class;
             }
         );
 
@@ -274,7 +276,7 @@ class Plugin extends BasePlugin
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
                 $event->rules['b2b/quotes'] = ['template' => 'b2b-commerce/quotes/_index'];
                 $event->rules['b2b/quotes/<quoteId:\d+>'] = 'b2b-commerce/quotes-cp/edit';
-                $event->rules['b2b/approvals'] = 'b2b-commerce/approvals-cp/index';
+                $event->rules['b2b/approvals'] = ['template' => 'b2b-commerce/approvals/_index'];
             }
         );
 
@@ -632,13 +634,14 @@ class Plugin extends BasePlugin
         );
 
         // Orphan cleanup: when an order is HARD-deleted, its orderId FK CASCADE drops the b2b_quotes
-        // row but would leave the backing Quote element behind as a row-less zombie — hidden from the
-        // index by the element query's inner join, yet permanent. Hard-delete the Quote element up
-        // front (in beforeDelete, while its b2b_quotes row still resolves the orderId join) so the
-        // order and its quote go together. Scoped to hard deletes: a trashed order keeps its quote,
-        // so restoring the order brings back a coherent, still-enforcing quote. Garbage-collected
-        // order hard-deletes bypass element hooks entirely (Gc hard-deletes rows directly), so the
-        // rare GC path still orphans the Quote element row; it stays benign (the inner join hides it).
+        // and b2b_approvals rows but would leave the backing Quote / Approval elements behind as
+        // row-less zombies — hidden from their indexes by each element query's inner join, yet
+        // permanent. Hard-delete those elements up front (in beforeDelete, while their rows still
+        // resolve the orderId join) so the order and its quote/approval go together. Scoped to hard
+        // deletes: a trashed order keeps its quote/approval, so restoring the order brings them back
+        // coherent and still-enforcing. Garbage-collected order hard-deletes bypass element hooks
+        // entirely (Gc hard-deletes rows directly), so the rare GC path still orphans the element
+        // rows; they stay benign (the inner join hides them).
         Event::on(
             Order::class,
             Order::EVENT_BEFORE_DELETE,
@@ -649,11 +652,15 @@ class Plugin extends BasePlugin
 
                 $quote = Quote::find()->orderId($event->sender->id)->status(null)->one();
 
-                if ($quote === null) {
-                    return;
+                if ($quote !== null) {
+                    Craft::$app->getElements()->deleteElement($quote, true);
                 }
 
-                Craft::$app->getElements()->deleteElement($quote, true);
+                $approval = Approval::find()->orderId($event->sender->id)->status(null)->one();
+
+                if ($approval !== null) {
+                    Craft::$app->getElements()->deleteElement($approval, true);
+                }
             }
         );
 

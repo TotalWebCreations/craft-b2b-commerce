@@ -150,7 +150,10 @@ class Install extends Migration
         }
 
         if (!$this->db->tableExists('{{%b2b_approvals}}')) {
+            // Element-backed: the primary key id IS the element id, while orderId — the business key
+            // every enforcement guard reads — stays a NOT NULL unique column.
             $this->createTable('{{%b2b_approvals}}', [
+                'id' => $this->integer()->notNull(),
                 'orderId' => $this->integer()->notNull(),
                 'companyId' => $this->integer()->notNull(),
                 'status' => $this->string()->notNull()->defaultValue('pending'),
@@ -161,10 +164,12 @@ class Install extends Migration
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
-                'PRIMARY KEY([[orderId]])',
+                'PRIMARY KEY([[id]])',
             ]);
 
+            $this->createIndex(null, '{{%b2b_approvals}}', ['orderId'], true);
             $this->createIndex(null, '{{%b2b_approvals}}', ['companyId']);
+            $this->addForeignKey(null, '{{%b2b_approvals}}', ['id'], Table::ELEMENTS, ['id'], 'CASCADE');
             $this->addForeignKey(null, '{{%b2b_approvals}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
             $this->addForeignKey(null, '{{%b2b_approvals}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
             $this->addForeignKey(null, '{{%b2b_approvals}}', ['requestedById'], Table::USERS, ['id'], 'SET NULL');

@@ -651,10 +651,12 @@ by hand.
 
 #### Control-panel monitoring (`Manage approvals` permission)
 
-**B2B → Approvals** lists every approval request newest-first, filterable by status (pending,
-approved, declined). Each row shows the status (with the decline reason on a declined request),
-company, requester, resolver, the snapshotted threshold, the order total (linking to the order
-editor) and the request date.
+**B2B → Approvals** is a native Craft element index: a status-source sidebar (all, pending,
+approved, declined) with colored status dots, keyword search, sortable columns and export. Each
+approval is backed by a Craft element whose `orderId` stays the business key every enforcement
+guard reads; the element only adds identity around the row. Each row shows the company, the order
+total (linking to the order editor), the requester, resolver, the snapshotted threshold and the
+request date.
 
 **This overview is deliberately read-only.** Approval decisions belong to the customer's own
 approvers, not the store operator, so the control panel monitors the queue but never approves

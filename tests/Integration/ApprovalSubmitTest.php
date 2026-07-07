@@ -4,9 +4,9 @@ use craft\commerce\elements\Order;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use craft\elements\User;
-use craft\helpers\Db;
 use craft\web\Response as WebResponse;
 use totalwebcreations\b2bcommerce\controllers\ApprovalsController;
+use totalwebcreations\b2bcommerce\elements\Approval;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
@@ -64,8 +64,9 @@ function approvalCart(User $customer, float $total): Order
 }
 
 /**
- * Inserts an approval row for the given order directly, bypassing submitForApproval so a test can
- * pin an exact status and threshold snapshot.
+ * Creates a tracked Approval element for the given order, bypassing submitForApproval so a test can
+ * pin an exact status, threshold snapshot, resolver and reason. Saving the element writes the
+ * b2b_approvals row through afterSave. Mirrors insertQuoteRow.
  */
 function insertApprovalRow(
     int $orderId,
@@ -73,14 +74,23 @@ function insertApprovalRow(
     string $status,
     ?int $requestedById = null,
     ?float $threshold = null,
+    ?int $resolvedById = null,
+    ?string $reason = null,
 ): void {
-    Db::insert('{{%b2b_approvals}}', [
-        'orderId' => $orderId,
-        'companyId' => $companyId,
-        'status' => $status,
-        'requestedById' => $requestedById,
-        'thresholdAmount' => $threshold,
-    ]);
+    $approval = new Approval();
+    $approval->orderId = $orderId;
+    $approval->companyId = $companyId;
+    $approval->approvalStatus = $status;
+    $approval->requestedById = $requestedById;
+    $approval->thresholdAmount = $threshold;
+    $approval->resolvedById = $resolvedById;
+    $approval->reason = $reason;
+
+    if (!craftApp()->getElements()->saveElement($approval)) {
+        throw new RuntimeException('Could not save approval element: ' . implode(', ', $approval->getFirstErrors()));
+    }
+
+    trackElement($approval);
 }
 
 /**

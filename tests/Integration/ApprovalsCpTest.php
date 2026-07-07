@@ -1,6 +1,5 @@
 <?php
 
-use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -18,15 +17,15 @@ it('attaches company, requester, resolver, threshold and order to each CP approv
     // A declined row carries a resolver and a reason, so the joined shape proves the batch-load
     // stitched orders, companies, requesters and resolvers on — the CP table renders straight from
     // these, never re-querying per row.
-    Db::insert('{{%b2b_approvals}}', [
-        'orderId' => $order->id,
-        'companyId' => $company->id,
-        'status' => ApprovalStatus::Declined->value,
-        'requestedById' => $purchaser->id,
-        'resolvedById' => $approver->id,
-        'reason' => 'Over budget this quarter',
-        'thresholdAmount' => 500.0,
-    ]);
+    insertApprovalRow(
+        $order->id,
+        $company->id,
+        ApprovalStatus::Declined->value,
+        $purchaser->id,
+        500.0,
+        $approver->id,
+        'Over budget this quarter',
+    );
 
     $rows = Plugin::getInstance()->approvals->getApprovalsForCp();
 

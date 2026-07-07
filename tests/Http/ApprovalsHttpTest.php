@@ -2,7 +2,7 @@
 
 use craft\commerce\elements\Order;
 use craft\db\Query;
-use craft\helpers\Db;
+use totalwebcreations\b2bcommerce\elements\Approval;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -52,13 +52,20 @@ it('refuses over HTTP to let an approver approve their own submitted order (four
     Plugin::getInstance()->quickOrder->addResolvedPurchasable($order, $variant->id, 1, $variant->sku);
     craftApp()->getElements()->saveElement($order);
 
-    Db::insert('{{%b2b_approvals}}', [
-        'orderId' => $order->id,
-        'companyId' => $company->id,
-        'status' => ApprovalStatus::Pending->value,
-        'requestedById' => $admin->id,
-        'thresholdAmount' => 100.0,
-    ]);
+    // b2b_approvals is element-backed: the row is written through an Approval element's afterSave,
+    // keyed on the element id, while orderId stays the business key the resolve action reads.
+    $approval = new Approval();
+    $approval->orderId = $order->id;
+    $approval->companyId = $company->id;
+    $approval->approvalStatus = ApprovalStatus::Pending->value;
+    $approval->requestedById = $admin->id;
+    $approval->thresholdAmount = 100.0;
+
+    if (!craftApp()->getElements()->saveElement($approval)) {
+        throw new RuntimeException('Could not save approval element: ' . implode(', ', $approval->getFirstErrors()));
+    }
+
+    trackElement($approval);
 
     $client = httpClient();
     loginAs($client, $admin->email, httpTestPassword());

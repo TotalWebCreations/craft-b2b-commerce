@@ -51,6 +51,12 @@
   credit limit, payment term, pay-on-account, approval threshold) in the main content area
   instead of only the sidebar, so the screen is never empty and the field-layout designer
   still manages any custom fields you add.
+- **Quotes and Approvals are now Craft elements.** Their control-panel lists (B2B → Quotes,
+  B2B → Approvals) are native element indexes — status-source sidebar with colored dots,
+  keyword search, sortable columns and export. The element identity sits around the existing
+  business record: `orderId` stays the business key every enforcement guard reads, so all
+  quote and approval enforcement is unchanged. The Approvals index stays deliberately read-only
+  monitoring — approval decisions belong to the company's own approvers, never the store operator.
 
 ## 1.0.0-beta.1 - 2026-07-09
 

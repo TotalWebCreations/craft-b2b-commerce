@@ -11,6 +11,7 @@ use craft\helpers\Db;
 use craft\helpers\UrlHelper;
 use DateTime;
 use DateTimeZone;
+use totalwebcreations\b2bcommerce\elements\Approval;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
@@ -112,13 +113,21 @@ class Approvals extends Component
 
         $company = Plugin::getInstance()->companyMembers->getCompanyForUser($actor->id);
 
-        Db::insert('{{%b2b_approvals}}', [
-            'orderId' => $cart->id,
-            'companyId' => $company->id,
-            'status' => ApprovalStatus::Pending->value,
-            'requestedById' => $actor->id,
-            'thresholdAmount' => $company->approvalThreshold,
-        ]);
+        // An approval is a Craft element: saving it creates the elements row and its afterSave upserts
+        // the b2b_approvals columns. orderId remains the business key the enforcement guards read; the
+        // element only adds identity around the row. This is an Approval element save, never an Order
+        // save, so the order-scoped buyer-mutation veto (Order::EVENT_BEFORE_SAVE) does not apply. The
+        // thresholdAmount stored is a snapshot of the company's approvalThreshold at submit time.
+        $approval = new Approval();
+        $approval->orderId = (int) $cart->id;
+        $approval->companyId = $company->id;
+        $approval->approvalStatus = ApprovalStatus::Pending->value;
+        $approval->requestedById = $actor->id;
+        $approval->thresholdAmount = $company->approvalThreshold;
+
+        if (!Craft::$app->getElements()->saveElement($approval)) {
+            throw new Exception(implode(' ', $approval->getFirstErrors()));
+        }
 
         $this->notifyApprovers($company, $cart);
 
@@ -295,6 +304,8 @@ class Approvals extends Component
             );
         }
 
+        $this->reflectStatusOnElement();
+
         $order = Order::find()->id($orderId)->status(null)->one();
 
         if ($order === null) {
@@ -345,6 +356,8 @@ class Approvals extends Component
                 Craft::t('b2b-commerce', 'This approval request has already been resolved.')
             );
         }
+
+        $this->reflectStatusOnElement();
 
         $order = Order::find()->id($orderId)->status(null)->one();
 
@@ -441,6 +454,19 @@ class Approvals extends Component
             'resolvedById' => null,
             'reason' => $reason,
         ], ['orderId' => $orderId]);
+
+        $this->reflectStatusOnElement();
+    }
+
+    /**
+     * Keeps the Approval element index consistent after a direct status write. The status column
+     * drives the element query's status sources and colored dots and is read live from the join on
+     * every index load, so no resave or search re-index is needed; this only busts any cached element
+     * queries so a change is reflected at once. Mirrors Quotes::reflectStatusOnElement.
+     */
+    private function reflectStatusOnElement(): void
+    {
+        Craft::$app->getElements()->invalidateCachesForElementType(Approval::class);
     }
 
     /**
