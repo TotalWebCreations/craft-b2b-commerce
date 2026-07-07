@@ -81,6 +81,7 @@ return [
     'Your business account has been approved' => 'Je zakelijke account is goedgekeurd',
     "Hi {{user.friendlyName}},\n\nGood news — your business account for {{company.title}} has been approved. You can now sign in and order at business conditions.\n\n{{siteUrl}}" => "Hallo {{user.friendlyName}},\n\nGoed nieuws — je zakelijke account voor {{company.title}} is goedgekeurd. Je kunt nu inloggen en bestellen tegen zakelijke voorwaarden.\n\n{{siteUrl}}",
     'Quotes' => 'Offertes',
+    'Quote #{number}' => 'Offerte #{number}',
     'Order approvals' => 'Ordergoedkeuringen',
     'Pay on account' => 'Op rekening',
     'Quick order' => 'Snel bestellen',

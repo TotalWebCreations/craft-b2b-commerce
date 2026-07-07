@@ -631,6 +631,32 @@ class Plugin extends BasePlugin
             }
         );
 
+        // Orphan cleanup: when an order is HARD-deleted, its orderId FK CASCADE drops the b2b_quotes
+        // row but would leave the backing Quote element behind as a row-less zombie — hidden from the
+        // index by the element query's inner join, yet permanent. Hard-delete the Quote element up
+        // front (in beforeDelete, while its b2b_quotes row still resolves the orderId join) so the
+        // order and its quote go together. Scoped to hard deletes: a trashed order keeps its quote,
+        // so restoring the order brings back a coherent, still-enforcing quote. Garbage-collected
+        // order hard-deletes bypass element hooks entirely (Gc hard-deletes rows directly), so the
+        // rare GC path still orphans the Quote element row; it stays benign (the inner join hides it).
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_DELETE,
+            function(ModelEvent $event) {
+                if (!$event->sender instanceof Order || !$event->sender->hardDelete) {
+                    return;
+                }
+
+                $quote = Quote::find()->orderId($event->sender->id)->status(null)->one();
+
+                if ($quote === null) {
+                    return;
+                }
+
+                Craft::$app->getElements()->deleteElement($quote, true);
+            }
+        );
+
         // Purge protection: Commerce's purgeIncompleteCarts (Carts::purgeIncompleteCarts, on by
         // default, 90 days) deletes non-completed orders and the CASCADE FK would wipe their
         // b2b_quotes and b2b_approvals rows with them — silently losing sent quotes with long

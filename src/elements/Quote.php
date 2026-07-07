@@ -99,7 +99,7 @@ class Quote extends Element
      */
     public function getUiLabel(): string
     {
-        return Craft::t('b2b-commerce', 'Quote #{id}', ['id' => $this->orderId ?? $this->id]);
+        return Craft::t('b2b-commerce', 'Quote #{number}', ['number' => $this->orderId ?? $this->id]);
     }
 
     public function getGqlTypeName(): string
@@ -131,6 +131,27 @@ class Quote extends Element
     public function canDelete(User $user): bool
     {
         return $user->can('b2b-commerce:manageQuotes');
+    }
+
+    /**
+     * Quotes opt out of Craft's soft-delete. A quote's enforcement on its order — the price freeze
+     * (orderHasLineItemFrozenQuote), the new-quote/approval block (orderHasOpenQuoteRow) and the
+     * completion veto (enforceAcceptedBeforeCompletion) — all key on the b2b_quotes row, and that
+     * row is dropped only by the id → elements CASCADE, which fires on a HARD delete. Trashing an
+     * element leaves its row untouched, so a soft-deleted quote would vanish from the index while it
+     * kept freezing its order until garbage collection opaquely dropped the row. Forcing a hard
+     * delete makes "gone from the index" mean "no longer enforcing" the instant the merchant deletes
+     * it. Because a quote is therefore never trashed there is likewise no restore path that could
+     * bring back a row-less zombie element — delete stays authoritative and consistent.
+     *
+     * hardDelete is read by Elements::deleteElement() only after beforeDelete() returns, so setting
+     * it here reliably promotes any delete (element-index action, programmatic) to a hard delete.
+     */
+    public function beforeDelete(): bool
+    {
+        $this->hardDelete = true;
+
+        return parent::beforeDelete();
     }
 
     protected function cpEditUrl(): ?string
