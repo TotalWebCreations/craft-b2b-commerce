@@ -1,101 +1,10 @@
-{% extends '_layouts/cp' %}
-{% import '_includes/forms' as forms %}
+{% extends '_layouts/elementindex' %}
+
+{% requirePermission 'b2b-commerce:manageQuotes' %}
 
 {% set title = 'Quotes'|t('b2b-commerce') %}
-
 {% set crumbs = [
     { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
 ] %}
-
-{% set statusColors = {
-    requested: 'orange',
-    sent: 'blue',
-    accepted: 'green',
-    declined: 'red',
-    expired: 'grey',
-} %}
-
-{% set statusLabels = {
-    requested: 'Requested'|t('b2b-commerce'),
-    sent: 'Sent'|t('b2b-commerce'),
-    accepted: 'Accepted'|t('b2b-commerce'),
-    declined: 'Declined'|t('b2b-commerce'),
-    expired: 'Expired'|t('b2b-commerce'),
-} %}
-
-{% block content %}
-    {# Status filter: a plain GET link set, so the chosen status round-trips as ?status=. #}
-    <div class="btngroup" style="margin-bottom: 24px;">
-        <a class="btn{{ currentStatus is null ? ' active' }}" href="{{ url('b2b/quotes') }}">{{ 'All'|t('b2b-commerce') }}</a>
-        {% for status in statuses %}
-            <a class="btn{{ currentStatus == status.value ? ' active' }}" href="{{ url('b2b/quotes', { status: status.value }) }}">{{ statusLabels[status.value] }}</a>
-        {% endfor %}
-    </div>
-
-    {% if quotes is empty %}
-        <p class="zilch">{{ 'No quotes yet.'|t('b2b-commerce') }}</p>
-    {% else %}
-        <table class="data fullwidth">
-            <thead>
-                <tr>
-                    <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
-                    <th scope="col">{{ 'Company'|t('b2b-commerce') }}</th>
-                    <th scope="col">{{ 'Requester'|t('b2b-commerce') }}</th>
-                    <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
-                    <th scope="col">{{ 'Valid until'|t('b2b-commerce') }}</th>
-                    <th scope="col">{{ 'Date'|t('b2b-commerce') }}</th>
-                    <th scope="col"></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for quote in quotes %}
-                    <tr>
-                        <td>
-                            <span class="status {{ statusColors[quote.status] ?? 'grey' }}"></span>
-                            {{ statusLabels[quote.status] ?? quote.status }}
-                            {% if quote.status == 'declined' and quote.declineReason %}
-                                <div class="light" style="margin-top: 4px;">{{ 'Reason'|t('b2b-commerce') }}: {{ quote.declineReason }}</div>
-                            {% endif %}
-                        </td>
-                        <td>{{ quote.companyName ?? '' }}</td>
-                        <td>{{ quote.requesterName ?? '' }}</td>
-                        <td>
-                            {% if quote.order %}
-                                <a href="{{ quote.order.cpEditUrl }}">{{ quote.order.totalPrice|currency(quote.order.currency) }}</a>
-                            {% endif %}
-                        </td>
-                        <td>{{ quote.validUntil ? quote.validUntil|datetime('short') : '' }}</td>
-                        <td>{{ quote.dateCreated ? quote.dateCreated|datetime('short') : '' }}</td>
-                        <td>
-                            {% if quote.status == 'requested' %}
-                                {# Mark sent: optional validity date; freezes the quote's prices. #}
-                                <form method="post" accept-charset="UTF-8" style="display: inline-block; margin-right: 8px;">
-                                    {{ csrfInput() }}
-                                    {{ actionInput('b2b-commerce/quotes-cp/mark-sent') }}
-                                    {{ redirectInput('b2b/quotes') }}
-                                    {{ hiddenInput('orderId', quote.orderId) }}
-                                    {{ forms.date({
-                                        name: 'validUntil',
-                                    }) }}
-                                    <button type="submit" class="btn submit">{{ 'Mark sent'|t('b2b-commerce') }}</button>
-                                </form>
-                            {% endif %}
-
-                            {% if quote.status in ['requested', 'sent'] %}
-                                {# Decline: records an optional reason and notifies the requester. #}
-                                <form method="post" accept-charset="UTF-8" style="display: inline-block;">
-                                    {{ csrfInput() }}
-                                    {{ actionInput('b2b-commerce/quotes-cp/decline') }}
-                                    {{ redirectInput('b2b/quotes') }}
-                                    {{ hiddenInput('orderId', quote.orderId) }}
-                                    <input type="text" name="reason" placeholder="{{ 'Reason (optional)'|t('b2b-commerce') }}">
-                                    <button type="submit" class="btn">{{ 'Decline'|t('b2b-commerce') }}</button>
-                                </form>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
-{% endblock %}
+{% set elementType = 'totalwebcreations\\b2bcommerce\\elements\\Quote' %}
+{% set canHaveDrafts = false %}

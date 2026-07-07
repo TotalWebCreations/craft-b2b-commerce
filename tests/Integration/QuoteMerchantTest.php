@@ -3,7 +3,7 @@
 use craft\commerce\elements\Order;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
-use craft\helpers\Db;
+use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
@@ -27,8 +27,9 @@ function bareQuoteOrder(): Order
 }
 
 /**
- * Inserts a quote row for the given order directly, bypassing requestQuote so a
- * test can pin an exact status and validity. Returns the accept token.
+ * Creates a tracked Quote element for the given order, bypassing requestQuote so a
+ * test can pin an exact status and validity. Saving the element writes the b2b_quotes
+ * row through afterSave. Returns the accept token.
  */
 function insertQuoteRow(
     int $orderId,
@@ -39,14 +40,19 @@ function insertQuoteRow(
 ): string {
     $token = craftApp()->getSecurity()->generateRandomString(40);
 
-    Db::insert('{{%b2b_quotes}}', [
-        'orderId' => $orderId,
-        'companyId' => $companyId,
-        'status' => $status,
-        'validUntil' => $validUntil !== null ? Db::prepareDateForDb($validUntil) : null,
-        'requestedById' => $requestedById,
-        'acceptToken' => $token,
-    ]);
+    $quote = new Quote();
+    $quote->orderId = $orderId;
+    $quote->companyId = $companyId;
+    $quote->quoteStatus = $status;
+    $quote->validUntil = $validUntil;
+    $quote->requestedById = $requestedById;
+    $quote->acceptToken = $token;
+
+    if (!craftApp()->getElements()->saveElement($quote)) {
+        throw new RuntimeException('Could not save quote element: ' . implode(', ', $quote->getFirstErrors()));
+    }
+
+    trackElement($quote);
 
     return $token;
 }

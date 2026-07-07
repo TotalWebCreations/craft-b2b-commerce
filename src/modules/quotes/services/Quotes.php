@@ -13,6 +13,7 @@ use craft\helpers\UrlHelper;
 use DateTime;
 use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
@@ -70,14 +71,21 @@ class Quotes extends Component
             );
         }
 
-        Db::insert('{{%b2b_quotes}}', [
-            'orderId' => $cart->id,
-            'companyId' => $company->id,
-            'status' => QuoteStatus::Requested->value,
-            'notes' => $notes,
-            'requestedById' => $actor->id,
-            'acceptToken' => Craft::$app->getSecurity()->generateRandomString(40),
-        ]);
+        // A quote is a Craft element: saving it creates the elements row and its afterSave upserts
+        // the b2b_quotes columns. orderId remains the business key the enforcement guards read; the
+        // element only adds identity around the row. This is a Quote element save, never an Order
+        // save, so the order-scoped buyer-mutation veto (Order::EVENT_BEFORE_SAVE) does not apply.
+        $quote = new Quote();
+        $quote->orderId = (int) $cart->id;
+        $quote->companyId = $company->id;
+        $quote->quoteStatus = QuoteStatus::Requested->value;
+        $quote->notes = $notes;
+        $quote->requestedById = $actor->id;
+        $quote->acceptToken = Craft::$app->getSecurity()->generateRandomString(40);
+
+        if (!Craft::$app->getElements()->saveElement($quote)) {
+            throw new Exception(implode(' ', $quote->getFirstErrors()));
+        }
 
         $this->notifyAdmin($company, $cart);
 
@@ -126,6 +134,8 @@ class Quotes extends Component
             'validUntil' => $validUntil !== null ? Db::prepareDateForDb($validUntil) : null,
         ], ['orderId' => $order->id]);
 
+        $this->reflectStatusOnElement();
+
         $this->notifyQuoteSent($order, $row['acceptToken'], $this->requester($row));
     }
 
@@ -143,6 +153,8 @@ class Quotes extends Component
             'status' => QuoteStatus::Declined->value,
             'declineReason' => $reason,
         ], ['orderId' => $order->id]);
+
+        $this->reflectStatusOnElement();
 
         if ($byCustomer) {
             $this->notifyAdminDeclined($order, $reason);
@@ -233,6 +245,8 @@ class Quotes extends Component
             'status' => QuoteStatus::Accepted->value,
         ], ['orderId' => $row['orderId']]);
 
+        $this->reflectStatusOnElement();
+
         $carts = Commerce::getInstance()->getCarts();
         $carts->forgetCart();
         $carts->setSessionCartNumber($order->number);
@@ -268,7 +282,7 @@ class Quotes extends Component
      */
     public function expireOverdue(): int
     {
-        return Db::update('{{%b2b_quotes}}', [
+        $expired = Db::update('{{%b2b_quotes}}', [
             'status' => QuoteStatus::Expired->value,
         ], [
             'and',
@@ -276,6 +290,12 @@ class Quotes extends Component
             ['not', ['validUntil' => null]],
             ['<=', 'validUntil', Db::prepareDateForDb(new DateTime())],
         ]);
+
+        if ($expired > 0) {
+            $this->reflectStatusOnElement();
+        }
+
+        return $expired;
     }
 
     /**
@@ -640,9 +660,23 @@ class Quotes extends Component
             'status' => QuoteStatus::Expired->value,
         ], ['orderId' => $row['orderId']]);
 
+        $this->reflectStatusOnElement();
+
         throw new InvalidArgumentException(
             Craft::t('b2b-commerce', 'This quote has expired.')
         );
+    }
+
+    /**
+     * Keeps the Quote element index consistent after a direct status write. The status column drives
+     * the element query's status sources and colored dots and is read live from the join on every
+     * index load, so no resave or search re-index is needed; this only busts any cached element
+     * queries so a change is reflected at once. The searchable columns (company, requester, dates)
+     * never move on a status flip, so keyword search stays correct too.
+     */
+    private function reflectStatusOnElement(): void
+    {
+        Craft::$app->getElements()->invalidateCachesForElementType(Quote::class);
     }
 
     /** @param array<string, mixed> $row */

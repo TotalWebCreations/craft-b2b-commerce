@@ -9,7 +9,8 @@ use craft\web\Controller;
 use DateTime;
 use DateTimeZone;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
-use totalwebcreations\b2bcommerce\enums\QuoteStatus;
+use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 use yii\web\NotFoundHttpException;
@@ -31,14 +32,32 @@ class QuotesCpController extends Controller
         return true;
     }
 
-    public function actionIndex(?string $status = null): Response
+    /**
+     * Read view for a single quote, reached from the native element index. The list itself is a
+     * Craft element index (b2b/quotes → elementindex); this detail page hosts the mark-sent and
+     * decline actions so the merchant workflow stays reachable from the read view.
+     */
+    public function actionEdit(int $quoteId): Response
     {
-        $status = $this->normalizeStatus($status);
+        $quote = Quote::find()->id($quoteId)->status(null)->one();
 
-        return $this->renderTemplate('b2b-commerce/quotes/_index', [
-            'quotes' => Plugin::getInstance()->quotes->getQuotesForCp($status),
-            'currentStatus' => $status,
-            'statuses' => QuoteStatus::cases(),
+        if ($quote === null) {
+            throw new NotFoundHttpException(Craft::t('b2b-commerce', 'Quote not found.'));
+        }
+
+        $company = $quote->companyId !== null
+            ? Company::find()->id($quote->companyId)->site('*')->unique()->status(null)->one()
+            : null;
+
+        $requester = $quote->requestedById !== null
+            ? Craft::$app->getUsers()->getUserById($quote->requestedById)
+            : null;
+
+        return $this->renderTemplate('b2b-commerce/quotes/_edit', [
+            'quote' => $quote,
+            'order' => $quote->getOrder(),
+            'companyName' => $company?->title,
+            'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
         ]);
     }
 
@@ -140,14 +159,5 @@ class QuotesCpController extends Controller
         }
 
         return $order;
-    }
-
-    private function normalizeStatus(?string $status): ?string
-    {
-        if ($status === null || QuoteStatus::tryFrom($status) === null) {
-            return null;
-        }
-
-        return $status;
     }
 }

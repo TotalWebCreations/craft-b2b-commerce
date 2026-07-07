@@ -1,7 +1,7 @@
 <?php
 
-use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
@@ -13,17 +13,22 @@ use totalwebcreations\b2bcommerce\widgets\Overview as OverviewWidget;
 // asserted as deltas around a baseline, so the dev database's existing rows never skew the figures.
 
 /**
- * Inserts a b2b_quotes row directly so a test can pin an exact status without walking the request
- * flow. Db::insert fills the audit columns; acceptToken is not-null with no default, so it is set.
+ * Creates a tracked Quote element so a test can pin an exact status without walking the request
+ * flow. Saving the element writes the b2b_quotes row through afterSave.
  */
 function seedQuoteRow(int $orderId, int $companyId, string $status): void
 {
-    Db::insert('{{%b2b_quotes}}', [
-        'orderId' => $orderId,
-        'companyId' => $companyId,
-        'status' => $status,
-        'acceptToken' => bin2hex(random_bytes(16)),
-    ]);
+    $quote = new Quote();
+    $quote->orderId = $orderId;
+    $quote->companyId = $companyId;
+    $quote->quoteStatus = $status;
+    $quote->acceptToken = bin2hex(random_bytes(16));
+
+    if (!craftApp()->getElements()->saveElement($quote)) {
+        throw new RuntimeException('Could not save quote element: ' . implode(', ', $quote->getFirstErrors()));
+    }
+
+    trackElement($quote);
 }
 
 it('counts companies by status and mirrors the pending count as the registration queue', function () {

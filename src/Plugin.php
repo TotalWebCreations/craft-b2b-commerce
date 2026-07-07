@@ -37,6 +37,7 @@ use craft\web\UrlManager;
 use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\AllowInvoicePaymentField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\ApprovalThresholdField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CompanyTitleField;
@@ -96,7 +97,7 @@ use yii\base\Event;
  */
 class Plugin extends BasePlugin
 {
-    public string $schemaVersion = '1.0.7';
+    public string $schemaVersion = '1.0.8';
     public bool $hasCpSettings = true;
     public bool $hasCpSection = true;
 
@@ -258,6 +259,7 @@ class Plugin extends BasePlugin
             Elements::EVENT_REGISTER_ELEMENT_TYPES,
             function(RegisterComponentTypesEvent $event) {
                 $event->types[] = Company::class;
+                $event->types[] = Quote::class;
             }
         );
 
@@ -270,7 +272,8 @@ class Plugin extends BasePlugin
                 $event->rules['b2b/companies/<companyId:\d+>/members'] = 'b2b-commerce/companies-cp/members';
                 $event->rules['b2b/companies/<companyId:\d+>/orders'] = 'b2b-commerce/companies-cp/orders';
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
-                $event->rules['b2b/quotes'] = 'b2b-commerce/quotes-cp/index';
+                $event->rules['b2b/quotes'] = ['template' => 'b2b-commerce/quotes/_index'];
+                $event->rules['b2b/quotes/<quoteId:\d+>'] = 'b2b-commerce/quotes-cp/edit';
                 $event->rules['b2b/approvals'] = 'b2b-commerce/approvals-cp/index';
             }
         );

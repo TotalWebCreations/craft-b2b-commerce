@@ -1,0 +1,108 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Quote #{id}'|t('b2b-commerce', { id: quote.orderId }) %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Quotes'|t('b2b-commerce'), url: url('b2b/quotes') },
+] %}
+
+{% set statusColors = {
+    requested: 'orange',
+    sent: 'blue',
+    accepted: 'green',
+    declined: 'red',
+    expired: 'gray',
+} %}
+
+{% set statusLabels = {
+    requested: 'Requested'|t('b2b-commerce'),
+    sent: 'Sent'|t('b2b-commerce'),
+    accepted: 'Accepted'|t('b2b-commerce'),
+    declined: 'Declined'|t('b2b-commerce'),
+    expired: 'Expired'|t('b2b-commerce'),
+} %}
+
+{% block content %}
+    <table class="data fullwidth">
+        <tbody>
+            <tr>
+                <th scope="row">{{ 'Status'|t('b2b-commerce') }}</th>
+                <td>
+                    <span class="status {{ statusColors[quote.quoteStatus] ?? 'gray' }}"></span>
+                    {{ statusLabels[quote.quoteStatus] ?? quote.quoteStatus }}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Company'|t('b2b-commerce') }}</th>
+                <td>{{ companyName ?? '' }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Requester'|t('b2b-commerce') }}</th>
+                <td>{{ requesterName ?? '' }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Order'|t('b2b-commerce') }}</th>
+                <td>
+                    {% if order %}
+                        <a href="{{ order.cpEditUrl }}">{{ order.totalPrice|currency(order.currency) }}</a>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Valid until'|t('b2b-commerce') }}</th>
+                <td>{{ quote.validUntil ? quote.validUntil|datetime('short') : '' }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Date'|t('b2b-commerce') }}</th>
+                <td>{{ quote.dateCreated ? quote.dateCreated|datetime('short') : '' }}</td>
+            </tr>
+            {% if quote.notes %}
+                <tr>
+                    <th scope="row">{{ 'Notes'|t('b2b-commerce') }}</th>
+                    <td>{{ quote.notes }}</td>
+                </tr>
+            {% endif %}
+            {% if quote.declineReason %}
+                <tr>
+                    <th scope="row">{{ 'Decline reason'|t('b2b-commerce') }}</th>
+                    <td>{{ quote.declineReason }}</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    {% if quote.quoteStatus in ['requested', 'sent'] %}
+        <div class="pane" style="margin-top: 24px;">
+            {% if quote.quoteStatus == 'requested' %}
+                {# Mark sent: optional validity date; freezes the quote's prices. #}
+                <form method="post" accept-charset="UTF-8" style="margin-bottom: 16px;">
+                    {{ csrfInput() }}
+                    {{ actionInput('b2b-commerce/quotes-cp/mark-sent') }}
+                    {{ redirectInput('b2b/quotes') }}
+                    {{ hiddenInput('orderId', quote.orderId) }}
+                    {{ forms.dateField({
+                        label: 'Valid until'|t('b2b-commerce'),
+                        name: 'validUntil',
+                    }) }}
+                    <button type="submit" class="btn submit">{{ 'Mark sent'|t('b2b-commerce') }}</button>
+                </form>
+            {% endif %}
+
+            {# Decline: records an optional reason and notifies the requester. #}
+            <form method="post" accept-charset="UTF-8">
+                {{ csrfInput() }}
+                {{ actionInput('b2b-commerce/quotes-cp/decline') }}
+                {{ redirectInput('b2b/quotes') }}
+                {{ hiddenInput('orderId', quote.orderId) }}
+                {{ forms.textField({
+                    label: 'Reason'|t('b2b-commerce'),
+                    name: 'reason',
+                    instructions: 'Optional'|t('b2b-commerce'),
+                }) }}
+                <button type="submit" class="btn">{{ 'Decline'|t('b2b-commerce') }}</button>
+            </form>
+        </div>
+    {% endif %}
+{% endblock %}
