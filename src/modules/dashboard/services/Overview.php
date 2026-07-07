@@ -48,6 +48,16 @@ class Overview extends Component
     }
 
     /**
+     * The number of companies still awaiting review (pending status). Exposed on its own — and kept
+     * to a single indexed COUNT — so the control-panel nav can badge the section on every page load
+     * without assembling the whole overview.
+     */
+    public function getPendingRegistrationsCount(): int
+    {
+        return (int) Company::find()->status(Company::STATUS_PENDING)->count();
+    }
+
+    /**
      * Company totals broken down by status. The total is summed from the per-status counts so it
      * always matches the tiles below it, and each count runs through the element query so trashed
      * companies are excluded exactly as they are everywhere else in the control panel.
@@ -56,7 +66,7 @@ class Overview extends Component
      */
     private function companyCounts(): array
     {
-        $pending = (int) Company::find()->status(Company::STATUS_PENDING)->count();
+        $pending = $this->getPendingRegistrationsCount();
         $approved = (int) Company::find()->status(Company::STATUS_APPROVED)->count();
         $blocked = (int) Company::find()->status(Company::STATUS_BLOCKED)->count();
 

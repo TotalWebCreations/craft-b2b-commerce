@@ -8,94 +8,108 @@
     </div>
 {% endif %}
 
-{{ forms.lightswitchField({
-    label: 'Companies'|t('b2b-commerce'),
-    instructions: 'Company accounts are always active in this release; this toggle takes effect in an upcoming release.'|t('b2b-commerce'),
-    name: 'enableCompanies',
-    on: settings.enableCompanies,
-}) }}
+{# Each pane maps to a link in the left settings sidebar (see settings/_layout). Panes are keyed by
+   a data attribute rather than an id so the id survives the `settings` input-namespacing the plugin
+   settings form applies. Only the active pane is shown; hidden panes stay in the form, so every
+   value still submits on save. #}
+<div class="b2b-settings-pane" data-b2b-pane="general">
+    {{ forms.lightswitchField({
+        label: 'Companies'|t('b2b-commerce'),
+        instructions: 'Company accounts are always active in this release; this toggle takes effect in an upcoming release.'|t('b2b-commerce'),
+        name: 'enableCompanies',
+        on: settings.enableCompanies,
+        first: true,
+    }) }}
 
-{{ forms.lightswitchField({
-    label: 'Quotes'|t('b2b-commerce'),
-    instructions: 'Quote requests and the quote workflow.'|t('b2b-commerce'),
-    name: 'enableQuotes',
-    on: settings.enableQuotes,
-}) }}
+    {{ forms.lightswitchField({
+        label: 'Quotes'|t('b2b-commerce'),
+        instructions: 'Quote requests and the quote workflow.'|t('b2b-commerce'),
+        name: 'enableQuotes',
+        on: settings.enableQuotes,
+    }) }}
 
-{{ forms.lightswitchField({
-    label: 'Order approvals'|t('b2b-commerce'),
-    instructions: 'Let purchasers submit orders above their company approval threshold for an approver to approve. When off, the submit endpoint returns a clean failure and the completion backstop is not enforced.'|t('b2b-commerce'),
-    name: 'enableApprovals',
-    on: settings.enableApprovals,
-}) }}
+    {{ forms.lightswitchField({
+        label: 'Order approvals'|t('b2b-commerce'),
+        instructions: 'Let purchasers submit orders above their company approval threshold for an approver to approve. When off, the submit endpoint returns a clean failure and the completion backstop is not enforced.'|t('b2b-commerce'),
+        name: 'enableApprovals',
+        on: settings.enableApprovals,
+    }) }}
 
-{{ forms.lightswitchField({
-    label: 'Pay on account'|t('b2b-commerce'),
-    instructions: 'Offer pay on account (on invoice) at checkout for approved companies, within their credit limit. This toggle governs whether the gateway is available; when off, it is never offered regardless of company settings.'|t('b2b-commerce'),
-    name: 'enableInvoicing',
-    on: settings.enableInvoicing,
-}) }}
+    {{ forms.lightswitchField({
+        label: 'Pay on account'|t('b2b-commerce'),
+        instructions: 'Offer pay on account (on invoice) at checkout for approved companies, within their credit limit. This toggle governs whether the gateway is available; when off, it is never offered regardless of company settings.'|t('b2b-commerce'),
+        name: 'enableInvoicing',
+        on: settings.enableInvoicing,
+    }) }}
 
-{{ forms.textField({
-    label: 'Settled order statuses'|t('b2b-commerce'),
-    instructions: 'Comma-separated Commerce order status handles whose orders are treated as settled and never count towards a company outstanding balance (for example cancelled, refunded).'|t('b2b-commerce'),
-    name: 'excludedOrderStatusHandles',
-    value: settings.excludedOrderStatusHandles|join(', '),
-}) }}
+    {{ forms.lightswitchField({
+        label: 'Quick order'|t('b2b-commerce'),
+        instructions: 'Enable quick order, order lists and reorder for approved buyers. When off, those endpoints return a clean failure and craft.b2b exposes no order-list data.'|t('b2b-commerce'),
+        name: 'enableQuickOrder',
+        on: settings.enableQuickOrder,
+    }) }}
 
-{{ forms.lightswitchField({
-    label: 'Quick order'|t('b2b-commerce'),
-    instructions: 'Enable quick order, order lists and reorder for approved buyers. When off, those endpoints return a clean failure and craft.b2b exposes no order-list data.'|t('b2b-commerce'),
-    name: 'enableQuickOrder',
-    on: settings.enableQuickOrder,
-}) }}
+    {{ forms.lightswitchField({
+        label: 'Hide prices for guests'|t('b2b-commerce'),
+        instructions: 'Hide prices and disable add-to-cart for visitors without an approved company account.'|t('b2b-commerce'),
+        name: 'hidePricesForGuests',
+        on: settings.hidePricesForGuests,
+    }) }}
+</div>
 
-{{ forms.lightswitchField({
-    label: 'Hide prices for guests'|t('b2b-commerce'),
-    instructions: 'Hide prices and disable add-to-cart for visitors without an approved company account.'|t('b2b-commerce'),
-    name: 'hidePricesForGuests',
-    on: settings.hidePricesForGuests,
-}) }}
+<div class="b2b-settings-pane hidden" data-b2b-pane="registration">
+    {{ forms.textField({
+        label: 'Admin notification email'|t('b2b-commerce'),
+        instructions: 'Receives a notification when a new company registers.'|t('b2b-commerce'),
+        name: 'adminNotificationEmail',
+        value: settings.adminNotificationEmail,
+        first: true,
+    }) }}
 
-{{ forms.textField({
-    label: 'Admin notification email'|t('b2b-commerce'),
-    instructions: 'Receives a notification when a new company registers.'|t('b2b-commerce'),
-    name: 'adminNotificationEmail',
-    value: settings.adminNotificationEmail,
-}) }}
+    {{ forms.textField({
+        label: 'Honeypot field name'|t('b2b-commerce'),
+        instructions: 'Name of the hidden anti-spam field on the registration form. Bots that fill it get a success response but nothing is created. Change it if it clashes with a real field, then update your registration template to match.'|t('b2b-commerce'),
+        name: 'honeypotFieldName',
+        value: settings.honeypotFieldName,
+        required: true,
+    }) }}
+</div>
 
-{{ forms.textField({
-    label: 'Honeypot field name'|t('b2b-commerce'),
-    instructions: 'Name of the hidden anti-spam field on the registration form. Bots that fill it get a success response but nothing is created. Change it if it clashes with a real field, then update your registration template to match.'|t('b2b-commerce'),
-    name: 'honeypotFieldName',
-    value: settings.honeypotFieldName,
-    required: true,
-}) }}
+<div class="b2b-settings-pane hidden" data-b2b-pane="invoicing">
+    {{ forms.textField({
+        label: 'Settled order statuses'|t('b2b-commerce'),
+        instructions: 'Comma-separated Commerce order status handles whose orders are treated as settled and never count towards a company outstanding balance (for example cancelled, refunded).'|t('b2b-commerce'),
+        name: 'excludedOrderStatusHandles',
+        value: settings.excludedOrderStatusHandles|join(', '),
+        first: true,
+    }) }}
+</div>
 
-{{ forms.lightswitchField({
-    label: 'Validate VAT IDs'|t('b2b-commerce'),
-    instructions: 'Validate company VAT IDs against VIES (the EU VAT number register) when a company is registered or saved. Valid results are cached by Craft, so repeated saves do not re-query VIES.'|t('b2b-commerce'),
-    name: 'validateTaxIds',
-    on: settings.validateTaxIds,
-}) }}
+<div class="b2b-settings-pane hidden" data-b2b-pane="vat">
+    {{ forms.lightswitchField({
+        label: 'Validate VAT IDs'|t('b2b-commerce'),
+        instructions: 'Validate company VAT IDs against VIES (the EU VAT number register) when a company is registered or saved. Valid results are cached by Craft, so repeated saves do not re-query VIES.'|t('b2b-commerce'),
+        name: 'validateTaxIds',
+        on: settings.validateTaxIds,
+        first: true,
+    }) }}
 
-{{ forms.selectField({
-    label: 'VIES outage policy'|t('b2b-commerce'),
-    instructions: 'What to do when VIES is unreachable during validation. Lenient accepts the VAT ID and logs a warning (revalidate later via the console command); strict refuses the save with a clean error. A VAT ID that VIES reports as invalid is always refused.'|t('b2b-commerce'),
-    name: 'taxIdValidationPolicy',
-    options: [
-        { value: 'lenient', label: 'Lenient — accept and log a warning'|t('b2b-commerce') },
-        { value: 'strict', label: 'Strict — refuse the save'|t('b2b-commerce') },
-    ],
-    value: settings.taxIdValidationPolicy,
-}) }}
+    {{ forms.selectField({
+        label: 'VIES outage policy'|t('b2b-commerce'),
+        instructions: 'What to do when VIES is unreachable during validation. Lenient accepts the VAT ID and logs a warning (revalidate later via the console command); strict refuses the save with a clean error. A VAT ID that VIES reports as invalid is always refused.'|t('b2b-commerce'),
+        name: 'taxIdValidationPolicy',
+        options: [
+            { value: 'lenient', label: 'Lenient — accept and log a warning'|t('b2b-commerce') },
+            { value: 'strict', label: 'Strict — refuse the save'|t('b2b-commerce') },
+        ],
+        value: settings.taxIdValidationPolicy,
+    }) }}
+</div>
 
-<hr>
+<div class="b2b-settings-pane hidden" data-b2b-pane="fields">
+    <p class="light" style="margin-top: 0;">{{ 'Add custom fields to the company edit screen.'|t('b2b-commerce') }}</p>
 
-<h2>{{ 'Company fields'|t('b2b-commerce') }}</h2>
-
-<p class="light">{{ 'Add custom fields to the company edit screen.'|t('b2b-commerce') }}</p>
-
-{{ forms.fieldLayoutDesignerField({
-    fieldLayout: companyFieldLayout,
-}) }}
+    {{ forms.fieldLayoutDesignerField({
+        fieldLayout: companyFieldLayout,
+    }) }}
+</div>

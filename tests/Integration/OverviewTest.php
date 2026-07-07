@@ -99,6 +99,95 @@ it('sums the outstanding on-account balance across companies', function () {
     expect($overview->getStats()['outstanding'] - $before)->toBe($order->getTotalPrice());
 });
 
+/**
+ * Creates and saves a tracked admin user, so a test can act as someone who passes every
+ * permission check (checkPermission short-circuits to true for admins).
+ */
+function overviewAdmin(): craft\elements\User
+{
+    $admin = createTestUser('ov_admin_' . uniqid() . '@example.test');
+    $admin->admin = true;
+    craftApp()->getElements()->saveElement($admin);
+
+    return $admin;
+}
+
+it('badges the B2B nav with the pending registration count for a permitted user', function () {
+    $before = Plugin::getInstance()->overview->getPendingRegistrationsCount();
+
+    createTestCompany(Company::STATUS_PENDING);
+    createTestCompany(Company::STATUS_PENDING);
+
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity(overviewAdmin());
+
+    try {
+        $item = Plugin::getInstance()->getCpNavItem();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    $expected = $before + 2;
+
+    expect($item['badgeCount'])->toBe($expected)
+        ->and($item['subnav']['companies']['badgeCount'])->toBe($expected);
+});
+
+it('omits the nav badge for a user without manageCompanies', function () {
+    // A pending company exists, so the badge is withheld purely by the permission gate, not by an
+    // empty queue.
+    createTestCompany(Company::STATUS_PENDING);
+
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity(createTestUser('ov_noperm_' . uniqid() . '@example.test'));
+
+    try {
+        $item = Plugin::getInstance()->getCpNavItem();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    expect($item)->not->toHaveKey('badgeCount')
+        ->and($item['subnav']['companies'])->not->toHaveKey('badgeCount');
+});
+
+it('adds a settings subnav item for an admin when admin changes are allowed', function () {
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity(overviewAdmin());
+
+    try {
+        $item = Plugin::getInstance()->getCpNavItem();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    // The item mirrors Craft's own gate on the plugin-settings screen, so it only appears when
+    // admin changes are actually allowed in this environment.
+    if (craftApp()->getConfig()->getGeneral()->allowAdminChanges) {
+        expect($item['subnav'])->toHaveKey('settings')
+            ->and($item['subnav']['settings']['url'])->toContain('settings/plugins/');
+    } else {
+        expect($item['subnav'])->not->toHaveKey('settings');
+    }
+});
+
+it('hides the settings subnav from a non-admin', function () {
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity(createTestUser('ov_plain_' . uniqid() . '@example.test'));
+
+    try {
+        $item = Plugin::getInstance()->getCpNavItem();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    expect($item['subnav'])->not->toHaveKey('settings');
+});
+
 it('renders the widget body without error for a permitted user', function () {
     createTestCompany(Company::STATUS_APPROVED);
 

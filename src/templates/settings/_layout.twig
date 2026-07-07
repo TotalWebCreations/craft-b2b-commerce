@@ -1,0 +1,68 @@
+{% requireAdmin false %}
+
+{% extends '_layouts/cp' %}
+
+{% set title = plugin.name %}
+{% set docTitle = title ~ ' - ' ~ 'Plugins'|t('app') %}
+{% set readOnly = readOnly ?? false %}
+{% set fullPageForm = not readOnly %}
+
+{% set crumbs = [
+    { label: 'Settings'|t('app'), url: url('settings') },
+    { label: 'Plugins'|t('app'), url: url('settings/plugins') },
+] %}
+
+{% set sections = [
+    { id: 'general', label: 'General'|t('b2b-commerce') },
+    { id: 'registration', label: 'Registration'|t('b2b-commerce') },
+    { id: 'invoicing', label: 'Invoicing'|t('b2b-commerce') },
+    { id: 'vat', label: 'VAT validation'|t('b2b-commerce') },
+    { id: 'fields', label: 'Company fields'|t('b2b-commerce') },
+] %}
+
+{% block sidebar %}
+    <nav class="b2b-settings-nav" aria-label="{{ 'B2B Commerce settings'|t('b2b-commerce') }}">
+        <ul>
+            {% for section in sections %}
+                <li>
+                    <a class="{{ loop.first ? 'sel' }}" data-pane="{{ section.id }}" href="#{{ section.id }}">
+                        <span class="label">{{ section.label }}</span>
+                    </a>
+                </li>
+            {% endfor %}
+        </ul>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    {% if not readOnly %}
+        {{ actionInput('plugins/save-plugin-settings') }}
+        {{ hiddenInput('pluginHandle', plugin.handle) }}
+        {{ redirectInput('settings/plugins/' ~ plugin.handle) }}
+    {% endif %}
+
+    {{ settingsHtml|raw }}
+{% endblock %}
+
+{% js %}
+(() => {
+    const nav = document.querySelector('.b2b-settings-nav');
+
+    if (!nav) {
+        return;
+    }
+
+    const links = nav.querySelectorAll('[data-pane]');
+    const panes = document.querySelectorAll('[data-b2b-pane]');
+
+    const select = (paneId) => {
+        links.forEach((link) => link.classList.toggle('sel', link.dataset.pane === paneId));
+        panes.forEach((pane) => pane.classList.toggle('hidden', pane.dataset.b2bPane !== paneId));
+    };
+
+    links.forEach((link) => link.addEventListener('click', (event) => {
+        event.preventDefault();
+        select(link.dataset.pane);
+    }));
+})();
+{% endjs %}

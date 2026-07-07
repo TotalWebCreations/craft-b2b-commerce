@@ -62,6 +62,27 @@ it('creates a company draft via the create action and redirects to its edit page
         ->and($location)->toContain('draftId=');
 });
 
+it('roots the company edit-page breadcrumbs in the B2B section', function () {
+    $company = createTestCompany(Company::STATUS_PENDING);
+
+    [$client] = cpManagerClient();
+
+    $response = $client->get("/admin/b2b/companies/{$company->id}", [
+        'headers' => ['Accept' => 'text/html'],
+    ]);
+
+    $body = (string) $response->getBody();
+
+    // Assert on the crumb URLs, which are language-independent, rather than the labels — a fresh
+    // test user's CP language is not guaranteed to be English.
+    $start = strpos($body, 'id="crumb-list"');
+    $crumbs = $start !== false ? substr($body, $start, 1500) : '';
+
+    expect($response->getStatusCode())->toBe(200)
+        ->and($crumbs)->toContain('/admin/b2b"')
+        ->and($crumbs)->toContain('/admin/b2b/companies"');
+});
+
 it('forbids creating a company without the manageCompanies permission', function () {
     $client = cpNonManagerClient();
 

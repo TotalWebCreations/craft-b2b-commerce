@@ -15,6 +15,7 @@ use craft\commerce\services\Gateways;
 use craft\commerce\services\Payments;
 use craft\elements\User;
 use craft\enums\CmsEdition;
+use craft\helpers\Html;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\ModelEvent;
@@ -724,12 +725,42 @@ class Plugin extends BasePlugin
         $item = parent::getCpNavItem();
         $item['label'] = Craft::t('b2b-commerce', 'B2B');
         $item['url'] = 'b2b';
-        $item['subnav'] = [
+
+        // Badge the section (and the Companies subnav it is reviewed under) with the number of
+        // companies still awaiting review. Gated by the section's own permission so the count is
+        // never queried for a user who cannot see the nav item anyway, and left off entirely when
+        // the queue is empty so no zero badge shows.
+        $pendingRegistrations = Craft::$app->getUser()->checkPermission('b2b-commerce:manageCompanies')
+            ? $this->overview->getPendingRegistrationsCount()
+            : 0;
+
+        $companiesSubnav = ['label' => Craft::t('b2b-commerce', 'Companies'), 'url' => 'b2b/companies'];
+
+        if ($pendingRegistrations > 0) {
+            $item['badgeCount'] = $pendingRegistrations;
+            $companiesSubnav['badgeCount'] = $pendingRegistrations;
+        }
+
+        $subnav = [
             'overview' => ['label' => Craft::t('b2b-commerce', 'Overview'), 'url' => 'b2b'],
-            'companies' => ['label' => Craft::t('b2b-commerce', 'Companies'), 'url' => 'b2b/companies'],
+            'companies' => $companiesSubnav,
             'quotes' => ['label' => Craft::t('b2b-commerce', 'Quotes'), 'url' => 'b2b/quotes'],
             'approvals' => ['label' => Craft::t('b2b-commerce', 'Approvals'), 'url' => 'b2b/approvals'],
         ];
+
+        // Deep-link to the plugin's own settings, but only for someone who can actually open it:
+        // Craft's plugin-settings screen is admin-only and disabled entirely when admin changes are
+        // locked, so mirror that gate here rather than surface a link that would 403.
+        $currentUser = Craft::$app->getUser()->getIdentity();
+
+        if ($currentUser?->admin && Craft::$app->getConfig()->getGeneral()->allowAdminChanges) {
+            $subnav['settings'] = [
+                'label' => Craft::t('b2b-commerce', 'Settings'),
+                'url' => "settings/plugins/{$this->id}",
+            ];
+        }
+
+        $item['subnav'] = $subnav;
 
         return $item;
     }
@@ -737,6 +768,33 @@ class Plugin extends BasePlugin
     protected function createSettingsModel(): ?Model
     {
         return new Settings();
+    }
+
+    /**
+     * Renders the plugin settings inside a custom control-panel layout that carries a left sidebar
+     * of section links (mirroring Commerce's settings), instead of Craft's default single-column
+     * plugin settings page. The field markup is still produced by {@see settingsHtml()} and namespaced
+     * under `settings` exactly as Craft's own settingsResponse() does — so the save action, the
+     * read-only (locked admin changes) mode and the company field-layout save are all unchanged; only
+     * the surrounding chrome differs.
+     */
+    public function getSettingsResponse(): mixed
+    {
+        $readOnly = !Craft::$app->getConfig()->getGeneral()->allowAdminChanges;
+
+        $settingsHtml = Craft::$app->getView()->namespaceInputs(function() use ($readOnly): string {
+            if ($readOnly) {
+                return (string) Html::disableInputs(fn(): string => (string) $this->settingsHtml());
+            }
+
+            return (string) $this->settingsHtml();
+        }, 'settings');
+
+        return Craft::$app->controller->renderTemplate('b2b-commerce/settings/_layout', [
+            'plugin' => $this,
+            'settingsHtml' => $settingsHtml,
+            'readOnly' => $readOnly,
+        ]);
     }
 
     protected function settingsHtml(): ?string
