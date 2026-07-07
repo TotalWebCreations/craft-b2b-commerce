@@ -2,6 +2,10 @@
 
 {% set title = 'Approvals'|t('b2b-commerce') %}
 
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+] %}
+
 {% set statusColors = {
     pending: 'orange',
     approved: 'green',

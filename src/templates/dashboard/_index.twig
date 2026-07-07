@@ -2,6 +2,10 @@
 
 {% set title = 'Overview'|t('b2b-commerce') %}
 
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+] %}
+
 {% css %}
 .b2b-overview {
     display: grid;

@@ -4,6 +4,7 @@
 {% set title = 'Members'|t('b2b-commerce') %}
 
 {% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
     { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
     { label: company.title, url: company.cpEditUrl },
 ] %}

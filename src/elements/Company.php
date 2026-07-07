@@ -124,6 +124,26 @@ class Company extends Element
         return UrlHelper::cpUrl("b2b/companies/$this->id");
     }
 
+    /**
+     * Roots the edit screen's breadcrumbs in the B2B section (Overview → Companies), so the topbar
+     * matches the rest of the plugin instead of falling back to an empty trail.
+     *
+     * @return array<int, array{label: string, url: string}>
+     */
+    protected function crumbs(): array
+    {
+        return [
+            [
+                'label' => Craft::t('b2b-commerce', 'B2B'),
+                'url' => UrlHelper::cpUrl('b2b'),
+            ],
+            [
+                'label' => Craft::t('b2b-commerce', 'Companies'),
+                'url' => UrlHelper::cpUrl('b2b/companies'),
+            ],
+        ];
+    }
+
     protected static function defineActions(string $source): array
     {
         return [
