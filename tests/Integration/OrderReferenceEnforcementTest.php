@@ -108,10 +108,21 @@ it('does not require a PO for a company without the toggle', function () {
         ->and(completedInDb($order->id))->toBeTrue();
 });
 
-it('does not require a PO for an order with no company', function () {
+it('does not require a PO for a guest order with no customer', function () {
     $order = createTestOrder(null);
 
     // A guest order has no customer at all, so the guard fails open just like the sibling guards.
+    expect(enforcePoAsSiteRequest($order))->toBeFalse();
+
+    expect($order->markAsComplete())->toBeTrue()
+        ->and(completedInDb($order->id))->toBeTrue();
+});
+
+it('does not require a PO for a signed-in user with no company', function () {
+    $user = createTestUser('nocompany_' . uniqid() . '@example.test');
+    $order = createTestOrder($user);
+
+    // The customer exists but has no company membership, so the guard fails open.
     expect(enforcePoAsSiteRequest($order))->toBeFalse();
 
     expect($order->markAsComplete())->toBeTrue()
