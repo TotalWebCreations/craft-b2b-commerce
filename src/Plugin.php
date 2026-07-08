@@ -540,6 +540,23 @@ class Plugin extends BasePlugin
             }
         );
 
+        // PO-number completion backstop. Registered AFTER enforcePurchasePolicy and BEFORE the
+        // budget/credit checks: a company that requires a purchase order number must not complete an
+        // order without one. Storefront-scoped inside the service (console and CP completions are the
+        // merchant override). Like the purchase-policy guard it sets an attribute error and throws,
+        // because EVENT_BEFORE_COMPLETE_ORDER is not cancelable.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->orderReferences->enforceRequiredPoNumber($event->sender);
+            }
+        );
+
         // Spending-budget completion backstop. Registered after the approval and account-status
         // guards but BEFORE the credit-limit check, mirroring the payment-time gate's order
         // (approval, budget, credit): a member's personal spend cap is a permission-shaped gate that
