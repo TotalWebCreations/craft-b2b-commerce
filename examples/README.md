@@ -26,6 +26,8 @@ Everything lives under `templates/b2b/`:
 | `quotes/index.twig` | The company's quotes overview. |
 | `quotes/accept.twig` | The accept / decline page reached from a sent-quote email. |
 | `approvals/index.twig` | The approver queue plus the buyer's own requests. |
+| `pdf/quote.twig` | Customization starting point for the quote PDF. The plugin ships a working default already (`src/templates/pdf/quote.twig`); copy this only if you want to restyle it. |
+| `pdf/invoice.twig` | Customization starting point for the order/invoice PDF. The plugin ships a working default already (`src/templates/pdf/invoice.twig`); copy this only if you want to restyle it. |
 | `product-price.twig` | Price / add-to-cart partial that respects price visibility (`{% include %}` on your product page). |
 | `orders/_reorder-button.twig` | Reorder button partial (`{% include %}` in an order row). |
 | `quotes/_request-button.twig` | "Request a quote" button partial for the cart page. |
@@ -115,15 +117,16 @@ order / reference number on their current cart, by posting to
   and inside Commerce order-email templates, because the plugin exposes it via
   an `Order` behavior attached to every order.
 - Merchants add `{{ order.b2bPoNumber }}` to their Commerce order email
-  templates and to the phase-16 quote/invoice PDF templates
-  (`b2b/pdf/quote.twig`, `b2b/pdf/invoice.twig`) — no plugin code change is
-  required for either, since the behavior exposes the PO everywhere an `Order`
-  is rendered.
+  templates. It is already read by the plugin's own quote/invoice PDF
+  templates (`src/templates/pdf/quote.twig`, `src/templates/pdf/invoice.twig`)
+  — those ship as working defaults, no plugin code change is required.
 - When a company has "Require purchase order number" enabled (a per-company CP
   setting), checkout is refused until a PO is set on the cart.
 
-> No PDF template code lands in this phase — phase 16 owns the PDF templates
-> and merely reads `order.b2bPoNumber`. This only records the integration seam.
+> The quote and invoice PDFs render out of the box using the templates bundled
+> inside the plugin. Copy `pdf/quote.twig` / `pdf/invoice.twig` from this
+> `examples/` folder only if you want to restyle them, then point the
+> "Quote PDF template" / "Invoice PDF template" plugin settings at your copy.
 
 ## 5. Restyle
 

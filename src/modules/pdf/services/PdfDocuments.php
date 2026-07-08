@@ -22,8 +22,12 @@ use yii\web\Response;
  */
 class PdfDocuments extends Component
 {
-    public const DEFAULT_QUOTE_TEMPLATE = 'b2b/pdf/quote.twig';
-    public const DEFAULT_INVOICE_TEMPLATE = 'b2b/pdf/invoice.twig';
+    // Namespaced under the plugin's own `b2b-commerce` site template root (registered in Plugin::
+    // registerSiteTemplateRoot()), NOT the merchant-facing `b2b/` example namespace — these resolve
+    // to the templates shipped inside the plugin at src/templates/pdf/*.twig, so renderQuotePdf/
+    // renderInvoicePdf work out of the box with no merchant template override configured.
+    public const DEFAULT_QUOTE_TEMPLATE = 'b2b-commerce/pdf/quote';
+    public const DEFAULT_INVOICE_TEMPLATE = 'b2b-commerce/pdf/invoice';
 
     public function quoteTemplatePath(): string
     {

@@ -24,6 +24,7 @@ use craft\events\RegisterEmailMessagesEvent;
 use craft\events\RegisterGqlQueriesEvent;
 use craft\events\RegisterGqlSchemaComponentsEvent;
 use craft\events\RegisterGqlTypesEvent;
+use craft\events\RegisterTemplateRootsEvent;
 use craft\events\RegisterUrlRulesEvent;
 use craft\events\RegisterUserPermissionsEvent;
 use craft\models\FieldLayout;
@@ -34,6 +35,7 @@ use craft\services\SystemMessages;
 use craft\services\UserPermissions;
 use craft\web\twig\variables\CraftVariable;
 use craft\web\UrlManager;
+use craft\web\View;
 use totalwebcreations\b2bcommerce\behaviors\OrderBehavior;
 use totalwebcreations\b2bcommerce\behaviors\UserBehavior;
 use totalwebcreations\b2bcommerce\elements\Approval;
@@ -119,6 +121,7 @@ class Plugin extends BasePlugin
         $this->registerGateways();
         $this->attachCpHandlers();
         $this->registerNativeFields();
+        $this->registerSiteTemplateRoot();
         $this->attachCommerceHandlers();
         $this->attachSystemMessages();
         $this->registerGraphql();
@@ -196,6 +199,28 @@ class Plugin extends BasePlugin
                 $event->fields[] = RequirePoNumberField::class;
                 $event->fields[] = ApprovalThresholdField::class;
                 $event->fields[] = CustomerGroupField::class;
+            }
+        );
+    }
+
+    /**
+     * Registers `src/templates` as a SITE template root under the plugin's own handle, so the
+     * bundled default PDF templates ({@see PdfDocuments::DEFAULT_QUOTE_TEMPLATE},
+     * {@see PdfDocuments::DEFAULT_INVOICE_TEMPLATE}) resolve out of the box. Craft's base Plugin
+     * class already registers this same directory as a CP template root under this handle (see
+     * {@see \craft\base\Plugin::attachEventHandlers()}); this mirrors that for site requests, since
+     * Commerce's Pdfs::renderPdfForOrder renders in SITE template mode. The `b2b-commerce` handle
+     * cannot collide with a merchant's own site templates, since it matches the plugin handle itself
+     * rather than a generic folder name a merchant might already use (the merchant-facing example
+     * templates live under the unrelated `b2b/` namespace instead).
+     */
+    private function registerSiteTemplateRoot(): void
+    {
+        Event::on(
+            View::class,
+            View::EVENT_REGISTER_SITE_TEMPLATE_ROOTS,
+            function(RegisterTemplateRootsEvent $event) {
+                $event->roots[$this->id] = $this->getBasePath() . DIRECTORY_SEPARATOR . 'templates';
             }
         );
     }

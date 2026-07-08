@@ -18,8 +18,8 @@ it('falls back to the bundled quote and invoice templates when no override is se
     try {
         $service = Plugin::getInstance()->pdfDocuments;
 
-        expect($service->quoteTemplatePath())->toBe('b2b/pdf/quote.twig')
-            ->and($service->invoiceTemplatePath())->toBe('b2b/pdf/invoice.twig');
+        expect($service->quoteTemplatePath())->toBe('b2b-commerce/pdf/quote')
+            ->and($service->invoiceTemplatePath())->toBe('b2b-commerce/pdf/invoice');
     } finally {
         $settings->quotePdfTemplate = $q;
         $settings->invoicePdfTemplate = $i;
@@ -77,7 +77,7 @@ it('renders a quote PDF through Commerce with the B2B quote template and variabl
     }
 
     expect($pdf)->toBe('STUB-PDF')
-        ->and($captured['template'])->toBe('b2b/pdf/quote.twig')
+        ->and($captured['template'])->toBe('b2b-commerce/pdf/quote')
         ->and($captured['orderId'])->toBe($order->id)
         ->and($captured['variables']['documentType'])->toBe('quote')
         ->and($captured['variables']['company']->id)->toBe($company->id);
@@ -100,8 +100,91 @@ it('renders an invoice PDF through Commerce with the B2B invoice template', func
     }
 
     expect($pdf)->toBe('STUB-PDF')
-        ->and($captured['template'])->toBe('b2b/pdf/invoice.twig')
+        ->and($captured['template'])->toBe('b2b-commerce/pdf/invoice')
         ->and($captured['variables']['documentType'])->toBe('invoice');
+});
+
+it('renders a real quote PDF with NO merchant template override — the bundled default must resolve', function () {
+    // Regression guard: renderQuotePdf/renderInvoicePdf render their template in Commerce's SITE
+    // template mode, and prior to registering a site template root for the plugin's own templates
+    // folder, DEFAULT_QUOTE_TEMPLATE/DEFAULT_INVOICE_TEMPLATE resolved nowhere without a merchant
+    // override, throwing "PDF template file does not exist". No event stub here — this exercises the
+    // real Commerce Pdfs::renderPdfForOrder → dompdf render end to end.
+    $settings = Plugin::getInstance()->getSettings();
+    [$q, $i] = [$settings->quotePdfTemplate, $settings->invoicePdfTemplate];
+    $settings->quotePdfTemplate = '';
+    $settings->invoicePdfTemplate = '';
+
+    [$user, $company] = quoteMember();
+    $order = quoteCartWithItem();
+    insertQuoteRow($order->id, QuoteStatus::Sent->value, $company->id, $user->id, new DateTime('+7 days'));
+
+    try {
+        $pdf = Plugin::getInstance()->pdfDocuments->renderQuotePdf($order);
+    } finally {
+        $settings->quotePdfTemplate = $q;
+        $settings->invoicePdfTemplate = $i;
+    }
+
+    // The shipped default template resolved and dompdf produced a real PDF — proven by the %PDF-
+    // signature, not a byte diff.
+    expect(substr($pdf, 0, 5))->toBe('%PDF-');
+});
+
+it('renders a real invoice PDF with NO merchant template override — the bundled default must resolve', function () {
+    $settings = Plugin::getInstance()->getSettings();
+    [$q, $i] = [$settings->quotePdfTemplate, $settings->invoicePdfTemplate];
+    $settings->quotePdfTemplate = '';
+    $settings->invoicePdfTemplate = '';
+
+    $order = quoteCartWithItem();
+
+    try {
+        $pdf = Plugin::getInstance()->pdfDocuments->renderInvoicePdf($order);
+    } finally {
+        $settings->quotePdfTemplate = $q;
+        $settings->invoicePdfTemplate = $i;
+    }
+
+    expect(substr($pdf, 0, 5))->toBe('%PDF-');
+});
+
+it('renders a real quote PDF from a merchant-configured override path, confirming it wins over the default', function () {
+    // Uses the shipped examples/templates/b2b/pdf/quote.twig copy as the "merchant" override,
+    // registered under the dev site's `b2b` root — proves the override setting actually renders
+    // (not just that quoteTemplatePath() returns its string).
+    $templatesDir = dirname(getcwd()) . '/b2b-dev/templates';
+
+    if (!is_dir($templatesDir)) {
+        test()->markTestSkipped('dev-site templates folder not found');
+    }
+
+    $overrideDir = $templatesDir . '/b2b-test-pdf';
+
+    if (!is_dir($overrideDir)) {
+        mkdir($overrideDir, 0777, true);
+    }
+
+    file_put_contents(
+        "{$overrideDir}/quote.twig",
+        '<!DOCTYPE html><html><body><p>OVERRIDE-{{ order.reference ?: order.shortNumber }}</p></body></html>'
+    );
+
+    $settings = Plugin::getInstance()->getSettings();
+    $original = $settings->quotePdfTemplate;
+    $settings->quotePdfTemplate = 'b2b-test-pdf/quote';
+
+    $order = quoteCartWithItem();
+
+    try {
+        $pdf = Plugin::getInstance()->pdfDocuments->renderQuotePdf($order);
+    } finally {
+        $settings->quotePdfTemplate = $original;
+        @unlink("{$overrideDir}/quote.twig");
+        @rmdir($overrideDir);
+    }
+
+    expect(substr($pdf, 0, 5))->toBe('%PDF-');
 });
 
 it('renders an arbitrary site template to a PDF response via streamPdf', function () {
