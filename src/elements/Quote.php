@@ -14,6 +14,7 @@ use craft\helpers\Html;
 use craft\helpers\UrlHelper;
 use DateTime;
 use totalwebcreations\b2bcommerce\elements\db\QuoteQuery;
+use totalwebcreations\b2bcommerce\enums\QuoteOrigin;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 
 /**
@@ -35,6 +36,7 @@ class Quote extends Element
     public ?string $declineReason = null;
     public ?int $requestedById = null;
     public ?string $acceptToken = null;
+    public string $origin = QuoteOrigin::Customer->value;
 
     public static function displayName(): string
     {
@@ -326,6 +328,7 @@ class Quote extends Element
             [['orderId', 'companyId', 'acceptToken'], 'required'],
             [['orderId', 'companyId', 'requestedById'], 'integer'],
             ['quoteStatus', 'in', 'range' => array_map(fn(QuoteStatus $status) => $status->value, QuoteStatus::cases())],
+            ['origin', 'in', 'range' => array_map(fn (QuoteOrigin $origin) => $origin->value, QuoteOrigin::cases())],
             [['notes', 'declineReason', 'acceptToken', 'validUntil'], 'safe'],
         ]);
     }
@@ -343,6 +346,7 @@ class Quote extends Element
                 'orderId' => $this->orderId,
                 'companyId' => $this->companyId,
                 'status' => $this->quoteStatus,
+                'origin' => $this->origin,
                 'validUntil' => $this->validUntil !== null ? Db::prepareDateForDb($this->validUntil) : null,
                 'notes' => $this->notes,
                 'declineReason' => $this->declineReason,

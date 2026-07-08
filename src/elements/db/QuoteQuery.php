@@ -38,6 +38,7 @@ class QuoteQuery extends ElementQuery
             'b2b_quotes.declineReason',
             'b2b_quotes.requestedById',
             'b2b_quotes.acceptToken',
+            'b2b_quotes.origin',
         ]);
 
         if ($this->quoteStatus !== null) {
