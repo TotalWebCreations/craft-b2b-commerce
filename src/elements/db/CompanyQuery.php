@@ -28,6 +28,7 @@ class CompanyQuery extends ElementQuery
             'b2b_companies.creditLimit',
             'b2b_companies.paymentTermDays',
             'b2b_companies.allowInvoicePayment',
+            'b2b_companies.requirePoNumber',
             'b2b_companies.approvalThreshold',
             'b2b_companies.customerGroupId',
         ]);

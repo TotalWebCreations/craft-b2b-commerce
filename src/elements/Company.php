@@ -32,6 +32,7 @@ class Company extends Element
     public ?float $creditLimit = null;
     public ?int $paymentTermDays = null;
     public bool $allowInvoicePayment = false;
+    public bool $requirePoNumber = false;
     public ?float $approvalThreshold = null;
     public ?int $customerGroupId = null;
 
@@ -231,8 +232,10 @@ class Company extends Element
 
     public function setAttributesFromRequest(array $values): void
     {
-        if (array_key_exists('allowInvoicePayment', $values)) {
-            $values['allowInvoicePayment'] = (bool) $values['allowInvoicePayment'];
+        foreach (['allowInvoicePayment', 'requirePoNumber'] as $attribute) {
+            if (array_key_exists($attribute, $values)) {
+                $values[$attribute] = (bool) $values[$attribute];
+            }
         }
 
         foreach (['creditLimit', 'approvalThreshold'] as $attribute) {
@@ -262,6 +265,7 @@ class Company extends Element
             ],
             ['companyStatus', 'in', 'range' => array_keys(self::statuses())],
             ['allowInvoicePayment', 'boolean'],
+            ['requirePoNumber', 'boolean'],
             [['creditLimit', 'approvalThreshold'], 'number', 'min' => 0],
             ['paymentTermDays', 'integer', 'min' => 0],
             ['customerGroupId', 'integer'],
@@ -343,6 +347,7 @@ class Company extends Element
                 'creditLimit' => $this->creditLimit,
                 'paymentTermDays' => $this->paymentTermDays,
                 'allowInvoicePayment' => $this->allowInvoicePayment,
+                'requirePoNumber' => $this->requirePoNumber,
                 'approvalThreshold' => $this->approvalThreshold,
                 'customerGroupId' => $this->customerGroupId,
             ]);

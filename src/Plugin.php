@@ -46,6 +46,7 @@ use totalwebcreations\b2bcommerce\fieldlayoutelements\CreditLimitField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CustomerGroupField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\PaymentTermDaysField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\RegistrationNumberField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\RequirePoNumberField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\gql\interfaces\elements\Company as GqlCompanyInterface;
@@ -188,6 +189,7 @@ class Plugin extends BasePlugin
                 $event->fields[] = CreditLimitField::class;
                 $event->fields[] = PaymentTermDaysField::class;
                 $event->fields[] = AllowInvoicePaymentField::class;
+                $event->fields[] = RequirePoNumberField::class;
                 $event->fields[] = ApprovalThresholdField::class;
                 $event->fields[] = CustomerGroupField::class;
             }
