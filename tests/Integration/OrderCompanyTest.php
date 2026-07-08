@@ -8,28 +8,6 @@ use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 
 /**
- * Saves an empty cart order for the given customer (or a guest when null) and
- * tracks it for hard-delete afterwards.
- */
-function createTestOrder(?User $customer): Order
-{
-    $order = new Order();
-    $order->number = md5(uniqid((string) mt_rand(), true));
-
-    if ($customer !== null) {
-        $order->setCustomer($customer);
-    }
-
-    if (!craftApp()->getElements()->saveElement($order)) {
-        throw new RuntimeException('Could not save test order: ' . implode(', ', $order->getFirstErrors()));
-    }
-
-    trackElement($order);
-
-    return $order;
-}
-
-/**
  * Persists a successful `purchase` transaction for the order, mirroring what a payment
  * gateway records once it has captured funds. This is exactly the state getTotalPaid()
  * measures (sum of successful purchase/capture transactions). The transaction row is removed

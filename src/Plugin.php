@@ -63,6 +63,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
 use totalwebcreations\b2bcommerce\modules\pricing\services\CustomerGroupSync;
 use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
 use totalwebcreations\b2bcommerce\modules\budgets\services\Budgets;
+use totalwebcreations\b2bcommerce\modules\checkout\services\OrderReferences;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
@@ -89,6 +90,7 @@ use yii\base\Event;
  * @property-read CreditEnforcer $creditEnforcer
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
+ * @property-read OrderReferences $orderReferences
  * @property-read Overview $overview
  * @property-read PaymentGate $paymentGate
  * @property-read PriceVisibility $priceVisibility
@@ -210,6 +212,7 @@ class Plugin extends BasePlugin
             'creditEnforcer' => CreditEnforcer::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
+            'orderReferences' => OrderReferences::class,
             'overview' => Overview::class,
             'paymentGate' => PaymentGate::class,
             'priceVisibility' => PriceVisibility::class,

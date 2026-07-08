@@ -65,6 +65,28 @@ function createTestCompany(string $status = 'approved', string $title = 'Test Co
 }
 
 /**
+ * Saves an empty cart order for the given customer (or a guest when null) and
+ * tracks it for hard-delete afterwards.
+ */
+function createTestOrder(?User $customer): Order
+{
+    $order = new Order();
+    $order->number = md5(uniqid((string) mt_rand(), true));
+
+    if ($customer !== null) {
+        $order->setCustomer($customer);
+    }
+
+    if (!craftApp()->getElements()->saveElement($order)) {
+        throw new RuntimeException('Could not save test order: ' . implode(', ', $order->getFirstErrors()));
+    }
+
+    trackElement($order);
+
+    return $order;
+}
+
+/**
  * Returns a reusable throwaway product type, creating it on first use. Product
  * types live in project config, so it is created once and reused across tests
  * rather than rebuilt (and torn down) per test.
