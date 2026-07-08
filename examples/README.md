@@ -20,6 +20,7 @@ Everything lives under `templates/b2b/`:
 | `team/index.twig` | Team management for admins (invite, change role, remove). |
 | `addresses/index.twig` | Shared company address book (add / edit / delete). |
 | `quick-order/index.twig` | Quick order: paste SKUs or upload a CSV. |
+| `checkout/po-number.twig` | Purchase order (PO) number entry, posted to the checkout controller. |
 | `order-lists/index.twig` | Shared order lists overview. |
 | `order-lists/_detail.twig` | A single order list's item editor. |
 | `quotes/index.twig` | The company's quotes overview. |
@@ -47,8 +48,9 @@ cp -R vendor/totalwebcreations/craft-b2b-commerce/examples/templates/b2b templat
 
 Most pages (`b2b/register`, `b2b/team`, `b2b/addresses`, `b2b/quick-order`,
 `b2b/order-lists`, `b2b/quotes`, `b2b/approvals`, `b2b/account`,
-`b2b/account/credit`, `b2b/account/budget`) resolve automatically through Craft's
-template routing, and the nav in `_layout.twig` links to exactly those paths.
+`b2b/account/credit`, `b2b/account/budget`, `b2b/checkout/po-number`) resolve
+automatically through Craft's template routing, and the nav in `_layout.twig`
+links to exactly those paths.
 Two routes you **must** register by hand in `config/routes.php`:
 
 ```php
@@ -79,6 +81,7 @@ the landing pages too, for example:
     'b2b/order-lists' => ['template' => 'b2b/order-lists/index'],
     'b2b/quotes' => ['template' => 'b2b/quotes/index'],
     'b2b/approvals' => ['template' => 'b2b/approvals/index'],
+    'b2b/checkout/po-number' => ['template' => 'b2b/checkout/po-number'],
 ```
 
 The **resume-checkout**, **approve**, **decline** and other write flows are POST
@@ -102,7 +105,27 @@ The four partials are not standalone pages. Include them where they belong:
 {% include 'b2b/orders/_reorder-button' with { order } %}
 ```
 
-## 4. Restyle
+## 4. Purchase order number
+
+`checkout/po-number.twig` lets a signed-in buyer set (or clear) a purchase
+order / reference number on their current cart, by posting to
+`b2b-commerce/checkout/set-reference` (see the template for the form markup).
+
+- The PO is available on any order as `order.b2bPoNumber` — in Twig, in PHP,
+  and inside Commerce order-email templates, because the plugin exposes it via
+  an `Order` behavior attached to every order.
+- Merchants add `{{ order.b2bPoNumber }}` to their Commerce order email
+  templates and to the phase-16 quote/invoice PDF templates
+  (`b2b/pdf/quote.twig`, `b2b/pdf/invoice.twig`) — no plugin code change is
+  required for either, since the behavior exposes the PO everywhere an `Order`
+  is rendered.
+- When a company has "Require purchase order number" enabled (a per-company CP
+  setting), checkout is refused until a PO is set on the cart.
+
+> No PDF template code lands in this phase — phase 16 owns the PDF templates
+> and merely reads `order.b2bPoNumber`. This only records the integration seam.
+
+## 5. Restyle
 
 There is intentionally no styling. Replace the bare tables, forms and the nav in
 `_layout.twig` with your own markup and CSS. The template variables, action

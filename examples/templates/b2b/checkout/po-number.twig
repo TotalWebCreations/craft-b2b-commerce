@@ -1,0 +1,29 @@
+{% extends 'b2b/_layout' %}
+
+{#
+    Purchase order (PO) number.
+    A single field posting to `b2b-commerce/checkout/set-reference`, which stores the PO on the
+    current cart. When the buyer's company has "Require purchase order number" enabled, checkout is
+    refused until a PO is set. Copy this template into your own site and restyle it to taste.
+#}
+{% requireLogin %}
+
+{% set cart = craft.commerce.carts.cart %}
+
+{% block title %}{{ 'Purchase order number'|t('b2b-commerce') }}{% endblock %}
+
+{% block content %}
+    <h1>{{ 'Purchase order number'|t('b2b-commerce') }}</h1>
+
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/checkout/set-reference') }}
+
+        <label>
+            {{ 'Purchase order number'|t('b2b-commerce') }}
+            <input type="text" name="poNumber" value="{{ cart.b2bPoNumber ?? '' }}">
+        </label>
+
+        <button type="submit">{{ 'Save purchase order number'|t('b2b-commerce') }}</button>
+    </form>
+{% endblock %}

@@ -39,6 +39,7 @@
             <thead>
                 <tr>
                     <th scope="col">{{ 'Order'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'PO number'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Date'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Payment'|t('b2b-commerce') }}</th>
@@ -60,6 +61,7 @@
                         <td>
                             <a href="{{ order.cpEditUrl }}">{{ order.reference ?: order.shortNumber }}</a>
                         </td>
+                        <td>{{ order.b2bPoNumber ?? '' }}</td>
                         <td>{{ (order.dateOrdered ?? order.dateCreated) ? (order.dateOrdered ?? order.dateCreated)|datetime('short') : '' }}</td>
                         <td>{{ order.totalPrice|currency(order.currency) }}</td>
                         <td>{{ paymentLabel }}</td>
