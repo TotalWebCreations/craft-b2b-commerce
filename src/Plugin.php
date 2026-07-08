@@ -220,7 +220,11 @@ class Plugin extends BasePlugin
             View::class,
             View::EVENT_REGISTER_SITE_TEMPLATE_ROOTS,
             function(RegisterTemplateRootsEvent $event) {
-                $event->roots[$this->id] = $this->getBasePath() . DIRECTORY_SEPARATOR . 'templates';
+                $baseDir = $this->getBasePath() . DIRECTORY_SEPARATOR . 'templates';
+
+                if (is_dir($baseDir)) {
+                    $event->roots[$this->id] = $baseDir;
+                }
             }
         );
     }
