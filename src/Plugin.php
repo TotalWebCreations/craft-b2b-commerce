@@ -57,6 +57,7 @@ use totalwebcreations\b2bcommerce\gql\queries\B2bContext as GqlB2bContextQueries
 use totalwebcreations\b2bcommerce\gql\queries\Company as GqlCompanyQueries;
 use totalwebcreations\b2bcommerce\models\Settings;
 use totalwebcreations\b2bcommerce\modules\approvals\services\Approvals;
+use totalwebcreations\b2bcommerce\modules\approvals\services\ApprovalTiers;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyAddresses;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
@@ -84,6 +85,7 @@ use yii\base\Event;
  * @method static Plugin getInstance()
  * @method Settings getSettings()
  * @property-read Approvals $approvals
+ * @property-read ApprovalTiers $approvalTiers
  * @property-read BudgetEnforcer $budgetEnforcer
  * @property-read Budgets $budgets
  * @property-read CompanyAddresses $companyAddresses
@@ -234,6 +236,7 @@ class Plugin extends BasePlugin
     {
         $this->setComponents([
             'approvals' => Approvals::class,
+            'approvalTiers' => ApprovalTiers::class,
             'budgetEnforcer' => BudgetEnforcer::class,
             'budgets' => Budgets::class,
             'companyAddresses' => CompanyAddresses::class,
