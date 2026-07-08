@@ -21,6 +21,7 @@ class Install extends Migration
                 'allowInvoicePayment' => $this->boolean()->notNull()->defaultValue(false),
                 'approvalThreshold' => $this->decimal(14, 4),
                 'customerGroupId' => $this->integer(),
+                'requirePoNumber' => $this->boolean()->notNull()->defaultValue(false),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
@@ -63,6 +64,19 @@ class Install extends Migration
             $this->createIndex(null, '{{%b2b_order_company}}', ['companyId']);
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+        }
+
+        if (!$this->db->tableExists('{{%b2b_order_references}}')) {
+            $this->createTable('{{%b2b_order_references}}', [
+                'orderId' => $this->integer()->notNull(),
+                'poNumber' => $this->string(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+                'PRIMARY KEY([[orderId]])',
+            ]);
+
+            $this->addForeignKey(null, '{{%b2b_order_references}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
         }
 
         if (!$this->db->tableExists('{{%b2b_quotes}}')) {
@@ -115,6 +129,17 @@ class Install extends Migration
             );
 
             $this->addForeignKey(null, '{{%b2b_companies}}', ['customerGroupId'], Table::USERGROUPS, ['id'], 'SET NULL');
+        }
+
+        // Column parity for installs whose companies table predates the PO-required toggle. An
+        // existing install reaches this column through the m260714_000100 migration; this guard
+        // keeps a fresh Install::safeUp() consistent when the createTable branch above was skipped.
+        if (!$this->db->columnExists('{{%b2b_companies}}', 'requirePoNumber')) {
+            $this->addColumn(
+                '{{%b2b_companies}}',
+                'requirePoNumber',
+                $this->boolean()->notNull()->defaultValue(false)->after('customerGroupId')
+            );
         }
 
         if (!$this->db->tableExists('{{%b2b_order_lists}}')) {
