@@ -67,6 +67,7 @@ use totalwebcreations\b2bcommerce\modules\checkout\services\OrderReferences;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
+use totalwebcreations\b2bcommerce\modules\pdf\services\PdfDocuments;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
@@ -93,6 +94,7 @@ use yii\base\Event;
  * @property-read OrderReferences $orderReferences
  * @property-read Overview $overview
  * @property-read PaymentGate $paymentGate
+ * @property-read PdfDocuments $pdfDocuments
  * @property-read PriceVisibility $priceVisibility
  * @property-read QuickOrder $quickOrder
  * @property-read Quotes $quotes
@@ -215,6 +217,7 @@ class Plugin extends BasePlugin
             'orderReferences' => OrderReferences::class,
             'overview' => Overview::class,
             'paymentGate' => PaymentGate::class,
+            'pdfDocuments' => PdfDocuments::class,
             'priceVisibility' => PriceVisibility::class,
             'quickOrder' => QuickOrder::class,
             'quotes' => Quotes::class,
