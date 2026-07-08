@@ -150,6 +150,8 @@ class Approvals extends Component
             throw new Exception(implode(' ', $approval->getFirstErrors()));
         }
 
+        $this->createSteps($approval, $cart);
+
         $this->notifyApprovers($company, $cart);
 
         Commerce::getInstance()->getCarts()->forgetCart();
@@ -848,6 +850,43 @@ class Approvals extends Component
         }
 
         return Craft::$app->getUsers()->getUserById((int) $row['requestedById']);
+    }
+
+    /**
+     * Creates one pending step row per required tier level for a freshly saved approval, keyed on the
+     * approval's element id. The required levels are every tier whose minAmount is at or below the
+     * order total. A tier-less company (or an amount below the lowest band) yields zero steps, which
+     * the resolution path treats as the legacy single-approval behaviour.
+     */
+    private function createSteps(Approval $approval, Order $cart): void
+    {
+        $required = Plugin::getInstance()->approvalTiers->requiredLevels(
+            (int) $approval->companyId,
+            (float) $cart->getTotalPrice(),
+        );
+
+        foreach ($required as $tier) {
+            Db::insert('{{%b2b_approval_steps}}', [
+                'approvalId' => (int) $approval->id,
+                'level' => (int) $tier['level'],
+                'status' => ApprovalStatus::Pending->value,
+            ]);
+        }
+    }
+
+    /**
+     * The step rows of an approval, ordered by level ascending. Empty for a legacy (tier-less)
+     * approval.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function stepsForApproval(int $approvalId): array
+    {
+        return (new Query())
+            ->from('{{%b2b_approval_steps}}')
+            ->where(['approvalId' => $approvalId])
+            ->orderBy(['level' => SORT_ASC])
+            ->all();
     }
 
     /**

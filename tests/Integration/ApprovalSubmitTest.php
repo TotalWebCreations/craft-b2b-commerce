@@ -488,6 +488,83 @@ it('still allows a non-line-item save on an approved cart', function () {
     expect($error)->toBeNull();
 });
 
+/**
+ * Sets an approval tier on a company (thin wrapper over the service so submit tests read cleanly).
+ */
+function insertTier(int $companyId, int $level, float $minAmount, bool $departmentScoped = false): void
+{
+    Plugin::getInstance()->approvalTiers->setTier($companyId, $level, $minAmount, 'approver', $departmentScoped);
+}
+
+/**
+ * The element id of the approval backing the given order.
+ */
+function approvalIdForOrder(int $orderId): int
+{
+    return (int) (new Query())
+        ->select('id')
+        ->from('{{%b2b_approvals}}')
+        ->where(['orderId' => $orderId])
+        ->scalar();
+}
+
+/**
+ * The step rows of an approval, ordered by level.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function stepRows(int $approvalId): array
+{
+    return (new Query())
+        ->from('{{%b2b_approval_steps}}')
+        ->where(['approvalId' => $approvalId])
+        ->orderBy(['level' => SORT_ASC])
+        ->all();
+}
+
+it('creates one pending step per required tier level on submit (3-tier ladder)', function () {
+    // approvalThreshold 0 so the gate is armed; three tiers, order clears the first two.
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 0.0);
+    insertTier($company->id, 1, 0.0);
+    insertTier($company->id, 2, 5000.0);
+    insertTier($company->id, 3, 20000.0);
+
+    $cart = approvalCart($user, 8000.0);
+
+    Plugin::getInstance()->approvals->submitForApproval($cart, $user);
+
+    $steps = stepRows(approvalIdForOrder($cart->id));
+
+    expect($steps)->toHaveCount(2)
+        ->and((int) $steps[0]['level'])->toBe(1)
+        ->and($steps[0]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and((int) $steps[1]['level'])->toBe(2)
+        ->and($steps[1]['status'])->toBe(ApprovalStatus::Pending->value);
+});
+
+it('creates every step when the order clears the top tier (2-tier ladder, both required)', function () {
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 0.0);
+    insertTier($company->id, 1, 0.0);
+    insertTier($company->id, 2, 500.0);
+
+    $cart = approvalCart($user, 600.0);
+
+    Plugin::getInstance()->approvals->submitForApproval($cart, $user);
+
+    expect(stepRows(approvalIdForOrder($cart->id)))->toHaveCount(2);
+});
+
+it('creates NO step rows for a tier-less company (legacy single-approval)', function () {
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+
+    $cart = approvalCart($user, 600.0);
+
+    Plugin::getInstance()->approvals->submitForApproval($cart, $user);
+
+    expect(stepRows(approvalIdForOrder($cart->id)))->toBe([])
+        ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+});
+
 it('short-circuits the approvals feature gate when the toggle is off', function () {
     $probe = new ApprovalsFeatureGateProbe('approvals', Plugin::getInstance());
 
