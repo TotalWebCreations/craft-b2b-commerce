@@ -503,6 +503,14 @@ records are never silently deleted after the purge window.
    by status, showing the company, requester, validity date and a link to the underlying
    order. It is gated by the **`Manage quotes`** permission, so grant that to the user
    groups who should handle quotes.
+- **Send as B2B quote.** Build a cart in Commerce's native order editor (Commerce → Orders → New),
+  add the customer, set your prices, then click **Send as B2B quote**. The plugin links the
+  customer's company (auto from their membership, or pick from the companies they belong to),
+  freezes the prices exactly like a customer-initiated quote (`recalculationMode = none`), marks
+  it sent, and emails the customer the accept/decline links and the quote PDF. The customer
+  accepts with the same token flow and checks out at the frozen prices. The quote's **origin**
+  (customer or merchant) is recorded for reporting. A merchant quote obeys the same buyer-mutation
+  veto and accept-adopts-cart rules as any other quote.
 2. **Price the quote.** The quote is a normal, non-completed Commerce order. Open it in the
    standard **Commerce → Orders** editor and adjust line-item prices, add or remove lines,
    apply discounts — whatever the deal needs. Merchant edits in the control panel are never

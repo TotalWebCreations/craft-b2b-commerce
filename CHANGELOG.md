@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **Merchant-initiated quotes.** A merchant or sales-rep can build a cart in Commerce's native
+  order editor and click **Send as B2B quote** to send a price-frozen quote to a customer —
+  linking the customer's company automatically (or via a picker), emailing the accept/decline
+  links plus the quote PDF, and recording the quote's origin. The customer accepts through the
+  existing token flow and checks out at the frozen prices; the same buyer-mutation veto applies.
 - Quote and order/invoice PDF documents, rendered via Commerce's native dompdf service, with
   overridable templates, permission-gated CP downloads and token/member-guarded storefront
   downloads. No schema change.

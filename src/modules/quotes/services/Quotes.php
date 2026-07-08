@@ -315,10 +315,11 @@ class Quotes extends Component
     }
 
     /**
-     * Resolves the order behind a downloadable quote for the actor: the token must belong to a quote
-     * of the actor's company, and the quote must be sent or accepted (the only states a buyer may
-     * hold a PDF for). Every failure — unknown token, foreign company, or a requested/declined/
-     * expired quote — raises the SAME generic message, so a guessed token reveals nothing.
+     * Resolves the order behind a downloadable quote for the actor: the actor must be a member of
+     * the quote's own company, and the quote must be sent or accepted (the only states a buyer may
+     * hold a PDF for). Every failure — unknown token, non-membership of the quote's company, or a
+     * requested/declined/expired quote — raises the SAME generic message, so a guessed token
+     * reveals nothing.
      */
     public function authorizeQuoteDownload(string $token, User $actor): Order
     {
