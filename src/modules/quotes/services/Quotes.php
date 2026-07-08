@@ -10,6 +10,7 @@ use craft\elements\User;
 use craft\helpers\App;
 use craft\helpers\Db;
 use craft\helpers\UrlHelper;
+use craft\mail\Message;
 use DateTime;
 use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
@@ -890,18 +891,52 @@ class Quotes extends Component
             return;
         }
 
-        $sent = Craft::$app->getMailer()
+        $message = Craft::$app->getMailer()
             ->composeFromKey('b2b_quote_sent', [
                 'order' => $order,
                 'user' => $recipient,
                 'acceptUrl' => UrlHelper::siteUrl('quotes/accept', ['token' => $acceptToken]),
                 'declineUrl' => UrlHelper::siteUrl('quotes/decline', ['token' => $acceptToken]),
             ])
-            ->setTo($recipient)
-            ->send();
+            ->setTo($recipient);
 
-        if (!$sent) {
+        $this->attachQuotePdf($message, $order);
+
+        if (!$message->send()) {
             Craft::warning("Failed to send quote sent email to {$recipient->email}", 'b2b-commerce');
+        }
+    }
+
+    /**
+     * Attaches the phase-16 quote PDF to a sent-quote message. Consumed as an external interface:
+     * the phase-16 `pdfDocuments` service renders the bytes. Resilient by design — an absent service
+     * or a render failure logs a warning and leaves the message to send with its accept/decline
+     * links only, matching the plugin's lenient-mail convention. Never fatal to sending a quote.
+     */
+    private function attachQuotePdf(Message $message, Order $order): void
+    {
+        if (!Plugin::getInstance()->has('pdfDocuments')) {
+            return;
+        }
+
+        try {
+            $bytes = Plugin::getInstance()->get('pdfDocuments')->renderQuotePdf($order);
+
+            if ($bytes === '') {
+                return;
+            }
+
+            $reference = $order->reference ?: $order->getShortNumber();
+
+            $message->attachContent($bytes, [
+                'fileName' => "quote-{$reference}.pdf",
+                'contentType' => 'application/pdf',
+            ]);
+        } catch (\Throwable $exception) {
+            Craft::warning(
+                "Could not attach quote PDF for order {$order->id}: {$exception->getMessage()}",
+                'b2b-commerce'
+            );
         }
     }
 
