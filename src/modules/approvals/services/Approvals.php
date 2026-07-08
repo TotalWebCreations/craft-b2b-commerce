@@ -31,6 +31,9 @@ class Approvals extends Component
      * With a threshold of null the company runs no approval gate; a threshold of 0.0 gates
      * every order. Otherwise the order total is compared STRICTLY greater than the threshold,
      * so an order exactly at the threshold is placed directly and does not need approval.
+     * Additionally arms on the lowest configured approval tier band (>=), so tiers alone can
+     * drive the gate; a company with no tiers is unaffected and keeps the exact single-threshold
+     * behaviour.
      */
     public function needsApproval(Order $order, User $actor): bool
     {
@@ -50,16 +53,29 @@ class Approvals extends Component
         }
 
         $threshold = $company->approvalThreshold;
+        $lowestTierMin = Plugin::getInstance()->approvalTiers->lowestMinAmount($company->id);
 
-        if ($threshold === null) {
+        // No single threshold AND no tiers means the company runs no approval gate at all.
+        if ($threshold === null && $lowestTierMin === null) {
             return false;
         }
 
+        // A zero threshold gates every order regardless of tiers (unchanged legacy shortcut).
         if ($threshold === 0.0) {
             return true;
         }
 
-        return (float) $order->getTotalPrice() > $threshold;
+        $total = (float) $order->getTotalPrice();
+
+        // Legacy gate: STRICTLY greater than the single threshold (an order exactly at the threshold
+        // is placed directly). Preserved so a tier-less company behaves exactly as before.
+        if ($threshold !== null && $total > $threshold) {
+            return true;
+        }
+
+        // Tier gate: at/above the lowest configured band (>=), so a merchant can arm approval purely
+        // through tiers without also setting approvalThreshold.
+        return $lowestTierMin !== null && $total >= $lowestTierMin;
     }
 
     /**

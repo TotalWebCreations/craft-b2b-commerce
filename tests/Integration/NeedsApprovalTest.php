@@ -103,3 +103,31 @@ it('never gates a purchaser whose company is not approved', function () {
 
     expect(Plugin::getInstance()->approvals->needsApproval($order, $user))->toBeFalse();
 });
+
+it('is byte-for-byte the legacy threshold gate when the company has no tiers', function (float $threshold, float $total, bool $expected) {
+    [$user] = approvalMember(CompanyRole::Purchaser, $threshold);
+    $order = approvalOrder($total);
+
+    expect(Plugin::getInstance()->approvals->needsApproval($order, $user))->toBe($expected);
+})->with([
+    'below threshold, no tiers' => [500.0, 400.0, false],
+    'exactly at threshold, no tiers' => [500.0, 500.0, false],
+    'above threshold, no tiers' => [500.0, 600.0, true],
+]);
+
+it('arms the gate on the lowest tier band even when the company sets no single threshold', function () {
+    // No approvalThreshold (null) — legacy gate is off — but a tier at 1000 arms it at/above 1000.
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, null);
+    Plugin::getInstance()->approvalTiers->setTier($company->id, 1, 1000.0, 'approver', false);
+
+    expect(Plugin::getInstance()->approvals->needsApproval(approvalOrder(999.0), $user))->toBeFalse()
+        ->and(Plugin::getInstance()->approvals->needsApproval(approvalOrder(1000.0), $user))->toBeTrue()
+        ->and(Plugin::getInstance()->approvals->needsApproval(approvalOrder(1500.0), $user))->toBeTrue();
+});
+
+it('still never gates an admin, even with tiers configured', function () {
+    [$admin, $company] = approvalMember(CompanyRole::Admin, null);
+    Plugin::getInstance()->approvalTiers->setTier($company->id, 1, 100.0, 'approver', false);
+
+    expect(Plugin::getInstance()->approvals->needsApproval(approvalOrder(5000.0), $admin))->toBeFalse();
+});
