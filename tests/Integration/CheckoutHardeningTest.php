@@ -26,10 +26,12 @@ use yii\base\InvalidArgumentException;
 | The add-to-cart family (add-to-cart, quick order, order lists, reorder) all
 | funnel through ONE choke point: the EVENT_BEFORE_ADD_LINE_ITEM handler at
 | src/Plugin.php:207, which calls canPurchase(currentUser). Order completion is
-| guarded by four EVENT_BEFORE_COMPLETE_ORDER handlers (src/Plugin.php:319-377):
-| quote-accepted veto, approval backstop, account-status backstop
-| (OrderCompanyLink::enforcePurchasePolicy) and the credit/invoice fail-closed
-| backstop (CreditEnforcer::enforceCreditLimit).
+| guarded by six EVENT_BEFORE_COMPLETE_ORDER handlers (src/Plugin.php:499-592),
+| registered in this order: quote-accepted veto, approval backstop,
+| account-status backstop (OrderCompanyLink::enforcePurchasePolicy), the
+| PO-required backstop (OrderReferences::enforceRequiredPoNumber), the
+| spending-budget backstop (BudgetEnforcer::enforceBudget), and the
+| credit/invoice fail-closed backstop (CreditEnforcer::enforceCreditLimit).
 |
 | COVERAGE MATRIX  (✅ direct test · guard decision verified via the shared
 | predicate/choke point that this flow funnels through · + = gap filled here)
