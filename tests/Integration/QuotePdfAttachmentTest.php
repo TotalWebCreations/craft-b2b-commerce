@@ -4,8 +4,8 @@ use craft\commerce\elements\Order;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 
-// quoteMember(), quoteCartWithItem(), newestMailBody() live in helpers.php;
-// insertQuoteRow() in QuoteMerchantTest.php — all loaded globally by the suite.
+// quoteMember(), quoteCartWithItem(), mailSnapshot(), decodedMailSince() live in
+// helpers.php; insertQuoteRow() in QuoteMerchantTest.php — all loaded globally by the suite.
 
 /**
  * Registers a stub phase-16 pdfDocuments service that renders a fixed PDF byte string,
@@ -37,13 +37,17 @@ it('attaches the phase-16 quote PDF to the sent-quote email when the service is 
     $order = quoteCartWithItem();
     insertQuoteRow($order->id, QuoteStatus::Requested->value, $company->id, $user->id);
 
+    $reference = $order->reference ?: $order->getShortNumber();
+    $snapshot = mailSnapshot();
+
     withStubDocuments('%PDF-1.4 stub quote', function () use ($order) {
         Plugin::getInstance()->quotes->markSent($order, null);
     });
 
-    $raw = newestMailBody();
+    $raw = decodedMailSince($snapshot);
 
-    expect($raw)->toContain('application/pdf');
+    expect($raw)->toContain('application/pdf')
+        ->and($raw)->toContain("quote-{$reference}.pdf");
 });
 
 it('still sends the sent-quote email when no pdfDocuments service is registered', function () {
@@ -55,13 +59,15 @@ it('still sends the sent-quote email when no pdfDocuments service is registered'
     $previous = $plugin->has('pdfDocuments') ? $plugin->get('pdfDocuments') : null;
     $plugin->set('pdfDocuments', null);
 
+    $snapshot = mailSnapshot();
+
     try {
         Plugin::getInstance()->quotes->markSent($order, null);
     } finally {
         $plugin->set('pdfDocuments', $previous);
     }
 
-    $raw = newestMailBody();
+    $raw = decodedMailSince($snapshot);
 
     expect($raw)->toContain($token);
 });
