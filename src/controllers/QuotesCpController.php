@@ -79,7 +79,7 @@ class QuotesCpController extends Controller
         $customer = $order->getCustomer();
 
         $companies = $customer !== null
-            ? Plugin::getInstance()->companyMembers->getCompaniesForUser($customer->id)
+            ? $this->approvedCompaniesForPicker($customer->id)
             : [];
 
         $suggested = $customer !== null
@@ -109,7 +109,7 @@ class QuotesCpController extends Controller
         if ($customer === null) {
             return $this->createFailure(
                 Craft::t('b2b-commerce', 'This order has no customer yet.'),
-                (int) $order->id
+                UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => (int) $order->id])
             );
         }
 
@@ -125,7 +125,7 @@ class QuotesCpController extends Controller
             if ($validUntil === null) {
                 return $this->createFailure(
                     Craft::t('b2b-commerce', 'The validity date is invalid.'),
-                    (int) $order->id
+                    UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => (int) $order->id])
                 );
             }
         }
@@ -133,21 +133,24 @@ class QuotesCpController extends Controller
         try {
             Plugin::getInstance()->quotes->createMerchantQuote($order, $customer, $companyId, $validUntil);
         } catch (InvalidArgumentException $exception) {
-            return $this->createFailure($exception->getMessage(), (int) $order->id);
+            return $this->createFailure(
+                $exception->getMessage(),
+                UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => (int) $order->id])
+            );
         }
 
         return $this->asSuccess(Craft::t('b2b-commerce', 'Quote sent to the customer.'));
     }
 
     /**
-     * Refuses actionCreate cleanly. asFailure() alone is not enough here: for a plain
+     * Refuses a CP quote action cleanly. asFailure() alone is not enough here: for a plain
      * (non-JSON-accepting) CP request it only sets a flash and returns null, and Craft's action
      * dispatch (Application::_processActionRequest) treats a null action result as "unhandled" and
      * falls through to normal page routing — which 404s, since `/admin/actions/...` matches no page
-     * route. Explicitly redirecting back to the new-quote confirmation screen (where the flash
-     * renders) guarantees a real response for both the JSON and plain-form cases.
+     * route. Explicitly redirecting back to a screen where the flash renders guarantees a real
+     * response for both the JSON and plain-form cases.
      */
-    private function createFailure(string $message, int $orderId): ?Response
+    private function createFailure(string $message, string $redirectUrl): ?Response
     {
         $response = $this->asFailure($message);
 
@@ -155,7 +158,7 @@ class QuotesCpController extends Controller
             return $response;
         }
 
-        return $this->redirect(UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => $orderId]));
+        return $this->redirect($redirectUrl);
     }
 
     public function actionMarkSent(): ?Response
@@ -171,8 +174,9 @@ class QuotesCpController extends Controller
             $validUntil = self::normalizeValidUntil($validUntilRaw);
 
             if ($validUntil === null) {
-                return $this->asFailure(
-                    Craft::t('b2b-commerce', 'The validity date is invalid.')
+                return $this->createFailure(
+                    Craft::t('b2b-commerce', 'The validity date is invalid.'),
+                    UrlHelper::cpUrl('b2b/quotes')
                 );
             }
         }
@@ -180,7 +184,7 @@ class QuotesCpController extends Controller
         try {
             Plugin::getInstance()->quotes->markSent($order, $validUntil);
         } catch (InvalidArgumentException $exception) {
-            return $this->asFailure($exception->getMessage());
+            return $this->createFailure($exception->getMessage(), UrlHelper::cpUrl('b2b/quotes'));
         }
 
         return $this->asSuccess(Craft::t('b2b-commerce', 'Quote sent.'));
@@ -196,7 +200,7 @@ class QuotesCpController extends Controller
         try {
             Plugin::getInstance()->quotes->decline($order, $reason, byCustomer: false);
         } catch (InvalidArgumentException $exception) {
-            return $this->asFailure($exception->getMessage());
+            return $this->createFailure($exception->getMessage(), UrlHelper::cpUrl('b2b/quotes'));
         }
 
         return $this->asSuccess(Craft::t('b2b-commerce', 'Quote declined.'));
@@ -243,6 +247,23 @@ class QuotesCpController extends Controller
         $date->setTime(23, 59, 59);
 
         return $date;
+    }
+
+    /**
+     * Companies the customer may legitimately quote under. createMerchantQuote refuses any
+     * company whose status is not approved, so offering a pending or blocked company in the
+     * picker would just be a dead, misleading option — filter it out here instead.
+     *
+     * @return array<int, Company>
+     */
+    private function approvedCompaniesForPicker(int $customerId): array
+    {
+        $companies = Plugin::getInstance()->companyMembers->getCompaniesForUser($customerId);
+
+        return array_values(array_filter(
+            $companies,
+            static fn(Company $company): bool => $company->companyStatus === Company::STATUS_APPROVED
+        ));
     }
 
     private function findQuoteOrder(): Order

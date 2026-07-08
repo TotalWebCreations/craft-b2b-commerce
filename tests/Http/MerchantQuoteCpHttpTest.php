@@ -140,3 +140,60 @@ it('cleanly refuses a company the customer is not a member of, without a 500', f
 
     expect($row)->toBeNull();
 });
+
+it('refuses mark-sent for an order that is not a quote, with a redirect flash rather than a 404', function () {
+    // A plain cart never gets a b2b_quotes row, so markSent's requireQuoteRow guard refuses it.
+    // Before the fix, the bare asFailure() call on this non-JSON CP request returned null and
+    // Craft's dispatcher fell through to page routing, 404ing instead of flashing.
+    $order = quoteCartWithItem();
+
+    [$client] = cpUserWithManageQuotes();
+
+    $response = postCpAction($client, 'b2b-commerce/quotes-cp/mark-sent', [
+        'orderId' => $order->id,
+    ]);
+
+    expect($response->getStatusCode())->toBe(302)
+        ->and($response->getHeaderLine('Location'))->toContain('/b2b/quotes');
+});
+
+it('refuses decline for an order that is not a quote, with a redirect flash rather than a 404', function () {
+    // Same guard as above (requireQuoteRow), reached through actionDecline instead.
+    $order = quoteCartWithItem();
+
+    [$client] = cpUserWithManageQuotes();
+
+    $response = postCpAction($client, 'b2b-commerce/quotes-cp/decline', [
+        'orderId' => $order->id,
+        'reason' => 'Not a quote.',
+    ]);
+
+    expect($response->getStatusCode())->toBe(302)
+        ->and($response->getHeaderLine('Location'))->toContain('/b2b/quotes');
+});
+
+it('excludes a non-approved company from the new-quote picker', function () {
+    $approvedCompany = createTestCompany('approved', 'Picker Approved Co');
+    $pendingCompany = createTestCompany('pending', 'Picker Pending Co');
+    $buyer = createTestUserWithPassword('picker_customer_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyer->id, $approvedCompany->id, CompanyRole::Purchaser);
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyer->id, $pendingCompany->id, CompanyRole::Purchaser);
+
+    $order = quoteCartWithItem();
+    $order->setCustomer($buyer);
+    craftApp()->getElements()->saveElement($order);
+
+    [$client] = cpUserWithManageQuotes();
+
+    $response = $client->get("/admin/b2b/quotes/new?orderId={$order->id}", [
+        'headers' => ['Accept' => 'text/html'],
+    ]);
+
+    $body = (string) $response->getBody();
+
+    // createMerchantQuote refuses a non-approved company anyway, so the picker must not offer
+    // the pending company as a dead option — only the approved one the customer belongs to.
+    expect($response->getStatusCode())->toBe(200)
+        ->and($body)->toContain('value="' . $approvedCompany->id . '"')
+        ->and($body)->not->toContain('value="' . $pendingCompany->id . '"');
+});
