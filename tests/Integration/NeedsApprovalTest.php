@@ -131,3 +131,38 @@ it('still never gates an admin, even with tiers configured', function () {
 
     expect(Plugin::getInstance()->approvals->needsApproval(approvalOrder(5000.0), $admin))->toBeFalse();
 });
+
+it('arms the tier gate money-safely at the exact boundary, in lockstep with requiredLevels', function () {
+    // The tier check must use the same money-safe comparison (bccomp, scale 4) that
+    // ApprovalTiers::requiredLevels() uses, so a total that lands exactly on the lowest tier's
+    // minAmount is never missed by a raw float boundary compare, and the two methods can never
+    // disagree about whether a tier applies.
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, null);
+    Plugin::getInstance()->approvalTiers->setTier($company->id, 1, 1000.0, 'approver', false);
+
+    $order = approvalOrder(1000.0);
+
+    expect(Plugin::getInstance()->approvals->needsApproval($order, $user))->toBeTrue()
+        ->and(Plugin::getInstance()->approvalTiers->requiredLevels($company->id, $order->getTotalPrice()))->not->toBeEmpty();
+
+    // Craft Commerce rounds a purchasable's price to currency precision (2dp) before the order
+    // total is ever computed, so a sub-cent float-drift total (e.g. 999.9999999997) cannot occur
+    // in a real order; 999.99 is the closest genuine just-under-boundary total available here, and
+    // it must stay consistent with requiredLevels() the same way the exact boundary does above.
+    $belowOrder = approvalOrder(999.99);
+
+    expect(Plugin::getInstance()->approvals->needsApproval($belowOrder, $user))->toBeFalse()
+        ->and(Plugin::getInstance()->approvalTiers->requiredLevels($company->id, $belowOrder->getTotalPrice()))->toBeEmpty();
+});
+
+it('arms via the legacy threshold, not the tier band, when a company configures both', function (float $total, bool $expected) {
+    // threshold=500 arms below the lowest tier band (1000): the legacy single-threshold gate must
+    // still fire on its own, independent of the tier gate never having been reached.
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 500.0);
+    Plugin::getInstance()->approvalTiers->setTier($company->id, 1, 1000.0, 'approver', false);
+
+    expect(Plugin::getInstance()->approvals->needsApproval(approvalOrder($total), $user))->toBe($expected);
+})->with([
+    'above the legacy threshold but below the lowest tier' => [600.0, true],
+    'below both the legacy threshold and the lowest tier' => [400.0, false],
+]);

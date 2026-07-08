@@ -16,6 +16,7 @@ use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
+use totalwebcreations\b2bcommerce\helpers\Money;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\Exception;
@@ -31,9 +32,11 @@ class Approvals extends Component
      * With a threshold of null the company runs no approval gate; a threshold of 0.0 gates
      * every order. Otherwise the order total is compared STRICTLY greater than the threshold,
      * so an order exactly at the threshold is placed directly and does not need approval.
-     * Additionally arms on the lowest configured approval tier band (>=), so tiers alone can
-     * drive the gate; a company with no tiers is unaffected and keeps the exact single-threshold
-     * behaviour.
+     * Additionally arms on the lowest configured approval tier band (>=, compared money-safe via
+     * {@see Money::withinLimit()} so a float order total never misses the boundary by a rounding
+     * hair — the exact same comparison ApprovalTiers::requiredLevels() uses, so the two can never
+     * disagree at a tier boundary), so tiers alone can drive the gate; a company with no tiers is
+     * unaffected and keeps the exact single-threshold behaviour.
      */
     public function needsApproval(Order $order, User $actor): bool
     {
@@ -73,9 +76,11 @@ class Approvals extends Component
             return true;
         }
 
-        // Tier gate: at/above the lowest configured band (>=), so a merchant can arm approval purely
-        // through tiers without also setting approvalThreshold.
-        return $lowestTierMin !== null && $total >= $lowestTierMin;
+        // Tier gate: at/above the lowest configured band, compared money-safe (bccomp, scale 4) via
+        // Money::withinLimit() — the identical comparison ApprovalTiers::requiredLevels() uses — so a
+        // merchant can arm approval purely through tiers without also setting approvalThreshold, and
+        // the two methods can never disagree at a boundary because of float drift.
+        return $lowestTierMin !== null && Money::withinLimit($lowestTierMin, $total);
     }
 
     /**
