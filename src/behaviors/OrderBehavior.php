@@ -27,6 +27,15 @@ class OrderBehavior extends Behavior
         return $this->b2bCompany = Plugin::getInstance()->orderCompanyLink->getCompanyForOrder($this->owner->id);
     }
 
+    public function getB2bPoNumber(): ?string
+    {
+        if ($this->owner->id === null) {
+            return null;
+        }
+
+        return Plugin::getInstance()->orderReferences->getPoNumber($this->owner->id);
+    }
+
     /**
      * The date this order's invoice is due: the order date plus the company's payment term.
      * Null when the order is not completed, has no order date, is not linked to a company, or
