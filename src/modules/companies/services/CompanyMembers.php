@@ -157,6 +157,30 @@ class CompanyMembers extends Component
         return Company::find()->id($companyId)->site('*')->unique()->status(null)->one();
     }
 
+    /**
+     * Every company the user is a member of, lowest membership id first, matching
+     * getCompanyForUser's ordering. Used by the merchant-quote picker to list only the
+     * companies the customer may legitimately quote under.
+     *
+     * @return array<int, Company>
+     */
+    public function getCompaniesForUser(int $userId): array
+    {
+        $companyIds = (new Query())
+            ->select('companyId')
+            ->from('{{%b2b_company_users}}')
+            ->where(['userId' => $userId])
+            ->orderBy(['id' => SORT_ASC])
+            ->column();
+
+        if ($companyIds === []) {
+            return [];
+        }
+
+        // Companies are non-localized elements hosted on the primary site only, so query with site('*').
+        return Company::find()->id($companyIds)->site('*')->unique()->status(null)->all();
+    }
+
     public function getCompanyById(int $id): ?Company
     {
         // Companies are non-localized elements hosted on the primary site only, so query with site('*').

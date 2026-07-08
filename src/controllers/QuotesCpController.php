@@ -5,6 +5,7 @@ namespace totalwebcreations\b2bcommerce\controllers;
 use Craft;
 use craft\commerce\elements\Order;
 use craft\helpers\DateTimeHelper;
+use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use DateTime;
 use DateTimeZone;
@@ -59,6 +60,102 @@ class QuotesCpController extends Controller
             'companyName' => $company?->title,
             'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
         ]);
+    }
+
+    /**
+     * The "Send as B2B quote" confirmation screen, reached from the Commerce order-edit button or
+     * the Quote index. Shows the order and its customer and lets the merchant pick which of the
+     * customer's companies to bind the quote to (and an optional validity date). The pick is
+     * re-validated server-side in createMerchantQuote.
+     */
+    public function actionNew(int $orderId): Response
+    {
+        $order = Order::find()->id($orderId)->status(null)->one();
+
+        if ($order === null) {
+            throw new NotFoundHttpException(Craft::t('b2b-commerce', 'Order not found.'));
+        }
+
+        $customer = $order->getCustomer();
+
+        $companies = $customer !== null
+            ? Plugin::getInstance()->companyMembers->getCompaniesForUser($customer->id)
+            : [];
+
+        $suggested = $customer !== null
+            ? Plugin::getInstance()->companyMembers->getCompanyForUser($customer->id)
+            : null;
+
+        return $this->renderTemplate('b2b-commerce/quotes/_new', [
+            'order' => $order,
+            'customer' => $customer,
+            'companies' => $companies,
+            'suggestedCompanyId' => $suggested?->id,
+        ]);
+    }
+
+    /**
+     * Wraps a merchant-built order in a sent B2B quote. The order's own customer is the quote
+     * requester; companyId is the picker's choice (or empty to auto-link the customer's company).
+     * All validation — membership, approved company, freeze — lives in createMerchantQuote.
+     */
+    public function actionCreate(): ?Response
+    {
+        $this->requirePostRequest();
+
+        $order = $this->findQuoteOrder();
+        $customer = $order->getCustomer();
+
+        if ($customer === null) {
+            return $this->createFailure(
+                Craft::t('b2b-commerce', 'This order has no customer yet.'),
+                (int) $order->id
+            );
+        }
+
+        $companyIdRaw = Craft::$app->getRequest()->getBodyParam('companyId');
+        $companyId = ($companyIdRaw !== null && $companyIdRaw !== '') ? (int) $companyIdRaw : null;
+
+        $validUntilRaw = Craft::$app->getRequest()->getBodyParam('validUntil');
+        $validUntil = null;
+
+        if ($this->hasValidUntilDate($validUntilRaw)) {
+            $validUntil = self::normalizeValidUntil($validUntilRaw);
+
+            if ($validUntil === null) {
+                return $this->createFailure(
+                    Craft::t('b2b-commerce', 'The validity date is invalid.'),
+                    (int) $order->id
+                );
+            }
+        }
+
+        try {
+            Plugin::getInstance()->quotes->createMerchantQuote($order, $customer, $companyId, $validUntil);
+        } catch (InvalidArgumentException $exception) {
+            return $this->createFailure($exception->getMessage(), (int) $order->id);
+        }
+
+        return $this->asSuccess(Craft::t('b2b-commerce', 'Quote sent to the customer.'));
+    }
+
+    /**
+     * Refuses actionCreate cleanly. asFailure() alone is not enough here: for a plain
+     * (non-JSON-accepting) CP request it only sets a flash and returns null, and Craft's action
+     * dispatch (Application::_processActionRequest) treats a null action result as "unhandled" and
+     * falls through to normal page routing — which 404s, since `/admin/actions/...` matches no page
+     * route. Explicitly redirecting back to the new-quote confirmation screen (where the flash
+     * renders) guarantees a real response for both the JSON and plain-form cases.
+     */
+    private function createFailure(string $message, int $orderId): ?Response
+    {
+        $response = $this->asFailure($message);
+
+        if ($response !== null) {
+            return $response;
+        }
+
+        return $this->redirect(UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => $orderId]));
     }
 
     public function actionMarkSent(): ?Response

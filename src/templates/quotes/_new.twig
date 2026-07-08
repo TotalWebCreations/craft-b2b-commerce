@@ -1,0 +1,61 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Send as B2B quote'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Quotes'|t('b2b-commerce'), url: url('b2b/quotes') },
+] %}
+
+{% block content %}
+    <table class="data fullwidth" style="margin-bottom: 24px;">
+        <tbody>
+            <tr>
+                <th scope="row">{{ 'Customer'|t('b2b-commerce') }}</th>
+                <td>{{ customer ? (customer.fullName ?: customer.email) : '' }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ 'Order'|t('b2b-commerce') }}</th>
+                <td>
+                    <a href="{{ order.cpEditUrl }}">{{ order.totalPrice|currency(order.currency) }}</a>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% if customer is null %}
+        <div class="pane">
+            <p class="error">{{ 'This order has no customer yet. Add a customer to the order first.'|t('b2b-commerce') }}</p>
+        </div>
+    {% elseif companies is empty %}
+        <div class="pane">
+            <p class="error">{{ 'Assign this customer to a company before sending a quote.'|t('b2b-commerce') }}</p>
+            <a class="btn" href="{{ url('b2b/companies') }}">{{ 'Companies'|t('b2b-commerce') }}</a>
+        </div>
+    {% else %}
+        <div class="pane">
+            <form method="post" accept-charset="UTF-8">
+                {{ csrfInput() }}
+                {{ actionInput('b2b-commerce/quotes-cp/create') }}
+                {{ redirectInput('b2b/quotes') }}
+                {{ hiddenInput('orderId', order.id) }}
+
+                {{ forms.selectField({
+                    label: 'Company'|t('b2b-commerce'),
+                    name: 'companyId',
+                    options: companies|map(company => { label: company.title, value: company.id }),
+                    value: suggestedCompanyId,
+                }) }}
+
+                {{ forms.dateField({
+                    label: 'Valid until'|t('b2b-commerce'),
+                    name: 'validUntil',
+                    instructions: 'Optional'|t('b2b-commerce'),
+                }) }}
+
+                <button type="submit" class="btn submit">{{ 'Send quote'|t('b2b-commerce') }}</button>
+            </form>
+        </div>
+    {% endif %}
+{% endblock %}
