@@ -33,6 +33,18 @@ class Settings extends Model
     public bool $validateTaxIds = false;
 
     /**
+     * Site template path used to render the quote PDF. Empty falls back to the bundled example
+     * template (b2b/pdf/quote.twig). Copy the example into your own templates folder to restyle it.
+     */
+    public string $quotePdfTemplate = '';
+
+    /**
+     * Site template path used to render the order/invoice PDF. Empty falls back to the bundled
+     * example template (b2b/pdf/invoice.twig).
+     */
+    public string $invoicePdfTemplate = '';
+
+    /**
      * What to do when VIES is unreachable while a company VAT id is being validated:
      * lenient = accept the VAT id and log a warning, strict = refuse the save with a clean error.
      * A definitively invalid VAT id is refused under both policies.

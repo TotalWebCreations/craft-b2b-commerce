@@ -106,6 +106,25 @@
     }) }}
 </div>
 
+<div class="b2b-settings-pane hidden" data-b2b-pane="documents">
+    {{ forms.autosuggestField({
+        label: 'Quote PDF template'|t('b2b-commerce'),
+        instructions: 'Site template path used to render the quote PDF. Leave blank to use the bundled example template (b2b/pdf/quote.twig). Copy the example from the plugin into your own templates folder to restyle it.'|t('b2b-commerce'),
+        name: 'quotePdfTemplate',
+        value: settings.quotePdfTemplate,
+        suggestions: craft.cp.getTemplateSuggestions(),
+        first: true,
+    }) }}
+
+    {{ forms.autosuggestField({
+        label: 'Invoice PDF template'|t('b2b-commerce'),
+        instructions: 'Site template path used to render the order/invoice PDF. Leave blank to use the bundled example template (b2b/pdf/invoice.twig).'|t('b2b-commerce'),
+        name: 'invoicePdfTemplate',
+        value: settings.invoicePdfTemplate,
+        suggestions: craft.cp.getTemplateSuggestions(),
+    }) }}
+</div>
+
 <div class="b2b-settings-pane hidden" data-b2b-pane="fields">
     <p class="light" style="margin-top: 0;">{{ 'Add custom fields to the company edit screen.'|t('b2b-commerce') }}</p>
 
