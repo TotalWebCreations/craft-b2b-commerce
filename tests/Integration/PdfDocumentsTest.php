@@ -5,6 +5,7 @@ use craft\commerce\services\Pdfs;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Event;
+use yii\base\InvalidArgumentException;
 
 // quoteMember(), quoteCartWithItem(), quoteRow() live in tests/Integration/helpers.php;
 // insertQuoteRow() in QuoteMerchantTest.php — all loaded globally by the suite.
@@ -185,6 +186,27 @@ it('renders a real quote PDF from a merchant-configured override path, confirmin
     }
 
     expect(substr($pdf, 0, 5))->toBe('%PDF-');
+});
+
+it('authorizes a quote download only for a sent or accepted quote of the actor company', function () {
+    [$user, $company] = quoteMember();
+    $sent = quoteCartWithItem();
+    $token = insertQuoteRow($sent->id, QuoteStatus::Sent->value, $company->id, $user->id);
+
+    $order = Plugin::getInstance()->quotes->authorizeQuoteDownload($token, $user);
+    expect($order->id)->toBe($sent->id);
+
+    // A requested (not-yet-sent) quote is not downloadable by the buyer.
+    $requested = quoteCartWithItem();
+    $requestedToken = insertQuoteRow($requested->id, QuoteStatus::Requested->value, $company->id, $user->id);
+
+    expect(fn () => Plugin::getInstance()->quotes->authorizeQuoteDownload($requestedToken, $user))
+        ->toThrow(InvalidArgumentException::class);
+
+    // A member of another company cannot download this company's quote (same generic error, no oracle).
+    [$otherUser] = quoteMember();
+    expect(fn () => Plugin::getInstance()->quotes->authorizeQuoteDownload($token, $otherUser))
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('renders an arbitrary site template to a PDF response via streamPdf', function () {

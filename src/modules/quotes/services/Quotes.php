@@ -255,6 +255,35 @@ class Quotes extends Component
     }
 
     /**
+     * Resolves the order behind a downloadable quote for the actor: the token must belong to a quote
+     * of the actor's company, and the quote must be sent or accepted (the only states a buyer may
+     * hold a PDF for). Every failure — unknown token, foreign company, or a requested/declined/
+     * expired quote — raises the SAME generic message, so a guessed token reveals nothing.
+     */
+    public function authorizeQuoteDownload(string $token, User $actor): Order
+    {
+        $row = $this->authorizeTokenAccess($token, $actor);
+
+        $status = QuoteStatus::from($row['status']);
+
+        if (!in_array($status, [QuoteStatus::Sent, QuoteStatus::Accepted], true)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+
+        if ($order === null) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote is not available.')
+            );
+        }
+
+        return $order;
+    }
+
+    /**
      * Declines a sent (or still-requested) quote by its token, recording the reason and
      * notifying the store admin. Shares the token, membership and lapsed-quote guards with
      * acceptByToken, then delegates the status transition and notification to decline().

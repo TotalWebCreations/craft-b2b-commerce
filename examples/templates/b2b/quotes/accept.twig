@@ -46,6 +46,18 @@
         {% endif %}
     </dl>
 
+    {# A sent or accepted quote can be downloaded as a PDF; the same token authorizes the download.
+       The download link's query param is named quoteToken (not token): Craft reserves the `token`
+       query param for its own share/preview token resolution, and any other value under that exact
+       key 400s before routing even runs. #}
+    {% if quote.status in ['sent', 'accepted'] %}
+        <p>
+            <a href="{{ actionUrl('b2b-commerce/documents/quote', { quoteToken: token }) }}">
+                {{ 'Download PDF'|t('b2b-commerce') }}
+            </a>
+        </p>
+    {% endif %}
+
     {# Only a still-open (sent) quote can be accepted or declined; otherwise show a
        read-only state. #}
     {% if quote.status == 'sent' %}

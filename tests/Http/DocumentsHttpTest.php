@@ -1,14 +1,16 @@
 <?php
 
 use craft\commerce\elements\Order;
+use craft\commerce\Plugin as Commerce;
+use craft\elements\User;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 
 // httpClient(), postAction(), loginAs(), httpTestPassword(), cpManagerClient() live in
 // tests/Http/helpers.php; createTestCompany(), createTestUserWithPassword(), createTestVariant(),
-// trackElement() in the Integration/Http helpers loaded globally by the suite; httpCartId() is
-// declared in tests/Http/QuotesHttpTest.php, also loaded globally.
+// trackElement() in the Integration/Http helpers loaded globally by the suite; creditTestCompany(),
+// creditTestInvoiceGateway() live in tests/Integration/CreditBalanceTest.php, also loaded globally.
 
 /**
  * Ensures the bundled example PDF templates exist inside the running dev site's templates folder so
@@ -49,6 +51,39 @@ function documentsHttpCartId(GuzzleHttp\Client $client): int
     $data = json_decode((string) $response->getBody(), true);
 
     return (int) ($data['cart']['id'] ?? 0);
+}
+
+/**
+ * Completes a tracked order on the given (invoice) gateway for an already-created, HTTP-loginable
+ * member, so Order::EVENT_AFTER_COMPLETE_ORDER links the company exactly as a real checkout would —
+ * a real b2b_order_company row with isInvoice = true, ready for the invoice-download gate. Mirrors
+ * completedOrderOnGateway() in tests/Integration/CreditBalanceTest.php, but takes the user rather
+ * than creating one via createTestUser(), so it can log in over HTTP with a known password.
+ */
+function completeInvoiceOrderForHttpMember(User $user, int $gatewayId, float $price = 10.0): Order
+{
+    $variant = createTestVariant('PDF-INV-' . uniqid(), $price);
+
+    $order = new Order();
+    $order->number = md5(uniqid((string) mt_rand(), true));
+    $order->setCustomer($user);
+    $order->gatewayId = $gatewayId;
+
+    $lineItem = Commerce::getInstance()->getLineItems()->resolveLineItem($order, $variant->id);
+    $lineItem->qty = 1;
+    $order->addLineItem($lineItem);
+
+    if (!craftApp()->getElements()->saveElement($order)) {
+        throw new RuntimeException('Could not save test order: ' . implode(', ', $order->getFirstErrors()));
+    }
+
+    if (!$order->markAsComplete()) {
+        throw new RuntimeException('Could not complete test order.');
+    }
+
+    trackElement($order);
+
+    return $order;
 }
 
 /**
@@ -203,4 +238,152 @@ it('allows a manageCompanies holder to download the invoice PDF but refuses the 
     ]);
 
     expect($quoteResponse->getStatusCode())->toBe(403);
+});
+
+it('serves a quote PDF to a company member with a valid token', function () {
+    $devTemplates = ensureDevSitePdfTemplates();
+
+    $sku = 'PDF-HTTP-' . substr(uniqid(), -6);
+    createTestVariant($sku);
+
+    $company = createTestCompany('approved');
+    $buyer = createTestUserWithPassword('pdf_http_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyer->id, $company->id, CompanyRole::Admin);
+
+    $client = httpClient();
+    loginAs($client, $buyer->email, httpTestPassword());
+    postAction($client, 'b2b-commerce/quick-order/add', ['lines' => "{$sku} 1"]);
+
+    // Request the quote, then mark it sent so its token is downloadable.
+    postAction($client, 'b2b-commerce/quotes/request', ['notes' => 'PDF please.']);
+    $row = (new craft\db\Query())->from('{{%b2b_quotes}}')->where(['companyId' => $company->id])->one();
+    $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+    trackElement($order);
+    Plugin::getInstance()->quotes->markSent($order, null);
+    $token = $row['acceptToken'];
+
+    $response = $client->get('/actions/b2b-commerce/documents/quote?quoteToken=' . urlencode($token), [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    if ($devTemplates !== null) {
+        expect($response->getStatusCode())->toBe(200)
+            ->and($response->getHeaderLine('Content-Type'))->toContain('application/pdf');
+        @unlink("{$devTemplates}/quote.twig");
+        @unlink("{$devTemplates}/invoice.twig");
+    } else {
+        // Without the dev-site template the render 500s, but authorization still passed (not a 404).
+        expect($response->getStatusCode())->not->toBe(404);
+    }
+});
+
+it('refuses a quote PDF to a member of another company (token gate, no oracle)', function () {
+    $sku = 'PDF-GATE-' . substr(uniqid(), -6);
+    createTestVariant($sku);
+
+    $companyA = createTestCompany('approved');
+    $buyerA = createTestUserWithPassword('pdf_a_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyerA->id, $companyA->id, CompanyRole::Admin);
+
+    $clientA = httpClient();
+    loginAs($clientA, $buyerA->email, httpTestPassword());
+    postAction($clientA, 'b2b-commerce/quick-order/add', ['lines' => "{$sku} 1"]);
+    postAction($clientA, 'b2b-commerce/quotes/request', ['notes' => 'A quote.']);
+    $row = (new craft\db\Query())->from('{{%b2b_quotes}}')->where(['companyId' => $companyA->id])->one();
+    $order = Order::find()->id((int) $row['orderId'])->status(null)->one();
+    trackElement($order);
+
+    // A buyer of a DIFFERENT company tries company A's token.
+    $companyB = createTestCompany('approved');
+    $buyerB = createTestUserWithPassword('pdf_b_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyerB->id, $companyB->id, CompanyRole::Admin);
+
+    $clientB = httpClient();
+    loginAs($clientB, $buyerB->email, httpTestPassword());
+
+    $response = $clientB->get('/actions/b2b-commerce/documents/quote?quoteToken=' . urlencode($row['acceptToken']), [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    expect($response->getStatusCode())->toBe(404);
+});
+
+it('refuses a quote PDF download to a guest', function () {
+    $client = httpClient();
+
+    $response = $client->get('/actions/b2b-commerce/documents/quote?quoteToken=whatever', [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    // requireLogin() denies a guest before any authorization work.
+    expect($response->getStatusCode())->not->toBe(200);
+});
+
+it('refuses an invoice PDF download to a guest', function () {
+    $client = httpClient();
+
+    $response = $client->get('/actions/b2b-commerce/documents/invoice?orderNumber=whatever', [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    expect($response->getStatusCode())->not->toBe(200);
+});
+
+it('allows a company member to download the invoice PDF for their own completed on-account order', function () {
+    $devTemplates = ensureDevSitePdfTemplates();
+
+    $company = creditTestCompany(null);
+    $gateway = creditTestInvoiceGateway();
+
+    $buyer = createTestUserWithPassword('pdf_inv_member_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($buyer->id, $company->id, CompanyRole::Admin);
+
+    $order = completeInvoiceOrderForHttpMember($buyer, $gateway->id);
+
+    $client = httpClient();
+    loginAs($client, $buyer->email, httpTestPassword());
+
+    $response = $client->get('/actions/b2b-commerce/documents/invoice?orderNumber=' . urlencode($order->number), [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    if ($devTemplates !== null) {
+        expect($response->getStatusCode())->toBe(200)
+            ->and($response->getHeaderLine('Content-Type'))->toContain('application/pdf');
+        @unlink("{$devTemplates}/quote.twig");
+        @unlink("{$devTemplates}/invoice.twig");
+    } else {
+        // Without the dev-site template the render 500s, but authorization still passed (not a 404).
+        expect($response->getStatusCode())->not->toBe(404);
+    }
+});
+
+it('refuses an invoice PDF to a member of a different company (no oracle)', function () {
+    $company = creditTestCompany(null);
+    $gateway = creditTestInvoiceGateway();
+
+    $owner = createTestUserWithPassword('pdf_inv_owner_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($owner->id, $company->id, CompanyRole::Admin);
+
+    $order = completeInvoiceOrderForHttpMember($owner, $gateway->id);
+
+    $otherCompany = createTestCompany('approved');
+    $intruder = createTestUserWithPassword('pdf_inv_intruder_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($intruder->id, $otherCompany->id, CompanyRole::Admin);
+
+    $client = httpClient();
+    loginAs($client, $intruder->email, httpTestPassword());
+
+    $response = $client->get('/actions/b2b-commerce/documents/invoice?orderNumber=' . urlencode($order->number), [
+        'http_errors' => false,
+        'allow_redirects' => false,
+    ]);
+
+    // Same 404 a guest or an unknown order number would get — no oracle revealing the order exists.
+    expect($response->getStatusCode())->toBe(404);
 });

@@ -1,0 +1,15 @@
+{#
+    Storefront invoice-PDF download link for a completed, on-account (invoice) order that belongs to
+    the signed-in buyer's company. Include it from your order-history / order-detail template, passing
+    the Commerce order:
+
+        {% include 'b2b/orders/_invoice-pdf-button' with { order: order } %}
+
+    The download action re-checks server-side that the order is a completed invoice order of the
+    caller's company, so this link is a convenience only — it cannot leak another company's invoice.
+#}
+{% if order is defined and order.isCompleted %}
+    <a href="{{ actionUrl('b2b-commerce/documents/invoice', { orderNumber: order.number }) }}">
+        {{ 'Download invoice PDF'|t('b2b-commerce') }}
+    </a>
+{% endif %}
