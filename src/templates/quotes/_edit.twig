@@ -25,6 +25,12 @@
 } %}
 
 {% block content %}
+    <div style="margin-bottom: 16px;">
+        <a href="{{ actionUrl('b2b-commerce/documents-cp/quote', { quoteId: quote.id }) }}" class="btn">
+            {{ 'Download PDF'|t('b2b-commerce') }}
+        </a>
+    </div>
+
     <table class="data fullwidth">
         <tbody>
             <tr>

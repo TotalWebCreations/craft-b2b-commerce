@@ -44,6 +44,7 @@
                     <th scope="col">{{ 'Total'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Payment'|t('b2b-commerce') }}</th>
                     <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'PDF'|t('b2b-commerce') }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -66,6 +67,11 @@
                         <td>{{ order.totalPrice|currency(order.currency) }}</td>
                         <td>{{ paymentLabel }}</td>
                         <td>{{ order.orderStatus ? order.orderStatus.name : order.status }}</td>
+                        <td>
+                            <a href="{{ actionUrl('b2b-commerce/documents-cp/invoice', { orderId: order.id }) }}" class="btn small">
+                                {{ 'Invoice PDF'|t('b2b-commerce') }}
+                            </a>
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>

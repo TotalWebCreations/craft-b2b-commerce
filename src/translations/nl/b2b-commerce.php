@@ -368,4 +368,8 @@ return [
     'View companies' => 'Bedrijven bekijken',
     'View company financial fields' => 'Financiële bedrijfsgegevens bekijken',
     'View the current user’s B2B context' => 'De B2B-context van de huidige gebruiker bekijken',
+    'Download PDF' => 'PDF downloaden',
+    'PDF' => 'PDF',
+    'Invoice PDF' => 'Factuur-PDF',
+    'The PDF template could not be found. Copy the example template into your templates folder or set the template path in the plugin settings.' => 'De PDF-template kon niet worden gevonden. Kopieer de voorbeeldtemplate naar je templatesmap of stel het templatepad in bij de plugin-instellingen.',
 ];
