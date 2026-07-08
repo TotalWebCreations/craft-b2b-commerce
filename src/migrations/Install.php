@@ -231,6 +231,42 @@ class Install extends Migration
             $this->addForeignKey(null, '{{%b2b_member_budgets}}', ['userId'], Table::USERS, ['id'], 'CASCADE');
         }
 
+        if (!$this->db->tableExists('{{%b2b_approval_tiers}}')) {
+            $this->createTable('{{%b2b_approval_tiers}}', [
+                'id' => $this->primaryKey(),
+                'companyId' => $this->integer()->notNull(),
+                'level' => $this->integer()->notNull(),
+                'minAmount' => $this->decimal(14, 4)->notNull(),
+                'approverRole' => $this->string()->notNull()->defaultValue('approver'),
+                'departmentScoped' => $this->boolean()->notNull()->defaultValue(false),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_approval_tiers}}', ['companyId', 'level'], true);
+            $this->addForeignKey(null, '{{%b2b_approval_tiers}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+        }
+
+        if (!$this->db->tableExists('{{%b2b_approval_steps}}')) {
+            $this->createTable('{{%b2b_approval_steps}}', [
+                'id' => $this->primaryKey(),
+                'approvalId' => $this->integer()->notNull(),
+                'level' => $this->integer()->notNull(),
+                'status' => $this->string()->notNull()->defaultValue('pending'),
+                'resolvedById' => $this->integer(),
+                'reason' => $this->text(),
+                'dateResolved' => $this->dateTime(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_approval_steps}}', ['approvalId', 'level'], true);
+            $this->addForeignKey(null, '{{%b2b_approval_steps}}', ['approvalId'], '{{%b2b_approvals}}', ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_approval_steps}}', ['resolvedById'], Table::USERS, ['id'], 'SET NULL');
+        }
+
         return true;
     }
 }
