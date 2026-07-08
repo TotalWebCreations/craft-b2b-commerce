@@ -16,6 +16,7 @@ use craft\commerce\services\Payments;
 use craft\elements\User;
 use craft\enums\CmsEdition;
 use craft\helpers\Html;
+use craft\helpers\UrlHelper;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\ModelEvent;
@@ -323,6 +324,35 @@ class Plugin extends BasePlugin
             Dashboard::EVENT_REGISTER_WIDGET_TYPES,
             function(RegisterComponentTypesEvent $event) {
                 $event->types[] = OverviewWidget::class;
+            }
+        );
+
+        // Inject a "Send as B2B quote" action into Commerce's native order-edit screen via its
+        // own template hook — no custom order builder. Hidden for completed orders, orders that are
+        // already a quote, and users without the manage-quotes permission. The button links to the
+        // plugin's confirmation screen (b2b/quotes/new), which re-validates everything server-side.
+        Craft::$app->getView()->hook(
+            'cp.commerce.order.edit.order-secondary-actions',
+            function (array &$context): string {
+                $order = $context['order'] ?? null;
+
+                if (!$order instanceof Order || $order->id === null || $order->isCompleted) {
+                    return '';
+                }
+
+                if (!Craft::$app->getUser()->checkPermission('b2b-commerce:manageQuotes')) {
+                    return '';
+                }
+
+                if ($this->quotes->orderIsQuote((int) $order->id)) {
+                    return '';
+                }
+
+                return Html::a(
+                    Craft::t('b2b-commerce', 'Send as B2B quote'),
+                    UrlHelper::cpUrl('b2b/quotes/new', ['orderId' => $order->id]),
+                    ['class' => 'btn']
+                );
             }
         );
 
