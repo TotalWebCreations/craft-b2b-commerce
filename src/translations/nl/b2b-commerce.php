@@ -171,6 +171,7 @@ return [
     '"{description}" is no longer available' => '"{description}" is niet langer beschikbaar',
     'Only completed orders can be reordered.' => 'Alleen voltooide orders kunnen opnieuw worden besteld.',
     'Order not found.' => 'Order niet gevonden.',
+    'Quote not found.' => 'Offerte niet gevonden.',
     'Too many lines (maximum {max}).' => 'Te veel regels (maximaal {max}).',
     'Reorder' => 'Opnieuw bestellen',
     'Select a CSV file to upload.' => 'Selecteer een CSV-bestand om te uploaden.',
@@ -248,6 +249,8 @@ return [
     'Reason (optional)' => 'Reden (optioneel)',
     'Reason' => 'Reden',
     'This quote can no longer be accepted or declined.' => 'Deze offerte kan niet meer worden geaccepteerd of afgewezen.',
+    'Decline reason' => 'Reden van afwijzing',
+    'Optional' => 'Optioneel',
     'Manage quotes' => 'Offertes beheren',
     'Manage approvals' => 'Goedkeuringen beheren',
     'Approvals' => 'Goedkeuringen',
@@ -374,4 +377,5 @@ return [
     'The PDF template could not be found. Copy the example template into your templates folder or set the template path in the plugin settings.' => 'De PDF-template kon niet worden gevonden. Kopieer de voorbeeldtemplate naar je templatesmap of stel het templatepad in bij de plugin-instellingen.',
     'Download invoice PDF' => 'Factuur-PDF downloaden',
     'This document is not available.' => 'Dit document is niet beschikbaar.',
+    'B2B Commerce settings' => 'B2B Commerce-instellingen',
 ];

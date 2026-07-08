@@ -1,5 +1,12 @@
 # Release Notes for B2B Commerce
 
+## Unreleased
+
+### Added
+- Quote and order/invoice PDF documents, rendered via Commerce's native dompdf service, with
+  overridable templates, permission-gated CP downloads and token/member-guarded storefront
+  downloads. No schema change.
+
 ## 1.0.0-beta.3 - 2026-07-09
 
 ### Added

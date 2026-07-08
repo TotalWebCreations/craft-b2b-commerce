@@ -196,6 +196,8 @@ hard-enforced.
 | Honeypot field name | `honeypotFieldName` | `'b2b_website'` | Name of the hidden anti-spam field on the registration form. See [Security notes](#security-notes). |
 | Validate VAT IDs | `validateTaxIds` | `false` | Validate company VAT IDs against VIES when a company is registered or saved. See [VAT ID validation & reverse charge](#vat-id-validation--reverse-charge). |
 | VIES outage policy | `taxIdValidationPolicy` | `'lenient'` | What to do when VIES is unreachable during validation: `lenient` accepts and logs a warning, `strict` refuses the save. A definitively invalid VAT ID is refused under both. |
+| Quote PDF template | `quotePdfTemplate` | `''` | Site template path used to render the quote PDF. Leave blank to use the bundled example (`b2b/pdf/quote.twig`). See [PDF documents](#pdf-documents). |
+| Invoice PDF template | `invoicePdfTemplate` | `''` | Site template path used to render the order/invoice PDF. Leave blank to use the bundled example (`b2b/pdf/invoice.twig`). See [PDF documents](#pdf-documents). |
 
 ### Security notes
 
@@ -597,6 +599,50 @@ lands in a `declined` / `expired` terminal status) does the line-item guard stan
 separate **completion veto** blocks any attempt to complete a quote order that reactivated
 as a cart while its quote is not `accepted` (still requested at catalog prices, or sent,
 declined or expired) with *"This order is part of a quote that has not been accepted."*
+
+### PDF documents
+
+Quote and order/invoice PDFs are rendered through Commerce's **native** `Pdfs` service
+(dompdf) — the same renderer Commerce itself uses, so there is no extra PDF library
+dependency and no new database table.
+
+**Templates.** Two overridable Twig templates ship as examples:
+
+- `examples/templates/b2b/pdf/quote.twig` — company block, PO number, frozen quote line
+  items and totals, VAT/reverse-charge note, validity date.
+- `examples/templates/b2b/pdf/invoice.twig` — the same, plus the payment term and due date.
+
+Copy either into your own site templates folder to restyle it (they are plain Twig/HTML,
+styled with inline CSS as dompdf requires), then point the matching setting at the copy:
+
+| Setting | Key | Description |
+| --- | --- | --- |
+| Quote PDF template | `quotePdfTemplate` | Site template path for the quote PDF. Blank uses the bundled example. |
+| Invoice PDF template | `invoicePdfTemplate` | Site template path for the order/invoice PDF. Blank uses the bundled example. |
+
+Both templates read the due date and PO number straight off the order — `order.b2bPaymentDueDate`
+and `order.b2bPoNumber` — so a custom template gets them for free.
+
+**Control panel downloads.**
+
+- **Quote edit screen** (**B2B → Quotes**) has a **Download PDF** link, gated by the
+  **`Manage quotes`** permission.
+- The **company order overview** (`_orders.twig`) has a **Download invoice PDF** link per
+  order, gated by the **`Manage companies`** permission — a deliberate split, since the two
+  links live on pages with different permissions.
+
+**Storefront downloads.**
+
+- The quote **accept page** (`examples/templates/b2b/quotes/accept.twig`) shows a
+  **Download PDF** link once the quote is `sent` or `accepted`, authorized by the same
+  token the accept/decline links carry — no separate login-gated permission check beyond
+  the token's own company scoping.
+- A member-guarded **Download invoice PDF** snippet
+  (`examples/templates/b2b/orders/_invoice-pdf-button.twig`) is available for a completed,
+  pay-on-account order: include it with `{% include 'b2b/orders/_invoice-pdf-button' with { order: order } %}`
+  from your order-history/detail template. The download action re-checks server-side that
+  the order is a completed invoice order belonging to the caller's own company, so the link
+  itself cannot be used to leak another company's invoice.
 
 ### Order approvals
 
