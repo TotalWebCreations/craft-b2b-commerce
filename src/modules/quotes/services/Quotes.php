@@ -14,6 +14,7 @@ use DateTime;
 use DateTimeZone;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\elements\Quote;
+use totalwebcreations\b2bcommerce\enums\QuoteOrigin;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
@@ -90,6 +91,64 @@ class Quotes extends Component
         $this->notifyAdmin($company, $cart);
 
         Commerce::getInstance()->getCarts()->forgetCart();
+    }
+
+    /**
+     * Builds a merchant-initiated quote around a control-panel order and sends it. The freeze,
+     * the status transition, the buyer-mutation veto and the accept-adopts-cart hand-off are the
+     * unchanged customer-flow path (markSent, acceptByToken, the order save/add guards) — this
+     * method only creates the merchant-origin Quote element and resolves the company in front of
+     * it. The customer MUST already be a member of the linked company: that membership is what
+     * lets acceptByToken authorize their later accept, so it is validated server-side here,
+     * independently of the control-panel picker. A null $companyId auto-links the customer's own
+     * company; an explicit id is the picker's choice.
+     */
+    public function createMerchantQuote(Order $order, User $customer, ?int $companyId, ?DateTime $validUntil): Quote
+    {
+        if ($order->getLineItems() === []) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'Your cart is empty.')
+            );
+        }
+
+        if ($order->isCompleted) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This quote order has already been completed.')
+            );
+        }
+
+        if ($this->orderIsQuote((int) $order->id)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This order is already a quote.')
+            );
+        }
+
+        if (Plugin::getInstance()->approvals->orderHasApproval((int) $order->id)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This cart is part of an approval request.')
+            );
+        }
+
+        $company = $this->resolveMerchantQuoteCompany($customer, $companyId);
+
+        $quote = new Quote();
+        $quote->orderId = (int) $order->id;
+        $quote->companyId = $company->id;
+        $quote->quoteStatus = QuoteStatus::Requested->value;
+        $quote->origin = QuoteOrigin::Merchant->value;
+        $quote->requestedById = $customer->id;
+        $quote->acceptToken = Craft::$app->getSecurity()->generateRandomString(40);
+
+        if (!Craft::$app->getElements()->saveElement($quote)) {
+            throw new Exception(implode(' ', $quote->getFirstErrors()));
+        }
+
+        // Freeze + transition to sent + email the customer the accept/decline links (and PDF) via
+        // the unchanged customer-flow path. Requested → Sent is a valid transition, so a
+        // just-created merchant quote sends immediately.
+        $this->markSent($order, $validUntil);
+
+        return $quote;
     }
 
     /**
@@ -645,6 +704,45 @@ class Quotes extends Component
     }
 
     /**
+     * Resolves and validates the company a merchant quote binds to. An explicit id is the
+     * control-panel picker's choice; null auto-links the customer's own company. Either way the
+     * customer must be a member of the resolved company (so the later token accept authorizes and
+     * no cross-company leak is possible) and the company must be approved.
+     */
+    private function resolveMerchantQuoteCompany(User $customer, ?int $companyId): Company
+    {
+        $members = Plugin::getInstance()->companyMembers;
+
+        if ($companyId === null) {
+            $company = $members->getCompanyForUser($customer->id);
+
+            if ($company === null) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'Assign this customer to a company before sending a quote.')
+                );
+            }
+        }
+
+        if ($companyId !== null) {
+            if ($members->getRoleForUser($customer->id, $companyId) === null) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'This customer is not a member of the selected company.')
+                );
+            }
+
+            $company = $members->getCompanyById($companyId);
+        }
+
+        if ($company === null || $company->companyStatus !== Company::STATUS_APPROVED) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'The selected company is not approved.')
+            );
+        }
+
+        return $company;
+    }
+
+    /**
      * Resolves and authorizes a token for a token-driven action: the row must exist and
      * belong to the actor's company. Both failures raise the SAME generic message so a
      * guessed token cannot be distinguished from a real quote of another company (no
@@ -732,7 +830,7 @@ class Quotes extends Component
         return new DateTime((string) $value, new DateTimeZone('UTC'));
     }
 
-    private function orderIsQuote(int $orderId): bool
+    public function orderIsQuote(int $orderId): bool
     {
         return (new Query())
             ->from('{{%b2b_quotes}}')
