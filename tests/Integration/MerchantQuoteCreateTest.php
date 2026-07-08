@@ -146,3 +146,28 @@ it('lets the customer accept a merchant quote via token and complete at the froz
     expect($reloaded->markAsComplete())->toBeTrue()
         ->and($reloaded->getTotalPrice())->toBe($frozenTotal);
 });
+
+it('lets a multi-company member accept a merchant quote explicitly bound to their second company', function () {
+    // Regression: authorizeTokenAccess() used to resolve the actor's SINGLE "first"
+    // company (lowest company_users.id) and require the quote's companyId to match
+    // it. A member of company A (joined first) and company B (joined second) could
+    // never accept a quote the merchant explicitly bound to B via the picker, even
+    // though the customer is a genuine member of B — a fail-closed functional gap,
+    // not a security hole. Authorization must check membership of the quote's own
+    // company instead.
+    [$user, $companyA] = quoteMember();
+    $companyB = createTestCompany(Company::STATUS_APPROVED, 'Second Co');
+    Plugin::getInstance()->companyMembers->addUserToCompany($user->id, $companyB->id, CompanyRole::Purchaser);
+
+    $order = quoteCartWithItem();
+
+    Plugin::getInstance()->quotes->createMerchantQuote($order, $user, $companyB->id, null);
+
+    expect((int) quoteRow($order->id)['companyId'])->toBe($companyB->id);
+
+    $token = quoteRow($order->id)['acceptToken'];
+    $returned = Plugin::getInstance()->quotes->acceptByToken($token, $user);
+
+    expect((int) $returned->id)->toBe($order->id)
+        ->and(quoteRow($order->id)['status'])->toBe(QuoteStatus::Accepted->value);
+});

@@ -744,18 +744,21 @@ class Quotes extends Component
 
     /**
      * Resolves and authorizes a token for a token-driven action: the row must exist and
-     * belong to the actor's company. Both failures raise the SAME generic message so a
-     * guessed token cannot be distinguished from a real quote of another company (no
-     * oracle), while leaking nothing a legitimate mail recipient could not already infer.
+     * the actor must be a MEMBER of the row's company. Membership (not the actor's first
+     * or "primary" company) is deliberate: a customer can belong to several companies, and
+     * a merchant quote may be explicitly bound to any one of them, so authorization must
+     * check against the quote's own company rather than a single resolved company. Both
+     * failures raise the SAME generic message so a guessed token cannot be distinguished
+     * from a real quote of another company (no oracle), while leaking nothing a legitimate
+     * mail recipient could not already infer.
      *
      * @return array<string, mixed>
      */
     private function authorizeTokenAccess(string $token, User $actor): array
     {
         $row = $this->findByToken($token);
-        $company = Plugin::getInstance()->companyMembers->getCompanyForUser($actor->id);
 
-        if ($row === null || $company === null || (int) $row['companyId'] !== $company->id) {
+        if ($row === null || Plugin::getInstance()->companyMembers->getRoleForUser($actor->id, (int) $row['companyId']) === null) {
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'This quote is not available.')
             );
