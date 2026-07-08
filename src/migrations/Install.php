@@ -87,6 +87,7 @@ class Install extends Migration
                 'orderId' => $this->integer()->notNull(),
                 'companyId' => $this->integer()->notNull(),
                 'status' => $this->string()->notNull()->defaultValue('requested'),
+                'origin' => $this->string()->notNull()->defaultValue('customer'),
                 'validUntil' => $this->dateTime(),
                 'notes' => $this->text(),
                 'declineReason' => $this->text(),
@@ -129,6 +130,17 @@ class Install extends Migration
             );
 
             $this->addForeignKey(null, '{{%b2b_companies}}', ['customerGroupId'], Table::USERGROUPS, ['id'], 'SET NULL');
+        }
+
+        // Column parity for installs whose quotes table predates the origin marker. An existing
+        // install reaches this column through the m260714_000200 migration; this guard keeps a
+        // fresh Install::safeUp() consistent when the createTable branch above was skipped.
+        if (!$this->db->columnExists('{{%b2b_quotes}}', 'origin')) {
+            $this->addColumn(
+                '{{%b2b_quotes}}',
+                'origin',
+                $this->string()->notNull()->defaultValue('customer')->after('status')
+            );
         }
 
         // Column parity for installs whose companies table predates the PO-required toggle. An
