@@ -10,6 +10,7 @@ use totalwebcreations\b2bcommerce\elements\Approval;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\enums\QuoteStatus;
+use totalwebcreations\b2bcommerce\modules\approvals\services\ApprovalTiers;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 
@@ -563,6 +564,83 @@ it('creates NO step rows for a tier-less company (legacy single-approval)', func
 
     expect(stepRows(approvalIdForOrder($cart->id)))->toBe([])
         ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+});
+
+/**
+ * The count of Approval elements in the elements table, regardless of which b2b_approvals row (if
+ * any) they join to — used to prove a rolled-back submit leaves no orphaned Approval element behind.
+ */
+function approvalElementCount(): int
+{
+    return (int) (new Query())
+        ->from('{{%elements}}')
+        ->where(['type' => Approval::class])
+        ->count();
+}
+
+/**
+ * Regression for the atomicity bug: submitForApproval used to saveElement() the Approval — which
+ * commits its OWN internal transaction — and only THEN loop plain Db::insert() calls for the step
+ * ladder, with no transaction and no try/catch of its own. A step insert failing mid-loop left a
+ * durably committed Approval element + Pending b2b_approvals row with an incomplete ladder: un-
+ * approvable, and the pre-existing "already awaiting approval" guard then blocked any resubmission.
+ *
+ * Forced deterministically via a colliding tier level rather than a contrived throw: the stubbed
+ * ApprovalTiers::requiredLevels() reports level 1 twice, so createSteps() attempts two step inserts
+ * at the same (approvalId, level), and the second genuinely violates the b2b_approval_steps unique
+ * index (approvalId, level) — the real "a step insert throws mid-loop" failure the fix guards
+ * against, not a simulated one.
+ */
+it('rolls back the approval element and row atomically when a step insert fails mid-loop', function () {
+    [$user, $company] = approvalMember(CompanyRole::Purchaser, 0.0);
+    $cart = approvalCart($user, 600.0);
+
+    $plugin = Plugin::getInstance();
+    $realTiers = $plugin->get('approvalTiers');
+
+    $plugin->set('approvalTiers', new class extends ApprovalTiers {
+        public function requiredLevels(int $companyId, float $amount): array
+        {
+            return [
+                ['level' => 1, 'minAmount' => 0.0, 'approverRole' => 'approver', 'departmentScoped' => false],
+                ['level' => 1, 'minAmount' => 0.0, 'approverRole' => 'approver', 'departmentScoped' => false],
+            ];
+        }
+    });
+
+    $elementsBefore = approvalElementCount();
+    $mailBefore = mailCount();
+
+    try {
+        $threw = false;
+
+        try {
+            Plugin::getInstance()->approvals->submitForApproval($cart, $user);
+        } catch (Throwable) {
+            $threw = true;
+        }
+
+        expect($threw)->toBeTrue();
+
+        // No b2b_approvals row, no orphaned Approval element, and neither side effect (mail,
+        // cart-detach) leaked — the whole write is as if the submit never happened.
+        expect(approvalRow($cart->id))->toBeNull()
+            ->and(approvalElementCount())->toBe($elementsBefore)
+            ->and(mailCount())->toBe($mailBefore);
+
+        $survivor = Order::find()->id($cart->id)->status(null)->one();
+        expect($survivor)->not->toBeNull();
+
+        // Cleanly re-triggerable: restoring the real (non-colliding) tiers service and submitting
+        // again succeeds outright — the guard chain never got stuck behind a half-written row.
+        $plugin->set('approvalTiers', $realTiers);
+
+        Plugin::getInstance()->approvals->submitForApproval($cart, $user);
+
+        expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+    } finally {
+        $plugin->set('approvalTiers', $realTiers);
+    }
 });
 
 it('short-circuits the approvals feature gate when the toggle is off', function () {

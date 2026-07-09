@@ -146,11 +146,23 @@ class Approvals extends Component
         $approval->requestedById = $actor->id;
         $approval->thresholdAmount = $company->approvalThreshold;
 
-        if (!Craft::$app->getElements()->saveElement($approval)) {
-            throw new Exception(implode(' ', $approval->getFirstErrors()));
-        }
+        // The element save and the step-ladder inserts must land atomically: saveElement() commits its
+        // own internal transaction, and createSteps() loops plain inserts with no transaction of its
+        // own. Without this wrapper, a step insert failing mid-loop would leave a durably committed
+        // Approval element + Pending row with an incomplete ladder, un-approvable and un-resubmittable
+        // (the "already awaiting approval" guard above would block any retry). Wrapping both writes in
+        // one transaction means ANY step insert throwing rolls back the approval element and row too,
+        // leaving the submit cleanly re-triggerable. Craft's saveElement() begins its own transaction;
+        // Yii nests it as a savepoint inside this outer one, so wrapping is safe. Side effects that must
+        // never be undone by a DB rollback — the notification email and the session cart mutation — stay
+        // OUTSIDE this transaction and only run once it has committed successfully.
+        Craft::$app->getDb()->transaction(function () use ($approval, $cart): void {
+            if (!Craft::$app->getElements()->saveElement($approval)) {
+                throw new Exception(implode(' ', $approval->getFirstErrors()));
+            }
 
-        $this->createSteps($approval, $cart);
+            $this->createSteps($approval, $cart);
+        });
 
         $this->notifyApprovers($company, $cart);
 
