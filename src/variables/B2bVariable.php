@@ -98,6 +98,44 @@ class B2bVariable
         ];
     }
 
+    /**
+     * The current user's department spending budget as `{name, amount, period, spent, remaining}`, or
+     * null when they have no department, the department has no budget (unlimited), or they have no
+     * company/are a guest. `spent` is the department's combined member spend this period; `remaining`
+     * is the room left, never below zero. Mirrors {@see getMemberBudget} as a read-only view.
+     *
+     * @return array{name: string, amount: float, period: string, spent: float, remaining: float}|null
+     */
+    public function getDepartmentBudget(): ?array
+    {
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if ($user === null) {
+            return null;
+        }
+
+        if (Plugin::getInstance()->companyMembers->getCompanyForUser($user->id) === null) {
+            return null;
+        }
+
+        $department = Plugin::getInstance()->departments->getDepartmentForUser($user->id);
+
+        if ($department === null || $department['budgetAmount'] === null) {
+            return null;
+        }
+
+        $amount = (float) $department['budgetAmount'];
+        $spent = Plugin::getInstance()->departmentBudget->getSpent($department, new DateTimeImmutable('now'));
+
+        return [
+            'name' => (string) $department['name'],
+            'amount' => $amount,
+            'period' => (string) $department['budgetPeriod'],
+            'spent' => $spent,
+            'remaining' => max(0.0, $amount - $spent),
+        ];
+    }
+
     /** @return array<int, array{user: User, role: string}> */
     public function getTeamMembers(): array
     {

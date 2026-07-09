@@ -397,3 +397,45 @@ it('does not enforce a department budget after its department is deleted', funct
     // The member's departmentId was SET NULL by the delete, so there is nothing to enforce.
     expect(deptEnforceAsSiteRequest($cart))->toBeFalse();
 });
+
+use totalwebcreations\b2bcommerce\variables\B2bVariable;
+
+it('exposes the department budget shape to a member', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 100.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 30.0);
+
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($admin, function () use ($variable) {
+        $budget = $variable->getDepartmentBudget();
+
+        expect($budget)->not->toBeNull()
+            ->and($budget['name'])->toBe('Sales')
+            ->and($budget['amount'])->toBe(100.0)
+            ->and($budget['period'])->toBe('monthly')
+            ->and($budget['spent'])->toBe(30.0)
+            ->and($budget['remaining'])->toBe(70.0);
+    });
+});
+
+it('reports no department budget for a member without a department', function () {
+    [$admin] = deptMember();
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($admin, function () use ($variable) {
+        expect($variable->getDepartmentBudget())->toBeNull();
+    });
+});
+
+it('reports no department budget when the department is unlimited', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Ops', null, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    $variable = new B2bVariable();
+
+    asSummaryIdentity($admin, function () use ($variable) {
+        expect($variable->getDepartmentBudget())->toBeNull();
+    });
+});
