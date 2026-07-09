@@ -320,14 +320,35 @@ class Approvals extends Component
      *     so they can retry checkout once the credit position allows it.
      *   - any other case (non-invoice gateway, or no credit room) -> the requester is mailed a
      *     resume-checkout instruction; they finish the order themselves via resumeCheckout().
+     *
+     * A tier-less approval (no step ladder) is resolved by one approver, exactly as before the
+     * multi-level chain existed (legacyApprove). A laddered approval instead resolves its currently
+     * open step and only flips the aggregate row once the last required step approves (ladderApprove).
      */
     public function approve(int $orderId, User $approver): void
     {
         $row = $this->requireResolvableRow($orderId, $approver);
 
-        // status = pending in the WHERE + the affected-row check close the concurrent-resolution
-        // race: if a second approver flipped the row between requireResolvableRow's read and this
-        // write, zero rows match and we surface the same terminal message rather than double-resolve.
+        $steps = $this->stepsForApproval((int) $row['id']);
+
+        if ($steps === []) {
+            $this->legacyApprove($orderId, $approver, $row);
+
+            return;
+        }
+
+        $this->ladderApprove($orderId, $approver, $row, $steps);
+    }
+
+    /**
+     * The legacy single-approval flip: an approval with no step ladder is resolved by one approver,
+     * exactly as before the multi-level chain existed. The status = pending guard in the WHERE plus
+     * the affected-row check close the concurrent-resolution race.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function legacyApprove(int $orderId, User $approver, array $row): void
+    {
         $affected = Db::update('{{%b2b_approvals}}', [
             'status' => ApprovalStatus::Approved->value,
             'resolvedById' => $approver->id,
@@ -339,6 +360,91 @@ class Approvals extends Component
             );
         }
 
+        $this->finalizeApproval($orderId, $approver, $row);
+    }
+
+    /**
+     * Resolves the currently-open step of a laddered approval. Steps open strictly in level order
+     * (openStep returns the lowest still-pending step), so approving here advances the ladder by one
+     * rung. Four-eyes is preserved per step: requireResolvableRow already refused the submitter, and
+     * approverAlreadyResolvedStep refuses an approver who has already cleared another rung of THIS
+     * approval, so no single person can clear two distinct levels. When the last required step
+     * approves, the aggregate b2b_approvals row flips to approved and the shared finalize path runs
+     * (direct on-account placement or resume-checkout mail). While rungs remain, the aggregate stays
+     * pending — so the completion backstop, payment gate and buyer-mutation freeze (all of which read
+     * the aggregate status) keep holding the order until the whole chain is signed.
+     *
+     * @param array<string, mixed> $row
+     * @param array<int, array<string, mixed>> $steps
+     */
+    private function ladderApprove(int $orderId, User $approver, array $row, array $steps): void
+    {
+        $approvalId = (int) $row['id'];
+        $openStep = $this->openStep($steps);
+
+        if ($openStep === null) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+            );
+        }
+
+        if ($this->approverAlreadyResolvedStep($approvalId, (int) $approver->id)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'You have already approved a step of this order.')
+            );
+        }
+
+        if (!$this->approverEligibleForStep($approver, $openStep, (int) $row['companyId'], $row['requestedById'] !== null ? (int) $row['requestedById'] : null)) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request is not available.')
+            );
+        }
+
+        // Concurrency guard: only flip a step that is still pending, so two approvers racing the same
+        // open rung cannot both resolve it.
+        $affected = Db::update('{{%b2b_approval_steps}}', [
+            'status' => ApprovalStatus::Approved->value,
+            'resolvedById' => $approver->id,
+            'dateResolved' => Db::prepareDateForDb(new DateTime()),
+        ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+
+        if ($affected === 0) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+            );
+        }
+
+        // More rungs to sign: leave the aggregate pending and notify the next eligible approvers.
+        if ($this->pendingStepCount($approvalId) > 0) {
+            $order = Order::find()->id($orderId)->status(null)->one();
+            $company = Plugin::getInstance()->companyMembers->getCompanyById((int) $row['companyId']);
+
+            if ($order !== null && $company !== null) {
+                $this->notifyApprovers($company, $order);
+            }
+
+            return;
+        }
+
+        // Last rung signed: flip the aggregate approval and run the shared finalize path.
+        Db::update('{{%b2b_approvals}}', [
+            'status' => ApprovalStatus::Approved->value,
+            'resolvedById' => $approver->id,
+        ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+
+        $this->finalizeApproval($orderId, $approver, $row);
+    }
+
+    /**
+     * The shared post-approval hand-off, reused by the legacy flip and the last-rung ladder flip:
+     * busts the element cache, then either places an on-account order directly (invoice gateway with
+     * credit room) or mails the requester a resume-checkout instruction. Never rolls the approval back
+     * on a failed direct placement.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function finalizeApproval(int $orderId, User $approver, array $row): void
+    {
         $this->reflectStatusOnElement();
 
         $order = Order::find()->id($orderId)->status(null)->one();
@@ -358,6 +464,90 @@ class Approvals extends Component
         }
 
         $this->notifyApproved($order, $requester, placed: false);
+    }
+
+    /**
+     * The currently-open step of a laddered approval: the lowest-level step still pending. Because a
+     * decline short-circuits the whole approval to declined, a still-pending aggregate row always has
+     * exactly one open rung (all lower rungs approved), so returning the first pending step in level
+     * order is the sequential gate.
+     *
+     * @param array<int, array<string, mixed>> $steps
+     * @return array<string, mixed>|null
+     */
+    private function openStep(array $steps): ?array
+    {
+        foreach ($steps as $step) {
+            if ($step['status'] === ApprovalStatus::Pending->value) {
+                return $step;
+            }
+        }
+
+        return null;
+    }
+
+    private function pendingStepCount(int $approvalId): int
+    {
+        return (int) (new Query())
+            ->from('{{%b2b_approval_steps}}')
+            ->where(['approvalId' => $approvalId, 'status' => ApprovalStatus::Pending->value])
+            ->count();
+    }
+
+    /**
+     * Whether the approver has already resolved any rung of this approval — the four-eyes-across-steps
+     * guard, so one person can never single-handedly clear two distinct required levels.
+     */
+    private function approverAlreadyResolvedStep(int $approvalId, int $userId): bool
+    {
+        return (new Query())
+            ->from('{{%b2b_approval_steps}}')
+            ->where(['approvalId' => $approvalId, 'resolvedById' => $userId])
+            ->exists();
+    }
+
+    /**
+     * Whether the approver may resolve the given open step. The same-company + canApproveOrders and
+     * not-the-submitter checks are already enforced by requireResolvableRow; this adds the
+     * department-scope routing for a departmentScoped tier. In phase 18 the department lookup is
+     * unavailable, so a departmentScoped step safely falls back to any company approver.
+     *
+     * @param array<string, mixed> $step
+     */
+    private function approverEligibleForStep(User $approver, array $step, int $companyId, ?int $requesterId): bool
+    {
+        $tier = Plugin::getInstance()->approvalTiers->getTier($companyId, (int) $step['level']);
+
+        if ($tier === null || !(bool) $tier['departmentScoped']) {
+            return true;
+        }
+
+        $eligibleIds = $this->departmentScopedApproverIds($companyId, $requesterId ?? 0);
+
+        // Departments unavailable (phase 18) -> company-level fallback: any approver may sign.
+        if ($eligibleIds === null) {
+            return true;
+        }
+
+        return in_array((int) $approver->id, $eligibleIds, true);
+    }
+
+    /**
+     * Phase 19 seam. Resolves the user ids eligible to approve a department-scoped step for the
+     * requester's department, or null when department routing does not apply. Until the departments
+     * feature ships (its table is absent), this returns null so a departmentScoped tier falls back to
+     * any company approver — phase 18 never blocks on department routing. Phase 19 fills the body.
+     *
+     * @return array<int, int>|null
+     */
+    private function departmentScopedApproverIds(int $companyId, int $requesterId): ?array
+    {
+        if (!Craft::$app->getDb()->tableExists('{{%b2b_departments}}')) {
+            return null;
+        }
+
+        // Phase 19 implements the real department-approver resolution here.
+        return null;
     }
 
     /**
