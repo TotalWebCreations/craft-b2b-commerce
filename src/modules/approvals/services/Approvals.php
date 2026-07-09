@@ -400,22 +400,29 @@ class Approvals extends Component
             );
         }
 
-        // Concurrency guard: only flip a step that is still pending, so two approvers racing the same
-        // open rung cannot both resolve it.
-        $affected = Db::update('{{%b2b_approval_steps}}', [
-            'status' => ApprovalStatus::Approved->value,
-            'resolvedById' => $approver->id,
-            'dateResolved' => Db::prepareDateForDb(new DateTime()),
-        ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+        // Whether this call resolves the last pending rung, decided BEFORE the write: the open step
+        // is the only pending one left when the count is exactly 1, so resolving it here will drain
+        // the ladder. Computed up front so the last-rung case can wrap its step write and the
+        // aggregate write in one transaction (see below); a non-last rung has only a single write and
+        // needs no transaction of its own.
+        $isLastRung = $this->pendingStepCount($approvalId) === 1;
 
-        if ($affected === 0) {
-            throw new InvalidArgumentException(
-                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
-            );
-        }
+        if (!$isLastRung) {
+            // Concurrency guard: only flip a step that is still pending, so two approvers racing the
+            // same open rung cannot both resolve it.
+            $affected = Db::update('{{%b2b_approval_steps}}', [
+                'status' => ApprovalStatus::Approved->value,
+                'resolvedById' => $approver->id,
+                'dateResolved' => Db::prepareDateForDb(new DateTime()),
+            ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
 
-        // More rungs to sign: leave the aggregate pending and notify the next eligible approvers.
-        if ($this->pendingStepCount($approvalId) > 0) {
+            if ($affected === 0) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+                );
+            }
+
+            // More rungs to sign: leave the aggregate pending and notify the next eligible approvers.
             $order = Order::find()->id($orderId)->status(null)->one();
             $company = Plugin::getInstance()->companyMembers->getCompanyById((int) $row['companyId']);
 
@@ -426,11 +433,37 @@ class Approvals extends Component
             return;
         }
 
-        // Last rung signed: flip the aggregate approval and run the shared finalize path.
-        Db::update('{{%b2b_approvals}}', [
-            'status' => ApprovalStatus::Approved->value,
-            'resolvedById' => $approver->id,
-        ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+        // Last rung: the step-status flip and the aggregate-status flip must land atomically. A
+        // crash (or any DB failure) between two separate writes would leave every step approved but
+        // the aggregate durably stuck pending — failing closed, but not self-healing. Wrapping both
+        // in one transaction, mirroring submitForApproval, means either both commit or neither does.
+        // Side effects (finalizeApproval: cache bust, direct completion, notification mail) must
+        // never be undone by a DB rollback, so they stay OUTSIDE the transaction and only run once
+        // it has committed successfully.
+        $affected = Craft::$app->getDb()->transaction(function () use ($openStep, $approver, $orderId): int {
+            $affected = Db::update('{{%b2b_approval_steps}}', [
+                'status' => ApprovalStatus::Approved->value,
+                'resolvedById' => $approver->id,
+                'dateResolved' => Db::prepareDateForDb(new DateTime()),
+            ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+
+            if ($affected === 0) {
+                return 0;
+            }
+
+            Db::update('{{%b2b_approvals}}', [
+                'status' => ApprovalStatus::Approved->value,
+                'resolvedById' => $approver->id,
+            ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+
+            return $affected;
+        });
+
+        if ($affected === 0) {
+            throw new InvalidArgumentException(
+                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+            );
+        }
 
         $this->finalizeApproval($orderId, $approver, $row);
     }

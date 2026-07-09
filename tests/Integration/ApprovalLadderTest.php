@@ -1,5 +1,6 @@
 <?php
 
+use Craft;
 use craft\commerce\elements\Order;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
@@ -168,4 +169,60 @@ it('resolves dangling pending steps when a laddered order completes via merchant
     // The aggregate is reconciled to approved and NO step is left pending.
     expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Approved->value)
         ->and(array_column($steps, 'status'))->toBe(array_fill(0, 3, ApprovalStatus::Approved->value));
+});
+
+/**
+ * Regression for the last-rung atomicity fix: ladderApprove used to flip the last step-status row
+ * and the aggregate b2b_approvals row as two separate, non-transactional writes. A crash (or any DB
+ * failure) between them left every step approved but the aggregate durably stuck pending — failing
+ * closed, but not self-healing.
+ *
+ * Forced deterministically via a real DB failure rather than a mock: a trigger on {{%b2b_approvals}}
+ * makes the aggregate UPDATE for this specific order genuinely fail. If the two writes are wrapped
+ * in one transaction, the preceding step-status UPDATE (already executed, same transaction) is
+ * rolled back too, so the last step is left exactly where it started: pending. Before the fix, the
+ * step write was already committed on its own and would still read approved.
+ */
+it('rolls back the last step-status flip together with the aggregate flip when the aggregate write fails', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(2);
+    $cart = approvalCart($purchaser, 800.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    Plugin::getInstance()->approvals->approve($cart->id, $approvers[0]);
+
+    $db = Craft::$app->getDb();
+    $triggerName = 'b2b_test_force_aggregate_failure';
+
+    $db->createCommand("
+        CREATE TRIGGER {$triggerName}
+        BEFORE UPDATE ON {{%b2b_approvals}}
+        FOR EACH ROW
+        BEGIN
+            IF NEW.orderId = {$cart->id} THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced failure for atomicity test';
+            END IF;
+        END
+    ")->execute();
+
+    try {
+        $threw = false;
+
+        try {
+            Plugin::getInstance()->approvals->approve($cart->id, $approvers[1]);
+        } catch (\Throwable) {
+            $threw = true;
+        }
+
+        expect($threw)->toBeTrue();
+    } finally {
+        $db->createCommand("DROP TRIGGER IF EXISTS {$triggerName}")->execute();
+    }
+
+    $steps = stepRows($approvalId);
+
+    // Neither write landed: the last step is still pending — rolled back together with the
+    // aggregate — rather than left committed as approved on its own.
+    expect($steps[1]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
 });
