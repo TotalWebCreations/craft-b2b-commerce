@@ -651,6 +651,23 @@ class Plugin extends BasePlugin
             }
         );
 
+        // Department spending-budget completion backstop. Registered AFTER the per-member budget guard
+        // and BEFORE the credit-limit check: the two budget caps are independent (a member can be under
+        // their own budget while their department is over its aggregate), and each takes its own lock,
+        // so the department lock precedes the credit lock to keep the common refusal path clean. See
+        // DepartmentBudgetEnforcer for the fail-safe per-department lock rationale.
+        Event::on(
+            Order::class,
+            Order::EVENT_BEFORE_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->departmentBudgetEnforcer->enforceDepartmentBudget($event->sender);
+            }
+        );
+
         // Registered AFTER enforcePurchasePolicy so the account-status backstop runs first and the
         // hard credit-limit check second. The two are independent: the backstop's paid-order
         // exemption does not skip this check (a partially paid invoice order is still checked for
@@ -710,6 +727,21 @@ class Plugin extends BasePlugin
                 }
 
                 $this->budgetEnforcer->releaseBudgetLock($event->sender);
+            }
+        );
+
+        // Release the per-department budget lock. Like the credit and per-member releases, this MUST
+        // stay registered AFTER linkCompany above so the lock spans BOTH the completion save and the
+        // b2b_order_company link row that makes the order count towards the department's spend.
+        Event::on(
+            Order::class,
+            Order::EVENT_AFTER_COMPLETE_ORDER,
+            function(Event $event) {
+                if (!$event->sender instanceof Order) {
+                    return;
+                }
+
+                $this->departmentBudgetEnforcer->releaseDepartmentBudgetLock($event->sender);
             }
         );
 

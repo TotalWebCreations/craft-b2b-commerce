@@ -1,6 +1,8 @@
 <?php
 
 use Craft;
+use craft\commerce\elements\Order;
+use DateTimeImmutable;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\BudgetPeriod;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
@@ -279,4 +281,119 @@ it('drops a previous-month order once the department monthly period resets', fun
     $department = Plugin::getInstance()->departments->getDepartment($id);
 
     expect(Plugin::getInstance()->departmentBudget->getSpent($department, new DateTimeImmutable('now')))->toBe(0.0);
+});
+
+/**
+ * Runs the department completion backstop under a faked storefront request and reports whether it
+ * refused (threw). On a pass it leaves the per-department lock held; callers must release it.
+ */
+function deptEnforceAsSiteRequest(Order $order): bool
+{
+    $refused = false;
+
+    asSiteRequest(function () use ($order, &$refused) {
+        try {
+            Plugin::getInstance()->departmentBudgetEnforcer->enforceDepartmentBudget($order);
+        } catch (Throwable) {
+            $refused = true;
+        }
+    });
+
+    return $refused;
+}
+
+it('refuses completion when the department is over its aggregate budget', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 50.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 40.0);
+
+    $cart = budgetCart($admin, 20.0);
+
+    expect(deptEnforceAsSiteRequest($cart))->toBeTrue()
+        ->and($cart->getErrors('customerId'))->toBe(['This order exceeds the department spending budget.']);
+});
+
+it('lets an in-budget department completion through and holds the lock for the after-handler', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 500.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 40.0);
+
+    $cart = budgetCart($admin, 20.0);
+    $lockName = "b2b-dept-budget-{$id}";
+
+    expect(deptEnforceAsSiteRequest($cart))->toBeFalse()
+        ->and(Craft::$app->getMutex()->isAcquired($lockName))->toBeTrue();
+
+    Plugin::getInstance()->departmentBudgetEnforcer->releaseDepartmentBudgetLock($cart);
+    expect(Craft::$app->getMutex()->isAcquired($lockName))->toBeFalse();
+});
+
+it('never enforces a department budget on a member without a department', function () {
+    [$admin] = deptMember();
+    $cart = budgetCart($admin, 100000.0);
+
+    expect(deptEnforceAsSiteRequest($cart))->toBeFalse();
+});
+
+it('never enforces a null-budget department', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Ops', null, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 100000.0);
+
+    $cart = budgetCart($admin, 100000.0);
+
+    expect(deptEnforceAsSiteRequest($cart))->toBeFalse();
+});
+
+it('enforces both the per-member and the department budget independently', function () {
+    // Roomy department (1000), tight per-member budget (50): the member gate refuses first.
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 1000.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    Plugin::getInstance()->budgets->setBudget($company, $admin->id, 50.0, BudgetPeriod::Monthly);
+    budgetCompletedOrder($admin, 40.0);
+
+    $cart = budgetCart($admin, 20.0);
+
+    // Per-member gate refuses (60 > 50) even though the department (60 <= 1000) is fine.
+    expect(budgetEnforceAsSiteRequest($cart))->toBeTrue();
+    // And with a roomy per-member budget but a tight department, the department gate refuses.
+    Plugin::getInstance()->budgets->setBudget($company, $admin->id, 1000.0, BudgetPeriod::Monthly);
+    Plugin::getInstance()->departments->updateDepartment($id, 'Sales', 50.0, BudgetPeriod::Monthly, null);
+
+    expect(deptEnforceAsSiteRequest($cart))->toBeTrue();
+});
+
+it('shifts an order to the department a member is reassigned into (aggregate follows membership)', function () {
+    [$admin, $company] = deptMember();
+    $deptA = Plugin::getInstance()->departments->createDepartment($company, 'A', 100.0, BudgetPeriod::Monthly, null);
+    $deptB = Plugin::getInstance()->departments->createDepartment($company, 'B', 100.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $deptA);
+    budgetCompletedOrder($admin, 40.0);
+
+    $now = new DateTimeImmutable('now');
+    expect(Plugin::getInstance()->departmentBudget->getSpent(Plugin::getInstance()->departments->getDepartment($deptA), $now))->toBe(40.0)
+        ->and(Plugin::getInstance()->departmentBudget->getSpent(Plugin::getInstance()->departments->getDepartment($deptB), $now))->toBe(0.0);
+
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $deptB);
+
+    expect(Plugin::getInstance()->departmentBudget->getSpent(Plugin::getInstance()->departments->getDepartment($deptA), $now))->toBe(0.0)
+        ->and(Plugin::getInstance()->departmentBudget->getSpent(Plugin::getInstance()->departments->getDepartment($deptB), $now))->toBe(40.0);
+});
+
+it('does not enforce a department budget after its department is deleted', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 10.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 40.0);
+
+    Plugin::getInstance()->departments->deleteDepartment($id);
+
+    $cart = budgetCart($admin, 1000.0);
+
+    // The member's departmentId was SET NULL by the delete, so there is nothing to enforce.
+    expect(deptEnforceAsSiteRequest($cart))->toBeFalse();
 });

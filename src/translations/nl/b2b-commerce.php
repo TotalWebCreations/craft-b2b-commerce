@@ -59,6 +59,8 @@ return [
     'Could not verify your company credit limit. Please try again.' => 'Kon de kredietlimiet van je bedrijf niet verifiëren. Probeer het opnieuw.',
     'This order exceeds your spending budget.' => 'Deze bestelling overschrijdt je bestedingsbudget.',
     'Could not verify your spending budget. Please try again.' => 'Kon je bestedingsbudget niet verifiëren. Probeer het opnieuw.',
+    'This order exceeds the department spending budget.' => 'Deze bestelling overschrijdt het bestedingsbudget van de afdeling.',
+    'Could not verify the department spending budget. Please try again.' => 'Kon het bestedingsbudget van de afdeling niet verifiëren. Probeer het opnieuw.',
     'This payment method is currently not available.' => 'Deze betaalmethode is momenteel niet beschikbaar.',
     'Pay on account requires an approved company account.' => 'Betalen op rekening vereist een goedgekeurd bedrijfsaccount.',
     'Hide prices for guests' => 'Prijzen verbergen voor gasten',
