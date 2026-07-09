@@ -166,3 +166,48 @@ it('includes an out-of-department approverUserId as the preferred approver', fun
     expect($ids)->toContain($externalApprover->id)
         ->and($ids)->toContain($admin->id);
 });
+
+/**
+ * Invokes the phase-18 private seam Approvals::departmentScopedApproverIds through reflection — it is
+ * private by design (an internal routing seam), so the wiring is asserted directly here rather than
+ * driving a full approval-ladder scenario.
+ */
+function callDepartmentScopedApproverIds(int $companyId, int $requesterId): ?array
+{
+    $method = new ReflectionMethod(
+        \totalwebcreations\b2bcommerce\modules\approvals\services\Approvals::class,
+        'departmentScopedApproverIds'
+    );
+    $method->setAccessible(true);
+
+    return $method->invoke(Plugin::getInstance()->approvals, $companyId, $requesterId);
+}
+
+it('routes a requester in a department to that department\'s approvers', function () {
+    [$admin, $company] = deptMember();
+    $approver = createTestUser('deptwire_appr_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($approver->id, $company->id, CompanyRole::Approver);
+
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', null, BudgetPeriod::Monthly, $approver->id);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    Plugin::getInstance()->departments->assignMember($company, $approver->id, $id);
+
+    $ids = callDepartmentScopedApproverIds($company->id, $admin->id);
+
+    expect($ids)->not->toBeNull()
+        ->and($ids)->toContain($approver->id);
+});
+
+it('returns null (not []) for a requester with no department so approval falls back to company approvers', function () {
+    // deptMember() adds the admin to the company but assigns no department.
+    [$admin, $company] = deptMember();
+
+    // A [] here would deadlock a department-scoped step in phase 18; the contract requires null.
+    expect(callDepartmentScopedApproverIds($company->id, $admin->id))->toBeNull();
+});
+
+it('returns null for an unknown requester id', function () {
+    [, $company] = deptMember();
+
+    expect(callDepartmentScopedApproverIds($company->id, 999999999))->toBeNull();
+});

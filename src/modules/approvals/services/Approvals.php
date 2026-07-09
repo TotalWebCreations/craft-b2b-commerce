@@ -572,10 +572,14 @@ class Approvals extends Component
     }
 
     /**
-     * Phase 19 seam. Resolves the user ids eligible to approve a department-scoped step for the
-     * requester's department, or null when department routing does not apply. Until the departments
-     * feature ships (its table is absent), this returns null so a departmentScoped tier falls back to
-     * any company approver — phase 18 never blocks on department routing. Phase 19 fills the body.
+     * Phase 19 wiring of the phase-18 routing seam. Resolves the user ids eligible to approve a
+     * department-scoped step for the requester's department, or null when department routing does not
+     * apply. Routes through Departments::eligibleApproversForUser, which derives the department from
+     * the requester. That helper returns [] for a member with no department, but phase 18's caller
+     * treats null (not []) as "fall back to any company approver" — an empty array would make every
+     * department-scoped eligibility check false and deadlock the approval. So an empty result is
+     * collapsed to null here; this method NEVER returns []. $companyId is retained to keep the phase-18
+     * seam signature intact even though routing is resolved from the requester's own department.
      *
      * @return array<int, int>|null
      */
@@ -585,8 +589,15 @@ class Approvals extends Component
             return null;
         }
 
-        // Phase 19 implements the real department-approver resolution here.
-        return null;
+        $requester = Craft::$app->getUsers()->getUserById($requesterId);
+
+        if ($requester === null) {
+            return null;
+        }
+
+        $ids = Plugin::getInstance()->departments->eligibleApproversForUser($requester);
+
+        return $ids === [] ? null : $ids;
     }
 
     /**
