@@ -699,6 +699,21 @@ class Approvals extends Component
             'reason' => $reason,
         ], ['orderId' => $orderId]);
 
+        // Resolve any still-pending steps of a laddered approval so none is left dangling on a
+        // completed order. They inherit the aggregate's null resolver and the same auditable reason.
+        $approvalId = (int) (new Query())
+            ->select('id')
+            ->from('{{%b2b_approvals}}')
+            ->where(['orderId' => $orderId])
+            ->scalar();
+
+        Db::update('{{%b2b_approval_steps}}', [
+            'status' => ApprovalStatus::Approved->value,
+            'resolvedById' => null,
+            'reason' => $reason,
+            'dateResolved' => Db::prepareDateForDb(new DateTime()),
+        ], ['approvalId' => $approvalId, 'status' => ApprovalStatus::Pending->value]);
+
         $this->reflectStatusOnElement();
     }
 

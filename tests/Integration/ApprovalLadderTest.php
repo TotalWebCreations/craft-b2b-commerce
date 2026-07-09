@@ -149,3 +149,23 @@ it('still requires a non-empty reason to decline a laddered step', function () {
     expect(fn () => Plugin::getInstance()->approvals->decline($cart->id, $approvers[0], '   '))
         ->toThrow(InvalidArgumentException::class, 'A reason is required to decline an order.');
 });
+
+it('resolves dangling pending steps when a laddered order completes via merchant override', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(3);
+    $cart = approvalCart($purchaser, 2000.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    // Only the first rung is signed; the merchant then completes from the console (override path,
+    // which bypasses the storefront backstop).
+    Plugin::getInstance()->approvals->approve($cart->id, $approvers[0]);
+
+    $reloaded = Order::find()->id($cart->id)->status(null)->one();
+    expect($reloaded->markAsComplete())->toBeTrue();
+
+    $steps = stepRows($approvalId);
+
+    // The aggregate is reconciled to approved and NO step is left pending.
+    expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Approved->value)
+        ->and(array_column($steps, 'status'))->toBe(array_fill(0, 3, ApprovalStatus::Approved->value));
+});
