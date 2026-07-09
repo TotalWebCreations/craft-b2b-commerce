@@ -863,6 +863,48 @@ class Approvals extends Component
     }
 
     /**
+     * The full, ordered step ladder of an approval for control-panel monitoring: every rung with its
+     * status and resolver, newest resolver names batch-loaded with no N+1. Read-only — the CP never
+     * resolves steps.
+     *
+     * @return array<int, array{
+     *     level: int,
+     *     status: string,
+     *     resolverName: ?string,
+     *     dateResolved: ?DateTime
+     * }>
+     */
+    public function getStepLadder(int $approvalId): array
+    {
+        $steps = (new Query())
+            ->from('{{%b2b_approval_steps}}')
+            ->where(['approvalId' => $approvalId])
+            ->orderBy(['level' => SORT_ASC])
+            ->all();
+
+        if ($steps === []) {
+            return [];
+        }
+
+        $resolverIds = array_values(array_filter(array_column($steps, 'resolvedById')));
+        $resolvers = $resolverIds !== []
+            ? User::find()->id($resolverIds)->status(null)->indexBy('id')->all()
+            : [];
+
+        return array_map(function (array $step) use ($resolvers): array {
+            $resolverId = $step['resolvedById'] !== null ? (int) $step['resolvedById'] : null;
+            $resolver = $resolverId !== null ? ($resolvers[$resolverId] ?? null) : null;
+
+            return [
+                'level' => (int) $step['level'],
+                'status' => (string) $step['status'],
+                'resolverName' => $resolver !== null ? ($resolver->fullName ?: $resolver->email) : null,
+                'dateResolved' => $this->toUtcDateTime($step['dateResolved']),
+            ];
+        }, $steps);
+    }
+
+    /**
      * Every pending approval of the company for its approver queue, newest first, batch-loaded with
      * no N+1: one row query, then the orders and requesters are each loaded once and stitched on.
      *

@@ -13,6 +13,7 @@ use craft\helpers\Html;
 use craft\helpers\UrlHelper;
 use totalwebcreations\b2bcommerce\elements\db\ApprovalQuery;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
+use totalwebcreations\b2bcommerce\Plugin;
 
 /**
  * An approval is a Craft element that wraps the b2b_approvals business record so its control-panel
@@ -170,13 +171,14 @@ class Approval extends Element
             'requester' => ['label' => Craft::t('b2b-commerce', 'Requester')],
             'resolver' => ['label' => Craft::t('b2b-commerce', 'Resolver')],
             'threshold' => ['label' => Craft::t('b2b-commerce', 'Threshold')],
+            'steps' => ['label' => Craft::t('b2b-commerce', 'Steps')],
             'dateCreated' => ['label' => Craft::t('app', 'Date Created')],
         ];
     }
 
     protected static function defineDefaultTableAttributes(string $source): array
     {
-        return ['company', 'order', 'requester', 'resolver', 'threshold', 'dateCreated'];
+        return ['company', 'order', 'requester', 'resolver', 'threshold', 'steps', 'dateCreated'];
     }
 
     protected static function defineSortOptions(): array
@@ -195,6 +197,7 @@ class Approval extends Element
             'requester' => $this->userAttributeHtml($this->requestedById),
             'resolver' => $this->userAttributeHtml($this->resolvedById),
             'threshold' => $this->thresholdAttributeHtml(),
+            'steps' => $this->stepsAttributeHtml(),
             default => parent::attributeHtml($attribute),
         };
     }
@@ -260,6 +263,32 @@ class Approval extends Element
         }
 
         return Html::encode((string) $this->thresholdAmount);
+    }
+
+    private function stepsAttributeHtml(): string
+    {
+        if ($this->id === null) {
+            return '';
+        }
+
+        $ladder = Plugin::getInstance()->approvals->getStepLadder($this->id);
+
+        if ($ladder === []) {
+            // Tier-less (legacy single-approval) — no ladder to show.
+            return Html::encode(Craft::t('b2b-commerce', 'Single approval'));
+        }
+
+        $marks = array_map(static function (array $step): string {
+            $symbol = match ($step['status']) {
+                ApprovalStatus::Approved->value => '✓',
+                ApprovalStatus::Declined->value => '✕',
+                default => '⋯',
+            };
+
+            return "L{$step['level']} {$symbol}";
+        }, $ladder);
+
+        return Html::encode(implode('  ·  ', $marks));
     }
 
     public function getOrder(): ?Order

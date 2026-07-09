@@ -365,3 +365,21 @@ it('queues a laddered approval only for an approver who can act on the open step
     expect(array_column($approvals->getOpenForApprover($company->id, $approvers[0]->id), 'orderId'))->not->toContain($cart->id)
         ->and(array_column($approvals->getOpenForApprover($company->id, $approvers[1]->id), 'orderId'))->toContain($cart->id);
 });
+
+it('reports the full step ladder for CP monitoring', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(3);
+    $cart = approvalCart($purchaser, 2000.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    Plugin::getInstance()->approvals->approve($cart->id, $approvers[0]);
+
+    $ladder = Plugin::getInstance()->approvals->getStepLadder($approvalId);
+
+    expect($ladder)->toHaveCount(3)
+        ->and($ladder[0]['level'])->toBe(1)
+        ->and($ladder[0]['status'])->toBe(ApprovalStatus::Approved->value)
+        ->and($ladder[0]['resolverName'])->not->toBeNull()
+        ->and($ladder[1]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and($ladder[2]['status'])->toBe(ApprovalStatus::Pending->value);
+});
