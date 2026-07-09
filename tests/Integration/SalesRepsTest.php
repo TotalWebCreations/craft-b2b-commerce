@@ -97,3 +97,22 @@ it('does not grant a non-rep admin any B2B rep scope', function () {
     expect($admin->can('b2b-commerce:orderOnBehalf'))->toBeTrue()
         ->and(reps()->canActFor($admin, $company))->toBeFalse();
 });
+
+it('writes and reads audit rows scoped by company', function () {
+    $rep = createTestUser('audit_rep_' . uniqid() . '@example.test');
+    $target = createTestUser('audit_target_' . uniqid() . '@example.test');
+    $companyA = createTestCompany(Company::STATUS_APPROVED, 'Audit A');
+    $companyB = createTestCompany(Company::STATUS_APPROVED, 'Audit B');
+
+    reps()->log($rep->id, $target->id, $companyA->id, null, SalesReps::ACTION_ACT_AS);
+    reps()->log($rep->id, $target->id, $companyB->id, null, SalesReps::ACTION_ACT_AS);
+
+    $forA = reps()->getLog($companyA->id);
+    $companyIds = array_map(fn(array $row): int => (int) $row['companyId'], $forA);
+
+    expect($forA)->toHaveCount(1)
+        ->and($companyIds)->toBe([$companyA->id])
+        ->and($forA[0]['action'])->toBe(SalesReps::ACTION_ACT_AS)
+        ->and((int) $forA[0]['repUserId'])->toBe($rep->id)
+        ->and((int) $forA[0]['targetUserId'])->toBe($target->id);
+});

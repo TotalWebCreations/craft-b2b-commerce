@@ -86,4 +86,30 @@ class SalesReps extends Component
 
         return $this->isRepForCompany($rep->id, $company->id);
     }
+
+    public function log(int $repUserId, int $targetUserId, ?int $companyId, ?int $orderId, string $action): void
+    {
+        // Db::insert auto-populates dateCreated/dateUpdated/uid for tables carrying those columns.
+        Db::insert('{{%b2b_impersonation_log}}', [
+            'repUserId' => $repUserId,
+            'targetUserId' => $targetUserId,
+            'companyId' => $companyId,
+            'orderId' => $orderId,
+            'action' => $action,
+        ]);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function getLog(?int $companyId = null): array
+    {
+        $query = (new Query())
+            ->from('{{%b2b_impersonation_log}}')
+            ->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC]);
+
+        if ($companyId !== null) {
+            $query->where(['companyId' => $companyId]);
+        }
+
+        return $query->all();
+    }
 }
