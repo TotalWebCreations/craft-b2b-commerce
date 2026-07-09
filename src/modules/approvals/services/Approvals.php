@@ -554,7 +554,9 @@ class Approvals extends Component
      * Declines a pending approval request, recording the reason and notifying the requester.
      * Shares the same oracle-free guard chain as approve(); additionally requires a non-empty
      * reason so the requester always learns why. The reason is validated only after authorisation,
-     * so it never becomes a probe channel.
+     * so it never becomes a probe channel. For a laddered approval, the currently-open step is
+     * marked declined too; a decline anywhere short-circuits the whole approval, so the remaining
+     * rungs are never reached.
      */
     public function decline(int $orderId, User $approver, string $reason): void
     {
@@ -566,6 +568,23 @@ class Approvals extends Component
             throw new InvalidArgumentException(
                 Craft::t('b2b-commerce', 'A reason is required to decline an order.')
             );
+        }
+
+        // Mark the currently-open step declined first; a decline anywhere short-circuits the whole
+        // approval (the aggregate flip below), so higher rungs are simply never reached.
+        $steps = $this->stepsForApproval((int) $row['id']);
+
+        if ($steps !== []) {
+            $openStep = $this->openStep($steps);
+
+            if ($openStep !== null) {
+                Db::update('{{%b2b_approval_steps}}', [
+                    'status' => ApprovalStatus::Declined->value,
+                    'resolvedById' => $approver->id,
+                    'reason' => $reason,
+                    'dateResolved' => Db::prepareDateForDb(new DateTime()),
+                ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+            }
         }
 
         // status = pending in the WHERE + the affected-row check close the concurrent-resolution

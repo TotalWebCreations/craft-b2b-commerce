@@ -115,3 +115,37 @@ it('keeps the tier-less single-approval path working exactly as before (legacy)'
         ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Approved->value)
         ->and((int) approvalRow($cart->id)['resolvedById'])->toBe($approver->id);
 });
+
+it('short-circuits the whole ladder to declined when a mid-chain step is declined', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(3);
+    $cart = approvalCart($purchaser, 2000.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    // Level 1 approves, level 2 declines mid-chain.
+    Plugin::getInstance()->approvals->approve($cart->id, $approvers[0]);
+    Plugin::getInstance()->approvals->decline($cart->id, $approvers[1], 'Budget frozen this quarter');
+
+    $steps = stepRows($approvalId);
+
+    expect($steps[0]['status'])->toBe(ApprovalStatus::Approved->value)
+        ->and($steps[1]['status'])->toBe(ApprovalStatus::Declined->value)
+        ->and($steps[1]['reason'])->toBe('Budget frozen this quarter')
+        ->and((int) $steps[1]['resolvedById'])->toBe($approvers[1]->id)
+        // Level 3 was never reached — it stays pending, but the aggregate is declined (terminal).
+        ->and($steps[2]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Declined->value)
+        ->and(approvalRow($cart->id)['reason'])->toBe('Budget frozen this quarter');
+
+    // The backstop keeps holding a declined order (never approved).
+    expect(refuseApprovalAsSiteRequest($cart))->toBeTrue();
+});
+
+it('still requires a non-empty reason to decline a laddered step', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(2);
+    $cart = approvalCart($purchaser, 800.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+
+    expect(fn () => Plugin::getInstance()->approvals->decline($cart->id, $approvers[0], '   '))
+        ->toThrow(InvalidArgumentException::class, 'A reason is required to decline an order.');
+});
