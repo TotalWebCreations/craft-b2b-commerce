@@ -312,8 +312,8 @@ class Install extends Migration
         if (!$this->db->tableExists('{{%b2b_impersonation_log}}')) {
             $this->createTable('{{%b2b_impersonation_log}}', [
                 'id' => $this->primaryKey(),
-                'repUserId' => $this->integer()->notNull(),
-                'targetUserId' => $this->integer()->notNull(),
+                'repUserId' => $this->integer(),
+                'targetUserId' => $this->integer(),
                 'companyId' => $this->integer(),
                 'orderId' => $this->integer(),
                 'action' => $this->string()->notNull(),
@@ -324,8 +324,9 @@ class Install extends Migration
 
             $this->createIndex(null, '{{%b2b_impersonation_log}}', ['companyId']);
             $this->createIndex(null, '{{%b2b_impersonation_log}}', ['repUserId']);
-            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['repUserId'], Table::USERS, ['id'], 'CASCADE');
-            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['targetUserId'], Table::USERS, ['id'], 'CASCADE');
+            // Audit rows must survive actor deletion, so repUserId/targetUserId use SET NULL like companyId/orderId.
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['repUserId'], Table::USERS, ['id'], 'SET NULL');
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['targetUserId'], Table::USERS, ['id'], 'SET NULL');
             $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'SET NULL');
             $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'SET NULL');
         }

@@ -116,3 +116,31 @@ it('writes and reads audit rows scoped by company', function () {
         ->and((int) $forA[0]['repUserId'])->toBe($rep->id)
         ->and((int) $forA[0]['targetUserId'])->toBe($target->id);
 });
+
+it('keeps the audit row when the rep user is hard-deleted, nulling out the actor id', function () {
+    $rep = createTestUser('audit_deleted_rep_' . uniqid() . '@example.test');
+    $target = createTestUser('audit_deleted_target_' . uniqid() . '@example.test');
+    $company = createTestCompany(Company::STATUS_APPROVED, 'Audit Deleted Rep Co');
+
+    reps()->log($rep->id, $target->id, $company->id, null, SalesReps::ACTION_ACT_AS);
+    $repId = $rep->id;
+
+    // Hard-delete the rep: repUserId has an ON DELETE SET NULL foreign key, so the
+    // audit row survives with a null actor reference instead of being erased.
+    craftApp()->getElements()->deleteElement($rep, true);
+    $GLOBALS['b2bTrackedElements'] = array_values(array_filter(
+        $GLOBALS['b2bTrackedElements'],
+        fn ($tracked) => $tracked->id !== $repId,
+    ));
+
+    $row = (new Query())
+        ->from('{{%b2b_impersonation_log}}')
+        ->where(['targetUserId' => $target->id, 'companyId' => $company->id])
+        ->one();
+
+    expect($row)->not->toBeNull()
+        ->and($row['repUserId'])->toBeNull()
+        ->and((int) $row['targetUserId'])->toBe($target->id)
+        ->and((int) $row['companyId'])->toBe($company->id)
+        ->and($row['action'])->toBe(SalesReps::ACTION_ACT_AS);
+});
