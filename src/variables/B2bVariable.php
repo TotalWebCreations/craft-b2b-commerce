@@ -264,7 +264,7 @@ class B2bVariable
             return [];
         }
 
-        return Plugin::getInstance()->approvals->getPendingForCompany($company->id);
+        return Plugin::getInstance()->approvals->getOpenForApprover($company->id, $user->id);
     }
 
     /**

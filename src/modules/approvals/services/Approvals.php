@@ -883,6 +883,87 @@ class Approvals extends Component
             ->orderBy(['dateCreated' => SORT_DESC])
             ->all();
 
+        return $this->hydratePendingRows($rows);
+    }
+
+    /**
+     * The pending approvals of the company whose currently-open step the given approver may act on:
+     * for a tier-less (legacy) approval that is any eligible approver who did not submit it; for a
+     * laddered approval it is hidden once the approver has already signed a rung (four-eyes across
+     * steps) or when the open step is department-scoped to a department they are not in (phase 19;
+     * phase 18 falls back to any company approver). Newest first, same batch-loaded shape as
+     * getPendingForCompany.
+     *
+     * @return array<int, array{
+     *     orderId: int,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     requesterName: ?string,
+     *     dateCreated: ?DateTime
+     * }>
+     */
+    public function getOpenForApprover(int $companyId, int $approverId): array
+    {
+        $rows = (new Query())
+            ->from('{{%b2b_approvals}}')
+            ->where(['companyId' => $companyId, 'status' => ApprovalStatus::Pending->value])
+            ->orderBy(['dateCreated' => SORT_DESC])
+            ->all();
+
+        $approver = Craft::$app->getUsers()->getUserById($approverId);
+
+        $rows = array_values(array_filter($rows, function (array $row) use ($companyId, $approverId, $approver): bool {
+            // Four-eyes: never queue an approver their own submission.
+            if ($row['requestedById'] !== null && (int) $row['requestedById'] === $approverId) {
+                return false;
+            }
+
+            $steps = $this->stepsForApproval((int) $row['id']);
+
+            // Tier-less (legacy) approval: open to any eligible approver.
+            if ($steps === []) {
+                return true;
+            }
+
+            // Four-eyes across steps: hide a ladder this approver already acted on.
+            if ($this->approverAlreadyResolvedStep((int) $row['id'], $approverId)) {
+                return false;
+            }
+
+            $openStep = $this->openStep($steps);
+
+            if ($openStep === null || $approver === null) {
+                return false;
+            }
+
+            return $this->approverEligibleForStep(
+                $approver,
+                $openStep,
+                $companyId,
+                $row['requestedById'] !== null ? (int) $row['requestedById'] : null,
+            );
+        }));
+
+        return $this->hydratePendingRows($rows);
+    }
+
+    /**
+     * Batch-loads the orders and requesters for a set of pending approval rows and stitches them onto
+     * the queue shape, with no N+1. Shared by getPendingForCompany and getOpenForApprover.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array{
+     *     orderId: int,
+     *     reference: ?string,
+     *     total: ?float,
+     *     currency: ?string,
+     *     requesterName: ?string,
+     *     dateCreated: ?DateTime
+     * }>
+     */
+    private function hydratePendingRows(array $rows): array
+    {
         if ($rows === []) {
             return [];
         }

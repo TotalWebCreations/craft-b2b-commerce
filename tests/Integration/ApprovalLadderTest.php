@@ -343,3 +343,25 @@ it('refuses to approve the last rung — and never places the order — when the
         ->and($stepsAfter[2]['status'])->toBe(ApprovalStatus::Pending->value)
         ->and(Order::find()->id($cart->id)->status(null)->one()->isCompleted)->toBeFalse();
 });
+
+it('queues a laddered approval only for an approver who can act on the open step', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(2);
+    $cart = approvalCart($purchaser, 800.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+
+    $approvals = Plugin::getInstance()->approvals;
+
+    // Before any rung is signed both approvers see it in their queue.
+    expect(array_column($approvals->getOpenForApprover($company->id, $approvers[0]->id), 'orderId'))->toContain($cart->id)
+        ->and(array_column($approvals->getOpenForApprover($company->id, $approvers[1]->id), 'orderId'))->toContain($cart->id);
+
+    // The submitter never sees their own request.
+    expect(array_column($approvals->getOpenForApprover($company->id, $purchaser->id), 'orderId'))->not->toContain($cart->id);
+
+    // After approver[0] signs the first rung, it drops out of THEIR queue (four-eyes across steps)
+    // but stays in approver[1]'s (the open rung is now theirs to sign).
+    $approvals->approve($cart->id, $approvers[0]);
+
+    expect(array_column($approvals->getOpenForApprover($company->id, $approvers[0]->id), 'orderId'))->not->toContain($cart->id)
+        ->and(array_column($approvals->getOpenForApprover($company->id, $approvers[1]->id), 'orderId'))->toContain($cart->id);
+});
