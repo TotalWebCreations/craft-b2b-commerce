@@ -1,0 +1,33 @@
+{# Example storefront "Act as" picker for sales reps. Copy into your own templates and restyle. #}
+{% requireLogin %}
+
+<h1>{{ 'Ordering on behalf of'|t('b2b-commerce') }}</h1>
+
+{% if companies is empty %}
+    <p>{{ 'You are not assigned to any companies.'|t('b2b-commerce') }}</p>
+{% endif %}
+
+{% for row in companies %}
+    <h2>{{ row.company.title }}</h2>
+    <ul>
+        {% for member in row.members %}
+            <li>
+                {{ member.user.name ?: member.user.email }}
+                <form method="post" action="{{ actionUrl('b2b-commerce/sales-rep/act') }}">
+                    {{ csrfInput() }}
+                    {{ hiddenInput('userId', member.user.id) }}
+                    {{ redirectInput('shop') }}
+                    <button type="submit">{{ 'Act as'|t('b2b-commerce') }}</button>
+                </form>
+            </li>
+        {% endfor %}
+    </ul>
+{% endfor %}
+
+{% if craft.app.user.getImpersonatorId() %}
+    <form method="post" action="{{ actionUrl('b2b-commerce/sales-rep/end') }}">
+        {{ csrfInput() }}
+        {{ redirectInput('') }}
+        <button type="submit">{{ 'Stop acting as'|t('b2b-commerce') }}</button>
+    </form>
+{% endif %}
