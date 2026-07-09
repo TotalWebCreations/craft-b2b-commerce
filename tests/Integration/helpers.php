@@ -354,6 +354,13 @@ function attachImpersonationTestShim(craft\console\User $userComponent): void
     $userComponent->attachBehavior('impersonationTestShim', new class extends yii\base\Behavior {
         private ?int $impersonatorId = null;
 
+        // Deliberately OMITS the real craft\web\User path's impersonateUsers read-gate: production
+        // only surfaces an impersonator id when the impersonator actually holds that permission,
+        // whereas this shim returns whatever id was set. That makes the shim STRICTLY MORE
+        // PERMISSIVE than production, so it can never hide a privilege escalation — any refusal that
+        // still holds here (e.g. resolveActingRepId returning null for a non-rep, or a budget
+        // refusal) holds a fortiori on the real, permission-gated web path. The genuine
+        // impersonateUsers-gated flow is proven end-to-end in tests/Http/SalesRepHttpTest.php.
         public function getImpersonatorId(): ?int
         {
             return $this->impersonatorId;
