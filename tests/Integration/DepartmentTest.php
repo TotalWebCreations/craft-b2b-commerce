@@ -211,3 +211,72 @@ it('returns null for an unknown requester id', function () {
 
     expect(callDepartmentScopedApproverIds($company->id, 999999999))->toBeNull();
 });
+
+it('sums the spend of all current department members for the department period', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 1000.0, BudgetPeriod::Monthly, null);
+
+    $second = createTestUser('deptspend_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($second->id, $company->id, CompanyRole::Purchaser);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    Plugin::getInstance()->departments->assignMember($company, $second->id, $id);
+
+    budgetCompletedOrder($admin, 30.0);
+    budgetCompletedOrder($second, 20.0);
+
+    $department = Plugin::getInstance()->departments->getDepartment($id);
+
+    expect(Plugin::getInstance()->departmentBudget->getSpent($department, new DateTimeImmutable('now')))->toBe(50.0);
+});
+
+it('excludes a non-department member from department spend', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 1000.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+
+    $outsider = createTestUser('deptout_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($outsider->id, $company->id, CompanyRole::Purchaser);
+
+    budgetCompletedOrder($admin, 30.0);
+    budgetCompletedOrder($outsider, 500.0); // not in the department
+
+    $department = Plugin::getInstance()->departments->getDepartment($id);
+
+    expect(Plugin::getInstance()->departmentBudget->getSpent($department, new DateTimeImmutable('now')))->toBe(30.0);
+});
+
+it('treats a null-budget department as unlimited', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Ops', null, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 9999.0);
+
+    $department = Plugin::getInstance()->departments->getDepartment($id);
+
+    expect(Plugin::getInstance()->departmentBudget->canAfford($department, 9999.0, new DateTimeImmutable('now')))->toBeTrue();
+});
+
+it('allows a charge landing exactly on the department budget', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 50.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+    budgetCompletedOrder($admin, 40.0);
+
+    $department = Plugin::getInstance()->departments->getDepartment($id);
+
+    expect(Plugin::getInstance()->departmentBudget->canAfford($department, 10.0, new DateTimeImmutable('now')))->toBeTrue()
+        ->and(Plugin::getInstance()->departmentBudget->canAfford($department, 11.0, new DateTimeImmutable('now')))->toBeFalse();
+});
+
+it('drops a previous-month order once the department monthly period resets', function () {
+    [$admin, $company] = deptMember();
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', 100.0, BudgetPeriod::Monthly, null);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);
+
+    $old = budgetCompletedOrder($admin, 40.0);
+    setOrderDateOrdered($old, '2020-01-15 12:00:00'); // helper in BudgetTest.php
+
+    $department = Plugin::getInstance()->departments->getDepartment($id);
+
+    expect(Plugin::getInstance()->departmentBudget->getSpent($department, new DateTimeImmutable('now')))->toBe(0.0);
+});
