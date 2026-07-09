@@ -293,6 +293,56 @@ class Install extends Migration
             $this->addForeignKey(null, '{{%b2b_company_users}}', ['departmentId'], '{{%b2b_departments}}', ['id'], 'SET NULL');
         }
 
+        if (!$this->db->tableExists('{{%b2b_rep_companies}}')) {
+            $this->createTable('{{%b2b_rep_companies}}', [
+                'id' => $this->primaryKey(),
+                'repUserId' => $this->integer()->notNull(),
+                'companyId' => $this->integer()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_rep_companies}}', ['repUserId', 'companyId'], true);
+            $this->createIndex(null, '{{%b2b_rep_companies}}', ['companyId']);
+            $this->addForeignKey(null, '{{%b2b_rep_companies}}', ['repUserId'], Table::USERS, ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_rep_companies}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'CASCADE');
+        }
+
+        if (!$this->db->tableExists('{{%b2b_impersonation_log}}')) {
+            $this->createTable('{{%b2b_impersonation_log}}', [
+                'id' => $this->primaryKey(),
+                'repUserId' => $this->integer()->notNull(),
+                'targetUserId' => $this->integer()->notNull(),
+                'companyId' => $this->integer(),
+                'orderId' => $this->integer(),
+                'action' => $this->string()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_impersonation_log}}', ['companyId']);
+            $this->createIndex(null, '{{%b2b_impersonation_log}}', ['repUserId']);
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['repUserId'], Table::USERS, ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['targetUserId'], Table::USERS, ['id'], 'CASCADE');
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['companyId'], '{{%b2b_companies}}', ['id'], 'SET NULL');
+            $this->addForeignKey(null, '{{%b2b_impersonation_log}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'SET NULL');
+        }
+
+        // Column parity for installs whose order-company link table predates the sales-rep phase. An
+        // existing install reaches this column through the m260714_000500 migration; this guard keeps
+        // a fresh Install::safeUp() consistent when the createTable branch above was skipped.
+        if (!$this->db->columnExists('{{%b2b_order_company}}', 'placedByRepId')) {
+            $this->addColumn(
+                '{{%b2b_order_company}}',
+                'placedByRepId',
+                $this->integer()->after('isInvoice')
+            );
+
+            $this->addForeignKey(null, '{{%b2b_order_company}}', ['placedByRepId'], Table::USERS, ['id'], 'SET NULL');
+        }
+
         return true;
     }
 }
