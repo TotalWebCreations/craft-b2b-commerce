@@ -63,6 +63,7 @@ use totalwebcreations\b2bcommerce\modules\companies\services\CompanyApproval;
 use totalwebcreations\b2bcommerce\modules\companies\services\CompanyMembers;
 use totalwebcreations\b2bcommerce\modules\companies\services\OrderCompanyLink;
 use totalwebcreations\b2bcommerce\modules\companies\services\Registration;
+use totalwebcreations\b2bcommerce\modules\companies\services\SalesReps;
 use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
 use totalwebcreations\b2bcommerce\modules\pricing\services\CustomerGroupSync;
 use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
@@ -110,6 +111,7 @@ use yii\base\Event;
  * @property-read QuickOrder $quickOrder
  * @property-read Quotes $quotes
  * @property-read Registration $registration
+ * @property-read SalesReps $salesReps
  * @property-read TaxIdValidation $taxIdValidation
  */
 class Plugin extends BasePlugin
@@ -264,6 +266,7 @@ class Plugin extends BasePlugin
             'quickOrder' => QuickOrder::class,
             'quotes' => Quotes::class,
             'registration' => Registration::class,
+            'salesReps' => SalesReps::class,
             'taxIdValidation' => TaxIdValidation::class,
         ]);
 
@@ -385,6 +388,9 @@ class Plugin extends BasePlugin
                         ],
                         'b2b-commerce:manageApprovals' => [
                             'label' => Craft::t('b2b-commerce', 'Manage approvals'),
+                        ],
+                        'b2b-commerce:orderOnBehalf' => [
+                            'label' => Craft::t('b2b-commerce', 'Order on behalf of a company'),
                         ],
                     ],
                 ];
