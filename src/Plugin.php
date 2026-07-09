@@ -80,6 +80,7 @@ use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\modules\quotes\services\Quotes;
+use totalwebcreations\b2bcommerce\services\CompanyCatalog;
 use totalwebcreations\b2bcommerce\services\PriceVisibility;
 use totalwebcreations\b2bcommerce\variables\B2bVariable;
 use totalwebcreations\b2bcommerce\widgets\Overview as OverviewWidget;
@@ -94,6 +95,7 @@ use yii\base\Event;
  * @property-read Budgets $budgets
  * @property-read CompanyAddresses $companyAddresses
  * @property-read CompanyApproval $companyApproval
+ * @property-read CompanyCatalog $companyCatalog
  * @property-read CompanyMembers $companyMembers
  * @property-read CustomerGroupSync $customerGroupSync
  * @property-read CreditBalance $creditBalance
@@ -249,6 +251,7 @@ class Plugin extends BasePlugin
             'budgets' => Budgets::class,
             'companyAddresses' => CompanyAddresses::class,
             'companyApproval' => CompanyApproval::class,
+            'companyCatalog' => CompanyCatalog::class,
             'companyMembers' => CompanyMembers::class,
             'customerGroupSync' => CustomerGroupSync::class,
             'creditBalance' => CreditBalance::class,
