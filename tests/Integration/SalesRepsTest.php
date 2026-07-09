@@ -282,6 +282,19 @@ it('stamps placedByRepId and logs when a rep placed the order', function () {
         ->and($orderLog)->toHaveCount(1);
 });
 
+it('assigns a rep by email through the CP service path', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'CP Rep Co');
+    $rep = createTestUser('cp_rep_' . uniqid() . '@example.test');
+
+    // Mirrors CompaniesCpController::actionAssignRep: resolve by email, then assign.
+    $resolved = Plugin::getInstance()->companyMembers->findUserByEmail($rep->email);
+    Plugin::getInstance()->salesReps->assignRep($resolved->id, $company->id);
+
+    $repIds = array_map(fn(User $u): int => $u->id, Plugin::getInstance()->salesReps->getRepsForCompany($company->id));
+
+    expect($repIds)->toContain($rep->id);
+});
+
 it('leaves placedByRepId null for an ordinary (non-rep) order', function () {
     $company = createTestCompany(Company::STATUS_APPROVED, 'Plain Co');
     $member = createTestUser('pmember_' . uniqid() . '@example.test');

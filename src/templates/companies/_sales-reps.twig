@@ -1,0 +1,96 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Sales reps'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% block content %}
+    <p><a href="{{ url('b2b/companies/' ~ company.id ~ '/members') }}">{{ 'Members'|t('b2b-commerce') }}</a></p>
+
+    <form method="post" accept-charset="UTF-8" style="display: flex; gap: 8px; align-items: flex-end; margin-bottom: 24px;">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/companies-cp/assign-rep') }}
+        {{ hiddenInput('companyId', company.id) }}
+        {{ forms.textField({
+            label: 'Assign a sales rep'|t('b2b-commerce'),
+            instructions: 'Email address of an existing user who may order on behalf of this company.'|t('b2b-commerce'),
+            name: 'email',
+            type: 'email',
+        }) }}
+        <button type="submit" class="btn submit">{{ 'Assign'|t('b2b-commerce') }}</button>
+    </form>
+
+    {% if reps is empty %}
+        <p class="zilch">{{ 'No sales reps assigned yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Email'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Status'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Actions'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rep in reps %}
+                    <tr>
+                        <td><a href="{{ rep.user.cpEditUrl }}">{{ rep.user.name ?: rep.user.email }}</a></td>
+                        <td>{{ rep.user.email }}</td>
+                        <td>
+                            {% if not rep.hasPermission %}
+                                <span class="error">{{ 'Missing the “Order on behalf of a company” permission.'|t('b2b-commerce') }}</span>
+                            {% elseif not rep.canImpersonate %}
+                                <span class="error">{{ 'Missing Craft’s “Impersonate users” permission.'|t('b2b-commerce') }}</span>
+                            {% else %}
+                                <span class="success">{{ 'Ready'|t('b2b-commerce') }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" accept-charset="UTF-8">
+                                {{ csrfInput() }}
+                                {{ actionInput('b2b-commerce/companies-cp/unassign-rep') }}
+                                {{ hiddenInput('companyId', company.id) }}
+                                {{ hiddenInput('userId', rep.user.id) }}
+                                <button type="submit" class="btn small">{{ 'Remove'|t('b2b-commerce') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <h2>{{ 'Activity'|t('b2b-commerce') }}</h2>
+    {% if log is empty %}
+        <p class="zilch">{{ 'No activity yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'When'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Action'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Rep'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'On behalf of'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Order'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in log %}
+                    <tr>
+                        <td>{{ entry.dateCreated }}</td>
+                        <td>{{ entry.action }}</td>
+                        <td>{{ entry.repUserId }}</td>
+                        <td>{{ entry.targetUserId }}</td>
+                        <td>{{ entry.orderId ?? '—' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}

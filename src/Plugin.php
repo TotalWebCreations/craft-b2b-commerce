@@ -327,6 +327,7 @@ class Plugin extends BasePlugin
                 $event->rules['b2b/companies/<companyId:\d+>/members'] = 'b2b-commerce/companies-cp/members';
                 $event->rules['b2b/companies/<companyId:\d+>/departments'] = 'b2b-commerce/companies-cp/departments';
                 $event->rules['b2b/companies/<companyId:\d+>/orders'] = 'b2b-commerce/companies-cp/orders';
+                $event->rules['b2b/companies/<companyId:\d+>/sales-reps'] = 'b2b-commerce/companies-cp/sales-reps';
                 $event->rules['b2b/companies/<companyId:\d+>/approval-tiers'] = 'b2b-commerce/companies-cp/approval-tiers';
                 $event->rules['b2b/companies/<elementId:\d+>'] = 'elements/edit';
                 $event->rules['b2b/quotes'] = ['template' => 'b2b-commerce/quotes/_index'];

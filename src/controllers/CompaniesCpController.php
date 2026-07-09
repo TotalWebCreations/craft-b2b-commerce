@@ -491,6 +491,63 @@ class CompaniesCpController extends Controller
         return $this->redirectToDepartments($company);
     }
 
+    public function actionSalesReps(int $companyId): Response
+    {
+        $company = $this->findCompany($companyId);
+
+        $reps = array_map(
+            fn(User $rep): array => [
+                'user' => $rep,
+                'hasPermission' => $rep->can('b2b-commerce:orderOnBehalf'),
+                'canImpersonate' => $rep->admin || $rep->can('impersonateUsers'),
+            ],
+            Plugin::getInstance()->salesReps->getRepsForCompany($company->id),
+        );
+
+        return $this->renderTemplate('b2b-commerce/companies/_sales-reps', [
+            'company' => $company,
+            'reps' => $reps,
+            'log' => Plugin::getInstance()->salesReps->getLog($company->id),
+        ]);
+    }
+
+    public function actionAssignRep(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        $rep = Plugin::getInstance()->companyMembers->findUserByEmail($this->requiredStringBodyParam('email'));
+
+        if ($rep === null) {
+            $session->setError(Craft::t('b2b-commerce', 'No user found with that email address.'));
+
+            return $this->redirectToSalesReps($company);
+        }
+
+        Plugin::getInstance()->salesReps->assignRep($rep->id, $company->id);
+        $session->setNotice(Craft::t('b2b-commerce', 'Sales rep assigned.'));
+
+        return $this->redirectToSalesReps($company);
+    }
+
+    public function actionUnassignRep(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+
+        Plugin::getInstance()->salesReps->unassignRep(
+            (int) Craft::$app->getRequest()->getRequiredBodyParam('userId'),
+            $company->id,
+        );
+
+        Craft::$app->getSession()->setNotice(Craft::t('b2b-commerce', 'Sales rep removed.'));
+
+        return $this->redirectToSalesReps($company);
+    }
+
     /**
      * The member's current budget as a display row, or null when they have no budget (unlimited) or
      * no linked user. `remaining` is the room left this period, never below zero.
@@ -557,6 +614,11 @@ class CompaniesCpController extends Controller
     private function redirectToMembers(Company $company): Response
     {
         return $this->redirect(UrlHelper::cpUrl("b2b/companies/{$company->id}/members"));
+    }
+
+    private function redirectToSalesReps(Company $company): Response
+    {
+        return $this->redirect(UrlHelper::cpUrl("b2b/companies/{$company->id}/sales-reps"));
     }
 
     private function redirectToTiers(Company $company): Response
