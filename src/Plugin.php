@@ -67,6 +67,9 @@ use totalwebcreations\b2bcommerce\modules\companies\services\TaxIdValidation;
 use totalwebcreations\b2bcommerce\modules\pricing\services\CustomerGroupSync;
 use totalwebcreations\b2bcommerce\modules\budgets\services\BudgetEnforcer;
 use totalwebcreations\b2bcommerce\modules\budgets\services\Budgets;
+use totalwebcreations\b2bcommerce\modules\departments\services\DepartmentBudget;
+use totalwebcreations\b2bcommerce\modules\departments\services\DepartmentBudgetEnforcer;
+use totalwebcreations\b2bcommerce\modules\departments\services\Departments;
 use totalwebcreations\b2bcommerce\modules\checkout\services\OrderReferences;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
@@ -94,6 +97,9 @@ use yii\base\Event;
  * @property-read CustomerGroupSync $customerGroupSync
  * @property-read CreditBalance $creditBalance
  * @property-read CreditEnforcer $creditEnforcer
+ * @property-read DepartmentBudget $departmentBudget
+ * @property-read DepartmentBudgetEnforcer $departmentBudgetEnforcer
+ * @property-read Departments $departments
  * @property-read OrderCompanyLink $orderCompanyLink
  * @property-read OrderLists $orderLists
  * @property-read OrderReferences $orderReferences
@@ -245,6 +251,9 @@ class Plugin extends BasePlugin
             'customerGroupSync' => CustomerGroupSync::class,
             'creditBalance' => CreditBalance::class,
             'creditEnforcer' => CreditEnforcer::class,
+            'departmentBudget' => DepartmentBudget::class,
+            'departmentBudgetEnforcer' => DepartmentBudgetEnforcer::class,
+            'departments' => Departments::class,
             'orderCompanyLink' => OrderCompanyLink::class,
             'orderLists' => OrderLists::class,
             'orderReferences' => OrderReferences::class,
