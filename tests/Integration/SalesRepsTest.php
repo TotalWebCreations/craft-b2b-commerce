@@ -3,8 +3,10 @@
 use craft\db\Query;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\modules\companies\services\SalesReps;
 use totalwebcreations\b2bcommerce\Plugin;
+use yii\web\ForbiddenHttpException;
 
 function salesRepsDb(): \craft\db\Connection
 {
@@ -143,4 +145,90 @@ it('keeps the audit row when the rep user is hard-deleted, nulling out the actor
         ->and((int) $row['targetUserId'])->toBe($target->id)
         ->and((int) $row['companyId'])->toBe($company->id)
         ->and($row['action'])->toBe(SalesReps::ACTION_ACT_AS);
+});
+
+/**
+ * Grants the native Craft impersonateUsers permission. Craft's saveUserPermissions() silently
+ * drops a nested permission whose ancestors are not ALSO present in the posted set
+ * (UserPermissions::_findSelectedPermissions only recurses into a group's `nested` permissions
+ * when the group itself is posted) — impersonateUsers nests under editUsers, which nests under
+ * viewUsers, so both must be granted alongside it or the permission never actually sticks.
+ */
+function grantImpersonate(User $user): User
+{
+    $existing = craftApp()->getUserPermissions()->getPermissionsByUserId($user->id);
+    craftApp()->getUserPermissions()->saveUserPermissions(
+        $user->id,
+        array_values(array_unique([...$existing, 'viewUsers', 'editUsers', 'impersonateUsers']))
+    );
+
+    return craftApp()->getUsers()->getUserById($user->id);
+}
+
+it('starts impersonation for an assigned company and logs it', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'ActAs Co');
+    $member = createTestUser('member_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $rep = grantImpersonate(makeRepUser());
+    reps()->assignRep($rep->id, $company->id);
+
+    // Integration suite runs a console app: craft\console\User has no impersonation concept
+    // (getImpersonatorId/setImpersonatorId/loginByUserId are craft\web\User-only, session-backed
+    // APIs). impersonationTestUser() attaches a test-only behavior reproducing exactly those
+    // three methods so actAs()/endActingAs() run unmodified; see its docblock in helpers.php. The
+    // real web session path is covered end-to-end by tests/Http/SalesRepHttpTest.php.
+    $userSession = impersonationTestUser();
+    $previous = $userSession->getIdentity();
+
+    try {
+        $userSession->setIdentity($rep);
+        reps()->actAs($rep, $member);
+
+        expect((int) $userSession->getId())->toBe($member->id)
+            ->and($userSession->getImpersonatorId())->toBe($rep->id);
+
+        $log = reps()->getLog($company->id);
+        expect($log[0]['action'])->toBe(SalesReps::ACTION_ACT_AS);
+
+        // End: rep restored, impersonation marker cleared.
+        reps()->endActingAs();
+        expect($userSession->getImpersonatorId())->toBeNull();
+    } finally {
+        $userSession->setIdentity($previous);
+        $userSession->setImpersonatorId(null);
+    }
+});
+
+it('refuses to act for an unassigned company', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'Unassigned Co');
+    $member = createTestUser('umember_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $rep = grantImpersonate(makeRepUser());
+    // Deliberately NOT assigned to $company.
+
+    reps()->actAs($rep, $member);
+})->throws(ForbiddenHttpException::class);
+
+it('resolves the acting rep id only for a genuine rep of the order company', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'Resolve Co');
+    $member = createTestUser('rmember_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $rep = grantImpersonate(makeRepUser());
+    reps()->assignRep($rep->id, $company->id);
+
+    $userSession = impersonationTestUser();
+
+    try {
+        $userSession->setImpersonatorId($rep->id);
+        expect(reps()->resolveActingRepId($company))->toBe($rep->id);
+
+        // No impersonation in session -> null.
+        $userSession->setImpersonatorId(null);
+        expect(reps()->resolveActingRepId($company))->toBeNull();
+    } finally {
+        $userSession->setImpersonatorId(null);
+    }
 });

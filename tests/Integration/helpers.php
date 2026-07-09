@@ -303,3 +303,62 @@ function quoteRow(int $orderId): ?array
         ->where(['orderId' => $orderId])
         ->one() ?: null;
 }
+
+/**
+ * Test-only impersonation session shim.
+ *
+ * The Integration suite boots a console craft\console\Application (see bootstrap.php), whose
+ * craft\console\User has no notion of impersonation: getImpersonatorId()/setImpersonatorId()/
+ * loginByUserId() exist only on craft\web\User, which is backed by a real HTTP session/cookie
+ * stack that a console process does not have. SalesReps::actAs()/endActingAs()/
+ * resolveActingRepId() call exactly those three methods on Craft::$app->getUser(), because in
+ * production Craft always runs as the web app there.
+ *
+ * To exercise that logic at Integration speed without standing up a full web app (session,
+ * response, cookies), this attaches a tiny behavior — once per process — that reproduces just
+ * those three methods' observable contract: switching the session identity and tracking an
+ * impersonator id in memory. Yii's Component::__call() only reaches attached behaviors for
+ * method names the component does NOT already define, so this cannot shadow console\User's own
+ * getId()/getIdentity()/setIdentity(). It is test-only scaffolding; production code is
+ * unmodified. The real web session path (actual cookies, actual login) is covered end-to-end by
+ * tests/Http/SalesRepHttpTest.php against the real dev site.
+ */
+function impersonationTestUser(): craft\console\User
+{
+    static $attached = false;
+
+    $userComponent = craftApp()->getUser();
+
+    if (!$attached) {
+        $userComponent->attachBehavior('impersonationTestShim', new class extends yii\base\Behavior {
+            private ?int $impersonatorId = null;
+
+            public function getImpersonatorId(): ?int
+            {
+                return $this->impersonatorId;
+            }
+
+            public function setImpersonatorId(?int $id): void
+            {
+                $this->impersonatorId = $id;
+            }
+
+            public function loginByUserId(int $userId, int $duration = 0): bool
+            {
+                $user = craftApp()->getUsers()->getUserById($userId);
+
+                if ($user === null) {
+                    return false;
+                }
+
+                $this->owner->setIdentity($user);
+
+                return true;
+            }
+        });
+
+        $attached = true;
+    }
+
+    return $userComponent;
+}
