@@ -1,0 +1,86 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Approval tiers'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% block content %}
+    <p>{{ 'Bands escalate who must sign off as the order amount grows. Every tier at or below the order total must be approved in level order. Leave tiers empty to use the single approval threshold.'|t('b2b-commerce') }}</p>
+
+    {% if tiers is empty %}
+        <p class="zilch">{{ 'No approval tiers yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Level'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Minimum amount'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Department-scoped'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Actions'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tier in tiers %}
+                    <tr>
+                        <td>{{ tier.level }}</td>
+                        <td>{{ tier.minAmount|currency(currency) }}</td>
+                        <td>{{ tier.departmentScoped ? 'Yes'|t('b2b-commerce') : 'No'|t('b2b-commerce') }}</td>
+                        <td>
+                            <form method="post" accept-charset="UTF-8" style="display: inline;">
+                                {{ csrfInput() }}
+                                {{ actionInput('b2b-commerce/companies-cp/delete-tier') }}
+                                {{ hiddenInput('companyId', company.id) }}
+                                {{ hiddenInput('level', tier.level) }}
+                                <button type="submit" class="btn small delete">{{ 'Remove'|t('b2b-commerce') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <hr>
+
+    <h2>{{ 'Add or update a tier'|t('b2b-commerce') }}</h2>
+
+    <form method="post" accept-charset="UTF-8">
+        {{ csrfInput() }}
+        {{ actionInput('b2b-commerce/companies-cp/set-tier') }}
+        {{ hiddenInput('companyId', company.id) }}
+
+        {{ forms.textField({
+            label: 'Level'|t('b2b-commerce'),
+            instructions: 'The rung of the ladder (1 is signed first). Reusing a level updates it.'|t('b2b-commerce'),
+            name: 'level',
+            type: 'number',
+            min: 1,
+            required: true,
+        }) }}
+
+        {{ forms.textField({
+            label: 'Minimum amount'|t('b2b-commerce'),
+            instructions: 'This level applies to orders at or above this amount.'|t('b2b-commerce'),
+            name: 'minAmount',
+            type: 'number',
+            step: 'any',
+            min: 0,
+            required: true,
+        }) }}
+
+        {{ hiddenInput('approverRole', 'approver') }}
+
+        {{ forms.lightswitchField({
+            label: 'Department-scoped'|t('b2b-commerce'),
+            instructions: 'Route this level to the requester’s department approvers first (falls back to any company approver).'|t('b2b-commerce'),
+            name: 'departmentScoped',
+        }) }}
+
+        <button type="submit" class="btn submit">{{ 'Save tier'|t('b2b-commerce') }}</button>
+    </form>
+{% endblock %}

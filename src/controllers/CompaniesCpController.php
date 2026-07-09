@@ -161,6 +161,65 @@ class CompaniesCpController extends Controller
         ]);
     }
 
+    public function actionApprovalTiers(int $companyId): Response
+    {
+        $company = $this->findCompany($companyId);
+
+        $tiers = Plugin::getInstance()->approvalTiers->getTiers($company->id);
+
+        // Tiers are single-currency like credit limits and budgets: format amounts in the primary
+        // store's currency rather than the request locale.
+        $currency = Commerce::getInstance()->getStores()->getPrimaryStore()?->getCurrency()?->getCode();
+
+        return $this->renderTemplate('b2b-commerce/companies/_approvalTiers', [
+            'company' => $company,
+            'tiers' => $tiers,
+            'currency' => $currency,
+        ]);
+    }
+
+    public function actionSetTier(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        try {
+            Plugin::getInstance()->approvalTiers->setTier(
+                $company->id,
+                (int) Craft::$app->getRequest()->getRequiredBodyParam('level'),
+                (float) Craft::$app->getRequest()->getRequiredBodyParam('minAmount'),
+                $this->requiredStringBodyParam('approverRole'),
+                (bool) Craft::$app->getRequest()->getBodyParam('departmentScoped', false),
+            );
+        } catch (InvalidArgumentException $exception) {
+            $session->setError($exception->getMessage());
+
+            return $this->redirectToTiers($company);
+        }
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Tier saved.'));
+
+        return $this->redirectToTiers($company);
+    }
+
+    public function actionDeleteTier(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+
+        Plugin::getInstance()->approvalTiers->deleteTier(
+            $company->id,
+            (int) Craft::$app->getRequest()->getRequiredBodyParam('level'),
+        );
+
+        Craft::$app->getSession()->setNotice(Craft::t('b2b-commerce', 'Tier removed.'));
+
+        return $this->redirectToTiers($company);
+    }
+
     public function actionAddMember(): Response
     {
         $this->requirePostRequest();
@@ -291,6 +350,11 @@ class CompaniesCpController extends Controller
     private function redirectToMembers(Company $company): Response
     {
         return $this->redirect(UrlHelper::cpUrl("b2b/companies/{$company->id}/members"));
+    }
+
+    private function redirectToTiers(Company $company): Response
+    {
+        return $this->redirect(UrlHelper::cpUrl("b2b/companies/{$company->id}/approval-tiers"));
     }
 
     private function findCompany(int $companyId): Company

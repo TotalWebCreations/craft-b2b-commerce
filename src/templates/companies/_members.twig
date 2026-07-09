@@ -10,6 +10,10 @@
 ] %}
 
 {% block content %}
+    <p>
+        <a class="btn" href="{{ url('b2b/companies/' ~ company.id ~ '/approval-tiers') }}">{{ 'Approval tiers'|t('b2b-commerce') }}</a>
+    </p>
+
     {% if members is empty %}
         <p class="zilch">{{ 'No members yet.'|t('b2b-commerce') }}</p>
     {% else %}
