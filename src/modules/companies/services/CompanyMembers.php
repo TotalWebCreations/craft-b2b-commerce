@@ -254,6 +254,31 @@ class CompanyMembers extends Component
     }
 
     /**
+     * Every member's current department id for the company, keyed by userId, batched to avoid an
+     * N+1 when preselecting department assignments (e.g. on the departments CP page).
+     *
+     * @return array<int, int|null>
+     */
+    public function getMemberDepartmentIds(int $companyId): array
+    {
+        $rows = (new Query())
+            ->select(['userId', 'departmentId'])
+            ->from('{{%b2b_company_users}}')
+            ->where(['companyId' => $companyId])
+            ->all();
+
+        $departmentIdsByUser = [];
+
+        foreach ($rows as $row) {
+            $departmentIdsByUser[(int) $row['userId']] = $row['departmentId'] !== null
+                ? (int) $row['departmentId']
+                : null;
+        }
+
+        return $departmentIdsByUser;
+    }
+
+    /**
      * Resolves a user by email case-insensitively, independent of the database
      * collation, by comparing lowercased values on both sides.
      */

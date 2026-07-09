@@ -327,19 +327,14 @@ class CompaniesCpController extends Controller
 
         $memberUsers = Plugin::getInstance()->companyMembers->getMemberUsers($company->id);
 
-        // Current department id per member, so the assignment select can preselect it.
-        $currentByUser = [];
-
-        foreach ($memberUsers as $member) {
-            $department = Plugin::getInstance()->departments->getDepartmentForUser($member['user']->id);
-            $currentByUser[$member['user']->id] = $department !== null ? (int) $department['id'] : '';
-        }
+        // Current department id per member, batched, so the assignment select can preselect it.
+        $departmentIdsByUser = Plugin::getInstance()->companyMembers->getMemberDepartmentIds($company->id);
 
         $members = array_map(
             fn(array $row): array => [
                 'user' => $row['user'],
                 'roleLabel' => Craft::t('b2b-commerce', $row['role']->name),
-                'departmentId' => $currentByUser[$row['user']->id],
+                'departmentId' => $departmentIdsByUser[$row['user']->id] ?? '',
             ],
             $memberUsers,
         );
@@ -349,7 +344,7 @@ class CompaniesCpController extends Controller
             [['label' => Craft::t('b2b-commerce', 'No department'), 'value' => '']],
             array_map(
                 fn(array $row): array => ['label' => $row['name'], 'value' => (string) $row['id']],
-                Plugin::getInstance()->departments->getDepartmentsForCompany($company->id),
+                $departments,
             ),
         );
 

@@ -337,7 +337,6 @@ return [
     'Budget amount' => 'Budgetbedrag',
     'Budget period' => 'Budgetperiode',
     'Leave empty for an unlimited department.' => 'Laat leeg voor een onbeperkte afdeling.',
-    'Approver' => 'Fiatteur',
     'No approver' => 'Geen fiatteur',
     'Assign members' => 'Leden toewijzen',
     'Department not found.' => 'Afdeling niet gevonden.',
