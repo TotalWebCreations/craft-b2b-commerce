@@ -8,3 +8,23 @@
 ] %}
 {% set elementType = 'totalwebcreations\\b2bcommerce\\elements\\Quote' %}
 {% set canHaveDrafts = false %}
+
+{# The Quote element has canCreate = false (a quote always wraps a real Commerce order), so
+   Craft's native element index never renders an automatic "New" button here. Send merchants
+   into Commerce's own new-order flow instead: they build the cart + customer there, then use
+   the "Send as B2B quote" button Commerce's order-edit screen already renders (registered in
+   Plugin::attachCpHandlers() on the cp.commerce.order.edit.order-secondary-actions hook). This
+   is the exact URL Commerce's own "New Order" toolbar button links to (see
+   CommerceOrderIndex.js and craft\commerce\controllers\OrdersController::actionCreate()), not a
+   guessed route. #}
+{% set newOrderStore = craft.commerce.stores.primaryStore %}
+
+{% block actionButton %}
+    {% if currentUser.can('b2b-commerce:manageQuotes') and newOrderStore %}
+        {{ tag('a', {
+            class: 'btn submit add icon',
+            href: url('commerce/orders/' ~ newOrderStore.handle ~ '/create'),
+            text: 'New quote'|t('b2b-commerce'),
+        }) }}
+    {% endif %}
+{% endblock %}

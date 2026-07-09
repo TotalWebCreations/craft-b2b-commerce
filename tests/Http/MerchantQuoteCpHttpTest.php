@@ -172,6 +172,31 @@ it('refuses decline for an order that is not a quote, with a redirect flash rath
         ->and($response->getHeaderLine('Location'))->toContain('/b2b/quotes');
 });
 
+it('renders the new-quote button on the quotes index for a manageQuotes user', function () {
+    [$client] = cpUserWithManageQuotes();
+
+    $response = $client->get('/admin/b2b/quotes', [
+        'headers' => ['Accept' => 'text/html'],
+    ]);
+
+    // The Quote element has canCreate = false, so Craft's native index never shows an automatic
+    // "New" button; the index template adds its own, linking straight into Commerce's own
+    // new-order action (the same one Commerce's own "New Order" toolbar button uses).
+    expect($response->getStatusCode())->toBe(200)
+        ->and((string) $response->getBody())->toContain('commerce/orders/')
+        ->and((string) $response->getBody())->toContain('/create');
+});
+
+it('refuses the quotes index for a CP user without manageQuotes', function () {
+    $client = cpUserWithoutManageQuotes();
+
+    $response = $client->get('/admin/b2b/quotes', [
+        'headers' => ['Accept' => 'text/html'],
+    ]);
+
+    expect($response->getStatusCode())->toBe(403);
+});
+
 it('excludes a non-approved company from the new-quote picker', function () {
     $approvedCompany = createTestCompany('approved', 'Picker Approved Co');
     $pendingCompany = createTestCompany('pending', 'Picker Pending Co');
