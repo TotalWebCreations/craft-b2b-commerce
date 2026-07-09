@@ -10,6 +10,8 @@
 ] %}
 
 {% block content %}
+    <p><a href="{{ url('b2b/companies/' ~ company.id ~ '/departments') }}">{{ 'Departments'|t('b2b-commerce') }}</a></p>
+
     <p>
         <a class="btn" href="{{ url('b2b/companies/' ~ company.id ~ '/approval-tiers') }}">{{ 'Approval tiers'|t('b2b-commerce') }}</a>
     </p>

@@ -309,6 +309,193 @@ class CompaniesCpController extends Controller
         return $this->redirectToMembers($company);
     }
 
+    public function actionDepartments(int $companyId): Response
+    {
+        $company = $this->findCompany($companyId);
+
+        $departments = Plugin::getInstance()->departments->getDepartmentsForCompany($company->id);
+        $now = new DateTimeImmutable('now');
+
+        $departmentBudget = Plugin::getInstance()->departmentBudget;
+
+        $departments = array_map(
+            fn(array $row): array => $row + [
+                'spent' => $row['budgetAmount'] !== null ? $departmentBudget->getSpent($row, $now) : null,
+            ],
+            $departments,
+        );
+
+        $memberUsers = Plugin::getInstance()->companyMembers->getMemberUsers($company->id);
+
+        // Current department id per member, so the assignment select can preselect it.
+        $currentByUser = [];
+
+        foreach ($memberUsers as $member) {
+            $department = Plugin::getInstance()->departments->getDepartmentForUser($member['user']->id);
+            $currentByUser[$member['user']->id] = $department !== null ? (int) $department['id'] : '';
+        }
+
+        $members = array_map(
+            fn(array $row): array => [
+                'user' => $row['user'],
+                'roleLabel' => Craft::t('b2b-commerce', $row['role']->name),
+                'departmentId' => $currentByUser[$row['user']->id],
+            ],
+            $memberUsers,
+        );
+
+        // Department options for the member-assignment select ("no department" first).
+        $memberOptions = array_merge(
+            [['label' => Craft::t('b2b-commerce', 'No department'), 'value' => '']],
+            array_map(
+                fn(array $row): array => ['label' => $row['name'], 'value' => (string) $row['id']],
+                Plugin::getInstance()->departments->getDepartmentsForCompany($company->id),
+            ),
+        );
+
+        // Approver options: members who can approve (admin/approver), plus a "none" entry.
+        $approverOptions = [['label' => Craft::t('b2b-commerce', 'No approver'), 'value' => '']];
+
+        foreach ($memberUsers as $member) {
+            if ($member['role']->canApproveOrders()) {
+                $approverOptions[] = [
+                    'label' => $member['user']->name ?: $member['user']->email,
+                    'value' => (string) $member['user']->id,
+                ];
+            }
+        }
+
+        $budgetPeriodOptions = array_map(
+            fn(BudgetPeriod $period): array => [
+                'label' => Craft::t('b2b-commerce', $period->name),
+                'value' => $period->value,
+            ],
+            BudgetPeriod::cases(),
+        );
+
+        $currency = Commerce::getInstance()->getStores()->getPrimaryStore()?->getCurrency()?->getCode();
+
+        return $this->renderTemplate('b2b-commerce/companies/_departments', [
+            'company' => $company,
+            'departments' => $departments,
+            'members' => $members,
+            'memberOptions' => $memberOptions,
+            'approverOptions' => $approverOptions,
+            'budgetPeriodOptions' => $budgetPeriodOptions,
+            'currency' => $currency,
+        ]);
+    }
+
+    public function actionCreateDepartment(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        $period = BudgetPeriod::tryFrom($this->requiredStringBodyParam('budgetPeriod'));
+
+        if ($period === null) {
+            $session->setError(Craft::t('b2b-commerce', 'Invalid budget period.'));
+
+            return $this->redirectToDepartments($company);
+        }
+
+        try {
+            Plugin::getInstance()->departments->createDepartment(
+                $company,
+                $this->requiredStringBodyParam('name'),
+                $this->departmentBudgetAmount(),
+                $period,
+                $this->departmentApproverId(),
+            );
+        } catch (InvalidArgumentException $exception) {
+            $session->setError($exception->getMessage());
+
+            return $this->redirectToDepartments($company);
+        }
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Department created.'));
+
+        return $this->redirectToDepartments($company);
+    }
+
+    public function actionUpdateDepartment(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        $period = BudgetPeriod::tryFrom($this->requiredStringBodyParam('budgetPeriod'));
+
+        if ($period === null) {
+            $session->setError(Craft::t('b2b-commerce', 'Invalid budget period.'));
+
+            return $this->redirectToDepartments($company);
+        }
+
+        try {
+            Plugin::getInstance()->departments->updateDepartment(
+                (int) Craft::$app->getRequest()->getRequiredBodyParam('departmentId'),
+                $this->requiredStringBodyParam('name'),
+                $this->departmentBudgetAmount(),
+                $period,
+                $this->departmentApproverId(),
+            );
+        } catch (InvalidArgumentException $exception) {
+            $session->setError($exception->getMessage());
+
+            return $this->redirectToDepartments($company);
+        }
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Department updated.'));
+
+        return $this->redirectToDepartments($company);
+    }
+
+    public function actionDeleteDepartment(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+
+        Plugin::getInstance()->departments->deleteDepartment(
+            (int) Craft::$app->getRequest()->getRequiredBodyParam('departmentId'),
+        );
+
+        Craft::$app->getSession()->setNotice(Craft::t('b2b-commerce', 'Department deleted.'));
+
+        return $this->redirectToDepartments($company);
+    }
+
+    public function actionAssignDepartment(): Response
+    {
+        $this->requirePostRequest();
+
+        $company = $this->findCompany((int) Craft::$app->getRequest()->getRequiredBodyParam('companyId'));
+        $session = Craft::$app->getSession();
+
+        $rawDepartmentId = $this->stringBodyParam('departmentId');
+        $departmentId = $rawDepartmentId === '' ? null : (int) $rawDepartmentId;
+
+        try {
+            Plugin::getInstance()->departments->assignMember(
+                $company,
+                (int) Craft::$app->getRequest()->getRequiredBodyParam('userId'),
+                $departmentId,
+            );
+        } catch (InvalidArgumentException $exception) {
+            $session->setError($exception->getMessage());
+
+            return $this->redirectToDepartments($company);
+        }
+
+        $session->setNotice(Craft::t('b2b-commerce', 'Member assignment updated.'));
+
+        return $this->redirectToDepartments($company);
+    }
+
     /**
      * The member's current budget as a display row, or null when they have no budget (unlimited) or
      * no linked user. `remaining` is the room left this period, never below zero.
@@ -345,6 +532,31 @@ class CompaniesCpController extends Controller
             'spent' => $spent,
             'remaining' => max(0.0, $amount - $spent),
         ];
+    }
+
+    private function redirectToDepartments(Company $company): Response
+    {
+        return $this->redirect(UrlHelper::cpUrl("b2b/companies/{$company->id}/departments"));
+    }
+
+    /**
+     * The submitted budget amount, or null when the field was left blank (an unlimited department).
+     */
+    private function departmentBudgetAmount(): ?float
+    {
+        $raw = $this->stringBodyParam('budgetAmount');
+
+        return $raw === '' ? null : (float) $raw;
+    }
+
+    /**
+     * The submitted approver user id, or null when "no approver" was chosen.
+     */
+    private function departmentApproverId(): ?int
+    {
+        $raw = $this->stringBodyParam('approverUserId');
+
+        return $raw === '' ? null : (int) $raw;
     }
 
     private function redirectToMembers(Company $company): Response

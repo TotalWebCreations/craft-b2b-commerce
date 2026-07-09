@@ -1,0 +1,115 @@
+{% extends '_layouts/cp' %}
+{% import '_includes/forms' as forms %}
+
+{% set title = 'Departments'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% block content %}
+    <p><a href="{{ url('b2b/companies/' ~ company.id ~ '/members') }}">{{ 'Members'|t('b2b-commerce') }}</a></p>
+
+    {% if departments is empty %}
+        <p class="zilch">{{ 'No departments yet.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Budget'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Actions'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for department in departments %}
+                    <tr>
+                        <td>
+                            <form method="post" accept-charset="UTF-8" style="display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                {{ csrfInput() }}
+                                {{ actionInput('b2b-commerce/companies-cp/update-department') }}
+                                {{ hiddenInput('companyId', company.id) }}
+                                {{ hiddenInput('departmentId', department.id) }}
+                                {{ forms.text({ name: 'name', value: department.name, size: 16 }) }}
+                                {{ forms.text({ name: 'budgetAmount', value: department.budgetAmount, placeholder: 'Amount'|t('b2b-commerce'), size: 8 }) }}
+                                {{ forms.select({ name: 'budgetPeriod', options: budgetPeriodOptions, value: department.budgetPeriod }) }}
+                                {{ forms.select({ name: 'approverUserId', options: approverOptions, value: department.approverUserId ?? '' }) }}
+                                <button type="submit" class="btn">{{ 'Save'|t('b2b-commerce') }}</button>
+                            </form>
+                        </td>
+                        <td>
+                            {% if department.budgetAmount is not null %}
+                                <strong>{{ department.budgetAmount|currency(currency) }}</strong><br>
+                                {{ 'Spent'|t('b2b-commerce') }}: {{ department.spent|currency(currency) }}
+                            {% else %}
+                                <span class="light">{{ 'No budget'|t('b2b-commerce') }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="post" accept-charset="UTF-8" style="display: inline;">
+                                {{ csrfInput() }}
+                                {{ actionInput('b2b-commerce/companies-cp/delete-department') }}
+                                {{ hiddenInput('companyId', company.id) }}
+                                {{ hiddenInput('departmentId', department.id) }}
+                                <button type="submit" class="btn">{{ 'Delete'|t('b2b-commerce') }}</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <div class="pane" style="margin-top: 24px;">
+        <h2>{{ 'Add department'|t('b2b-commerce') }}</h2>
+
+        <form method="post" accept-charset="UTF-8">
+            {{ csrfInput() }}
+            {{ actionInput('b2b-commerce/companies-cp/create-department') }}
+            {{ hiddenInput('companyId', company.id) }}
+
+            {{ forms.textField({ label: 'Name'|t('b2b-commerce'), name: 'name', required: true }) }}
+            {{ forms.textField({ label: 'Budget amount'|t('b2b-commerce'), name: 'budgetAmount', instructions: 'Leave empty for an unlimited department.'|t('b2b-commerce') }) }}
+            {{ forms.selectField({ label: 'Budget period'|t('b2b-commerce'), name: 'budgetPeriod', options: budgetPeriodOptions }) }}
+            {{ forms.selectField({ label: 'Approver'|t('b2b-commerce'), name: 'approverUserId', options: approverOptions }) }}
+
+            <button type="submit" class="btn submit">{{ 'Add department'|t('b2b-commerce') }}</button>
+        </form>
+    </div>
+
+    {% if members is not empty %}
+        <div class="pane" style="margin-top: 24px;">
+            <h2>{{ 'Assign members'|t('b2b-commerce') }}</h2>
+
+            <table class="data fullwidth">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ 'Name'|t('b2b-commerce') }}</th>
+                        <th scope="col">{{ 'Role'|t('b2b-commerce') }}</th>
+                        <th scope="col">{{ 'Department'|t('b2b-commerce') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                        <tr>
+                            <td>{{ member.user.name ?: member.user.email }}</td>
+                            <td>{{ member.roleLabel }}</td>
+                            <td>
+                                <form method="post" accept-charset="UTF-8" style="display: inline-flex; gap: 8px; align-items: center;">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('b2b-commerce/companies-cp/assign-department') }}
+                                    {{ hiddenInput('companyId', company.id) }}
+                                    {{ hiddenInput('userId', member.user.id) }}
+                                    {{ forms.select({ name: 'departmentId', options: memberOptions, value: member.departmentId }) }}
+                                    <button type="submit" class="btn">{{ 'Save'|t('b2b-commerce') }}</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}
