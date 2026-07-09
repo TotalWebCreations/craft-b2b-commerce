@@ -433,37 +433,43 @@ class Approvals extends Component
             return;
         }
 
-        // Last rung: the step-status flip and the aggregate-status flip must land atomically. A
-        // crash (or any DB failure) between two separate writes would leave every step approved but
-        // the aggregate durably stuck pending — failing closed, but not self-healing. Wrapping both
-        // in one transaction, mirroring submitForApproval, means either both commit or neither does.
-        // Side effects (finalizeApproval: cache bust, direct completion, notification mail) must
-        // never be undone by a DB rollback, so they stay OUTSIDE the transaction and only run once
-        // it has committed successfully.
-        $affected = Craft::$app->getDb()->transaction(function () use ($openStep, $approver, $orderId): int {
-            $affected = Db::update('{{%b2b_approval_steps}}', [
+        // Last rung: the step-status flip and the aggregate-status flip must land atomically, AND the
+        // aggregate flip's own affected-row count is the one that decides success — not the step
+        // flip's. The aggregate UPDATE carries its own `status = pending` guard, so if the aggregate
+        // was concurrently resolved (e.g. declined by another approver between openStep() being read
+        // and this write), it matches zero rows even though the step UPDATE above it just succeeded.
+        // Ignoring that and trusting only the step's affected count would let approve() report
+        // success and call finalizeApproval on an order whose aggregate is actually Declined —
+        // placing a declined order. Throwing the same InvalidArgumentException the other guards in
+        // this class use rolls back the step flip too (same transaction — Yii's transaction() rolls
+        // back on any thrown \Exception before rethrowing it unchanged) and propagates the familiar
+        // refusal straight to the caller, with no side effects. Side effects (finalizeApproval: cache
+        // bust, direct completion, notification mail) must never be undone by a DB rollback, so they
+        // stay OUTSIDE the transaction and only run once it has committed successfully.
+        Craft::$app->getDb()->transaction(function () use ($openStep, $approver, $orderId): void {
+            $stepAffected = Db::update('{{%b2b_approval_steps}}', [
                 'status' => ApprovalStatus::Approved->value,
                 'resolvedById' => $approver->id,
                 'dateResolved' => Db::prepareDateForDb(new DateTime()),
             ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
 
-            if ($affected === 0) {
-                return 0;
+            if ($stepAffected === 0) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+                );
             }
 
-            Db::update('{{%b2b_approvals}}', [
+            $aggregateAffected = Db::update('{{%b2b_approvals}}', [
                 'status' => ApprovalStatus::Approved->value,
                 'resolvedById' => $approver->id,
             ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
 
-            return $affected;
+            if ($aggregateAffected === 0) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+                );
+            }
         });
-
-        if ($affected === 0) {
-            throw new InvalidArgumentException(
-                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
-            );
-        }
 
         $this->finalizeApproval($orderId, $approver, $row);
     }
@@ -603,36 +609,50 @@ class Approvals extends Component
             );
         }
 
-        // Mark the currently-open step declined first; a decline anywhere short-circuits the whole
-        // approval (the aggregate flip below), so higher rungs are simply never reached.
-        $steps = $this->stepsForApproval((int) $row['id']);
+        // Mark the currently-open step declined first, then flip the aggregate — both writes must
+        // land atomically. Before this fix they were two separate, non-transactional writes: a crash
+        // (or any DB failure) between them left the step durably Declined while the aggregate was
+        // still durably Pending, a state every other guard in this class assumes impossible (see
+        // openStep()) and that a concurrent/crash-resumed approve() could exploit to walk the
+        // remaining rungs and flip the aggregate to Approved, placing a declined order. Wrapping both
+        // in one transaction, mirroring the last-rung fix in ladderApprove, means either both commit
+        // or neither does. Throwing InvalidArgumentException inside the closure (rather than checking
+        // the affected count after the call returns) is what makes the rollback happen: Yii's
+        // transaction() only rolls back on a thrown exception, so if the aggregate's own
+        // `status = pending` guard matches zero rows (already resolved by a racing decline/approve),
+        // the just-written step flip is rolled back too instead of being left orphaned. Side effects
+        // (notifyDeclined, the element cache bust) must never be undone by a DB rollback, so they stay
+        // OUTSIDE the transaction and only run once it has committed successfully.
+        Craft::$app->getDb()->transaction(function () use ($orderId, $approver, $reason, $row): void {
+            $steps = $this->stepsForApproval((int) $row['id']);
 
-        if ($steps !== []) {
-            $openStep = $this->openStep($steps);
+            if ($steps !== []) {
+                $openStep = $this->openStep($steps);
 
-            if ($openStep !== null) {
-                Db::update('{{%b2b_approval_steps}}', [
-                    'status' => ApprovalStatus::Declined->value,
-                    'resolvedById' => $approver->id,
-                    'reason' => $reason,
-                    'dateResolved' => Db::prepareDateForDb(new DateTime()),
-                ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+                if ($openStep !== null) {
+                    Db::update('{{%b2b_approval_steps}}', [
+                        'status' => ApprovalStatus::Declined->value,
+                        'resolvedById' => $approver->id,
+                        'reason' => $reason,
+                        'dateResolved' => Db::prepareDateForDb(new DateTime()),
+                    ], ['id' => (int) $openStep['id'], 'status' => ApprovalStatus::Pending->value]);
+                }
             }
-        }
 
-        // status = pending in the WHERE + the affected-row check close the concurrent-resolution
-        // race, exactly as approve() does.
-        $affected = Db::update('{{%b2b_approvals}}', [
-            'status' => ApprovalStatus::Declined->value,
-            'resolvedById' => $approver->id,
-            'reason' => $reason,
-        ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
+            // status = pending in the WHERE + the affected-row check close the concurrent-resolution
+            // race, exactly as approve() does.
+            $affected = Db::update('{{%b2b_approvals}}', [
+                'status' => ApprovalStatus::Declined->value,
+                'resolvedById' => $approver->id,
+                'reason' => $reason,
+            ], ['orderId' => $orderId, 'status' => ApprovalStatus::Pending->value]);
 
-        if ($affected === 0) {
-            throw new InvalidArgumentException(
-                Craft::t('b2b-commerce', 'This approval request has already been resolved.')
-            );
-        }
+            if ($affected === 0) {
+                throw new InvalidArgumentException(
+                    Craft::t('b2b-commerce', 'This approval request has already been resolved.')
+                );
+            }
+        });
 
         $this->reflectStatusOnElement();
 

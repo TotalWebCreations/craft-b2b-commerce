@@ -4,6 +4,7 @@ use Craft;
 use craft\commerce\elements\Order;
 use totalwebcreations\b2bcommerce\enums\ApprovalStatus;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
+use totalwebcreations\b2bcommerce\modules\approvals\services\Approvals;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\InvalidArgumentException;
 
@@ -225,4 +226,120 @@ it('rolls back the last step-status flip together with the aggregate flip when t
     // aggregate — rather than left committed as approved on its own.
     expect($steps[1]['status'])->toBe(ApprovalStatus::Pending->value)
         ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+});
+
+/**
+ * Regression for the decline-atomicity fix: decline() used to flip the open step to Declined and
+ * the aggregate b2b_approvals row to Declined as two separate, non-transactional writes. A crash
+ * (or any DB failure) between them left the step durably Declined while the aggregate was still
+ * durably Pending — a state every other guard in this class assumes impossible (see openStep(),
+ * which treats "no pending step" and "pending aggregate" as mutually exclusive) — and one a
+ * concurrent/crash-resumed approve() could exploit to walk the remaining rungs and flip the
+ * aggregate to Approved, placing a declined order.
+ *
+ * Forced deterministically via the same technique as the last-rung atomicity test above: a trigger
+ * makes the aggregate UPDATE for this specific order genuinely fail. With both writes now wrapped in
+ * one transaction, the already-executed step UPDATE is rolled back too, leaving the step exactly
+ * where it started: pending — cleanly retriable, not left as a durably declined orphan.
+ */
+it('rolls back the step-status flip together with the aggregate flip when a decline\'s aggregate write fails', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(2);
+    $cart = approvalCart($purchaser, 800.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    $db = Craft::$app->getDb();
+    $triggerName = 'b2b_test_force_decline_aggregate_failure';
+
+    $db->createCommand("
+        CREATE TRIGGER {$triggerName}
+        BEFORE UPDATE ON {{%b2b_approvals}}
+        FOR EACH ROW
+        BEGIN
+            IF NEW.orderId = {$cart->id} THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced failure for decline atomicity test';
+            END IF;
+        END
+    ")->execute();
+
+    try {
+        $threw = false;
+
+        try {
+            Plugin::getInstance()->approvals->decline($cart->id, $approvers[0], 'Forced failure test');
+        } catch (\Throwable) {
+            $threw = true;
+        }
+
+        expect($threw)->toBeTrue();
+    } finally {
+        $db->createCommand("DROP TRIGGER IF EXISTS {$triggerName}")->execute();
+    }
+
+    $steps = stepRows($approvalId);
+
+    // Neither write landed: the open step is still pending — rolled back together with the
+    // aggregate — rather than left committed as declined on its own.
+    expect($steps[0]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Pending->value);
+});
+
+/**
+ * Regression for the last-rung fix that closes the actual placement hole: ladderApprove's last-rung
+ * transaction used to check only the STEP update's affected-rows and completely ignore the
+ * AGGREGATE update's. The aggregate UPDATE carries its own `status = pending` guard, so once the
+ * aggregate is no longer pending (here, because a different approver has legitimately declined a
+ * lower rung — which, per openStep(), never touches a higher, still-pending rung), that UPDATE
+ * silently matches zero rows. The pre-fix code never looked at that count: it trusted the STEP write
+ * (which genuinely succeeds, because the higher rung really is still pending) and called
+ * finalizeApproval regardless — completing an order whose ladder had actually been declined.
+ *
+ * requireResolvableRow's own status check already refuses a call made once the decline has fully
+ * committed, so reproducing the race through the public approve() API alone would need genuine
+ * thread-level concurrency: a racing approver whose requireResolvableRow() read would have landed a
+ * moment before the decline committed, seeing the aggregate as still pending. This test invokes the
+ * private ladderApprove() directly via reflection to stand in for that already-passed outer read —
+ * every value it receives ($row, $steps) is read fresh, live, straight off the actual (declined)
+ * database, exactly as a racing approver's own reads would have been at that instant — isolating the
+ * assertion to ladderApprove's own last-rung transaction (what this fix hardens) without re-testing
+ * the unrelated, unchanged requireResolvableRow guard.
+ */
+it('refuses to approve the last rung — and never places the order — when the aggregate has been concurrently declined', function () {
+    [$purchaser, $approvers, $company] = ladderScenario(3);
+    $cart = approvalCart($purchaser, 2000.0);
+    Plugin::getInstance()->approvals->submitForApproval($cart, $purchaser);
+    $approvalId = approvalIdForOrder($cart->id);
+
+    // Rung 1 approves normally, then rung 2 is declined — both real, fully committed via the
+    // (now-atomic) service methods. The aggregate is genuinely Declined; rung 3 — never reached by
+    // the decline's short-circuit — is still genuinely pending.
+    Plugin::getInstance()->approvals->approve($cart->id, $approvers[0]);
+    Plugin::getInstance()->approvals->decline($cart->id, $approvers[1], 'Budget frozen this quarter');
+
+    expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Declined->value);
+
+    // A third, uninvolved approver races in for rung 3 — the genuinely still-pending, now-last rung.
+    $row = approvalRow($cart->id);
+    $steps = stepRows($approvalId);
+
+    $method = new ReflectionMethod(Approvals::class, 'ladderApprove');
+    $method->setAccessible(true);
+
+    $threw = false;
+
+    try {
+        $method->invoke(Plugin::getInstance()->approvals, $cart->id, $approvers[2], $row, $steps);
+    } catch (\Throwable) {
+        $threw = true;
+    }
+
+    expect($threw)->toBeTrue();
+
+    $stepsAfter = stepRows($approvalId);
+
+    // Refused cleanly: the aggregate stays Declined, rung 3 never flips to approved (rolled back
+    // together with the refusal), and — critically — the order was never completed/placed.
+    expect(approvalRow($cart->id)['status'])->toBe(ApprovalStatus::Declined->value)
+        ->and($stepsAfter[2]['status'])->toBe(ApprovalStatus::Pending->value)
+        ->and(Order::find()->id($cart->id)->status(null)->one()->isCompleted)->toBeFalse();
 });
