@@ -30,23 +30,6 @@ class QuickOrderFeatureGateProbe extends QuickOrderController
     }
 }
 
-/**
- * Runs the callback while $user is the signed-in identity, restoring the previous
- * identity afterwards so the toggle assertions can resolve the user's company.
- */
-function asIdentity(craft\elements\User $user, callable $callback): void
-{
-    $userComponent = craftApp()->getUser();
-    $previous = $userComponent->getIdentity();
-    $userComponent->setIdentity($user);
-
-    try {
-        $callback();
-    } finally {
-        $userComponent->setIdentity($previous);
-    }
-}
-
 it('short-circuits the quick-order feature gate when the toggle is off', function () {
     $probe = new QuickOrderFeatureGateProbe('quick-order', Plugin::getInstance());
 

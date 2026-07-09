@@ -275,6 +275,24 @@ function quoteMember(string $status = Company::STATUS_APPROVED): array
 }
 
 /**
+ * Runs the callback while $user is the signed-in identity, restoring the previous
+ * identity afterwards. Shared by any test that needs to enforce/read something as a
+ * specific active identity (feature toggles, on-behalf no-elevation checks, ...).
+ */
+function asIdentity(craft\elements\User $user, callable $callback): void
+{
+    $userComponent = craftApp()->getUser();
+    $previous = $userComponent->getIdentity();
+    $userComponent->setIdentity($user);
+
+    try {
+        $callback();
+    } finally {
+        $userComponent->setIdentity($previous);
+    }
+}
+
+/**
  * Runs the callback while pretending to be a front-end (non-console) request,
  * restoring the console flag afterwards. Front-end guards keyed on the request
  * type only fire in this window.
