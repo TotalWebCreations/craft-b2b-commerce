@@ -21,6 +21,7 @@ class Install extends Migration
                 'allowInvoicePayment' => $this->boolean()->notNull()->defaultValue(false),
                 'approvalThreshold' => $this->decimal(14, 4),
                 'customerGroupId' => $this->integer(),
+                'catalogCondition' => $this->text(),
                 'requirePoNumber' => $this->boolean()->notNull()->defaultValue(false),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
@@ -130,6 +131,17 @@ class Install extends Migration
             );
 
             $this->addForeignKey(null, '{{%b2b_companies}}', ['customerGroupId'], Table::USERGROUPS, ['id'], 'SET NULL');
+        }
+
+        // Column parity for installs whose companies table predates the catalog condition. An
+        // existing install reaches this column through the m260714_000600 migration; this guard
+        // keeps a fresh Install::safeUp() consistent when the createTable branch above was skipped.
+        if (!$this->db->columnExists('{{%b2b_companies}}', 'catalogCondition')) {
+            $this->addColumn(
+                '{{%b2b_companies}}',
+                'catalogCondition',
+                $this->text()->after('customerGroupId')
+            );
         }
 
         // Column parity for installs whose quotes table predates the origin marker. An existing

@@ -35,6 +35,7 @@ class Company extends Element
     public bool $requirePoNumber = false;
     public ?float $approvalThreshold = null;
     public ?int $customerGroupId = null;
+    public ?string $catalogCondition = null;
 
     public static function displayName(): string
     {
@@ -256,7 +257,7 @@ class Company extends Element
     protected function defineRules(): array
     {
         return array_merge(parent::defineRules(), [
-            [['registrationNumber', 'taxId'], 'safe'],
+            [['registrationNumber', 'taxId', 'catalogCondition'], 'safe'],
             [
                 'taxId',
                 'validateTaxIdAgainstVies',
@@ -350,6 +351,7 @@ class Company extends Element
                 'requirePoNumber' => $this->requirePoNumber,
                 'approvalThreshold' => $this->approvalThreshold,
                 'customerGroupId' => $this->customerGroupId,
+                'catalogCondition' => $this->catalogCondition,
             ]);
 
             $this->syncPricingGroupIfChanged($previous);

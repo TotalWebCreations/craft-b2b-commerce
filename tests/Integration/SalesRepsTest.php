@@ -36,8 +36,8 @@ it('has created the sales-rep schema objects', function () {
         ->and($db->columnExists('{{%b2b_order_company}}', 'placedByRepId'))->toBeTrue();
 });
 
-it('bumps the plugin schema version to 1.1.4', function () {
-    expect(Plugin::getInstance()->schemaVersion)->toBe('1.1.4');
+it('bumps the plugin schema version to at least 1.1.4', function () {
+    expect(version_compare(Plugin::getInstance()->schemaVersion, '1.1.4', '>='))->toBeTrue();
 });
 
 it('assigns and unassigns a rep to a company', function () {
