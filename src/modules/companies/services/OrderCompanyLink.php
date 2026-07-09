@@ -8,6 +8,7 @@ use craft\db\Query;
 use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
+use totalwebcreations\b2bcommerce\modules\companies\services\SalesReps;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\Exception;
@@ -84,6 +85,11 @@ class OrderCompanyLink extends Component
             return;
         }
 
+        // If a genuine rep placed this order on behalf of the member, record who. resolveActingRepId
+        // re-verifies the impersonator is a rep for THIS company, so a native-impersonating admin
+        // (no assignment) resolves to null and is never stamped.
+        $placedByRepId = Plugin::getInstance()->salesReps->resolveActingRepId($company);
+
         // Snapshot whether this order was placed on account. Reading it back from the live
         // gatewayId is unsafe: archiving a gateway nulls gatewayId on every order that used it, so
         // the receivable is recorded here, once, at completion instead.
@@ -91,6 +97,17 @@ class OrderCompanyLink extends Component
             'orderId' => $order->id,
             'companyId' => $company->id,
             'isInvoice' => $order->getGateway() instanceof InvoiceGateway,
+            'placedByRepId' => $placedByRepId,
         ]);
+
+        if ($placedByRepId !== null) {
+            Plugin::getInstance()->salesReps->log(
+                $placedByRepId,
+                $customer->id,
+                $company->id,
+                $order->id,
+                SalesReps::ACTION_ORDER_PLACED,
+            );
+        }
     }
 }

@@ -310,55 +310,66 @@ function quoteRow(int $orderId): ?array
  * The Integration suite boots a console craft\console\Application (see bootstrap.php), whose
  * craft\console\User has no notion of impersonation: getImpersonatorId()/setImpersonatorId()/
  * loginByUserId() exist only on craft\web\User, which is backed by a real HTTP session/cookie
- * stack that a console process does not have. SalesReps::actAs()/endActingAs()/
- * resolveActingRepId() call exactly those three methods on Craft::$app->getUser(), because in
- * production Craft always runs as the web app there.
+ * stack that a console process does not have. Production storefront code always runs on the web
+ * app, so SalesReps::actAs()/endActingAs()/resolveActingRepId() — and, at completion,
+ * OrderCompanyLink::linkCompany() calling resolveActingRepId() — freely call those three methods
+ * on Craft::$app->getUser().
  *
  * To exercise that logic at Integration speed without standing up a full web app (session,
- * response, cookies), this attaches a tiny behavior — once per process — that reproduces just
- * those three methods' observable contract: switching the session identity and tracking an
- * impersonator id in memory. Yii's Component::__call() only reaches attached behaviors for
- * method names the component does NOT already define, so this cannot shadow console\User's own
+ * response, cookies), attachImpersonationTestShim() attaches — once, at bootstrap, for EVERY
+ * test — a tiny behavior reproducing just those three methods' observable contract: a null
+ * impersonator by default (exactly like a fresh web session), settable to a rep, plus an
+ * identity-switching login. It MUST be attached universally because ordinary order-completion
+ * tests trigger linkCompany -> resolveActingRepId -> getImpersonatorId() without ever touching
+ * impersonation. Yii's Component::__call() only reaches attached behaviors for method names the
+ * component does NOT already define, so this cannot shadow console\User's own
  * getId()/getIdentity()/setIdentity(). It is test-only scaffolding; production code is
  * unmodified. The real web session path (actual cookies, actual login) is covered end-to-end by
  * tests/Http/SalesRepHttpTest.php against the real dev site.
  */
+function attachImpersonationTestShim(craft\console\User $userComponent): void
+{
+    if ($userComponent->getBehavior('impersonationTestShim') !== null) {
+        return;
+    }
+
+    $userComponent->attachBehavior('impersonationTestShim', new class extends yii\base\Behavior {
+        private ?int $impersonatorId = null;
+
+        public function getImpersonatorId(): ?int
+        {
+            return $this->impersonatorId;
+        }
+
+        public function setImpersonatorId(?int $id): void
+        {
+            $this->impersonatorId = $id;
+        }
+
+        public function loginByUserId(int $userId, int $duration = 0): bool
+        {
+            $user = craftApp()->getUsers()->getUserById($userId);
+
+            if ($user === null) {
+                return false;
+            }
+
+            $this->owner->setIdentity($user);
+
+            return true;
+        }
+    });
+}
+
+/**
+ * Returns the shimmed console user component (see attachImpersonationTestShim). Callers that need
+ * to drive impersonation state in a test use this; the shim itself is already attached at
+ * bootstrap, so this is just an explicit, self-documenting accessor.
+ */
 function impersonationTestUser(): craft\console\User
 {
-    static $attached = false;
-
     $userComponent = craftApp()->getUser();
-
-    if (!$attached) {
-        $userComponent->attachBehavior('impersonationTestShim', new class extends yii\base\Behavior {
-            private ?int $impersonatorId = null;
-
-            public function getImpersonatorId(): ?int
-            {
-                return $this->impersonatorId;
-            }
-
-            public function setImpersonatorId(?int $id): void
-            {
-                $this->impersonatorId = $id;
-            }
-
-            public function loginByUserId(int $userId, int $duration = 0): bool
-            {
-                $user = craftApp()->getUsers()->getUserById($userId);
-
-                if ($user === null) {
-                    return false;
-                }
-
-                $this->owner->setIdentity($user);
-
-                return true;
-            }
-        });
-
-        $attached = true;
-    }
+    attachImpersonationTestShim($userComponent);
 
     return $userComponent;
 }

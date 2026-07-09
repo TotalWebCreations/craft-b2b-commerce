@@ -1,5 +1,6 @@
 <?php
 
+use craft\commerce\elements\Order;
 use craft\db\Query;
 use craft\elements\User;
 use totalwebcreations\b2bcommerce\elements\Company;
@@ -231,4 +232,68 @@ it('resolves the acting rep id only for a genuine rep of the order company', fun
     } finally {
         $userSession->setImpersonatorId(null);
     }
+});
+
+function completedMemberOrder(User $member): Order
+{
+    $order = new Order();
+    $order->number = md5(uniqid((string) mt_rand(), true));
+
+    if (!craftApp()->getElements()->saveElement($order)) {
+        throw new RuntimeException('Could not save order: ' . implode(', ', $order->getFirstErrors()));
+    }
+
+    trackElement($order);
+    $order->setCustomer($member);
+
+    return $order;
+}
+
+function orderCompanyRow(int $orderId): ?array
+{
+    return (new Query())->from('{{%b2b_order_company}}')->where(['orderId' => $orderId])->one() ?: null;
+}
+
+it('stamps placedByRepId and logs when a rep placed the order', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'Stamp Co');
+    $member = createTestUser('smember_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $rep = grantImpersonate(makeRepUser());
+    reps()->assignRep($rep->id, $company->id);
+
+    $order = completedMemberOrder($member);
+    $userSession = impersonationTestUser();
+
+    try {
+        $userSession->setImpersonatorId($rep->id);
+        Plugin::getInstance()->orderCompanyLink->linkCompany($order);
+    } finally {
+        $userSession->setImpersonatorId(null);
+    }
+
+    $row = orderCompanyRow($order->id);
+    $orderLog = array_values(array_filter(
+        reps()->getLog($company->id),
+        fn(array $r): bool => $r['action'] === SalesReps::ACTION_ORDER_PLACED && (int) $r['orderId'] === $order->id
+    ));
+
+    expect((int) $row['placedByRepId'])->toBe($rep->id)
+        ->and($orderLog)->toHaveCount(1);
+});
+
+it('leaves placedByRepId null for an ordinary (non-rep) order', function () {
+    $company = createTestCompany(Company::STATUS_APPROVED, 'Plain Co');
+    $member = createTestUser('pmember_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    // Attach the impersonation shim and guarantee no impersonator lingers from a prior test, so
+    // resolveActingRepId's getImpersonatorId() call resolves to null on the console user component.
+    impersonationTestUser()->setImpersonatorId(null);
+
+    $order = completedMemberOrder($member);
+    Plugin::getInstance()->orderCompanyLink->linkCompany($order);
+
+    $row = orderCompanyRow($order->id);
+    expect($row['placedByRepId'])->toBeNull();
 });

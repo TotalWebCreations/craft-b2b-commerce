@@ -32,6 +32,12 @@ function craftApp(): Application
     $app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
     ob_end_clean();
 
+    // The console user component lacks the web-only impersonation API that storefront code
+    // (SalesReps + the completion-time linkCompany backstop) calls. Attach a test-only shim once,
+    // universally, so every test — not just impersonation tests — has a null-by-default
+    // impersonator. See attachImpersonationTestShim() in helpers.php for the full rationale.
+    attachImpersonationTestShim($app->getUser());
+
     return $app;
 }
 
