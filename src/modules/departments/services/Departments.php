@@ -4,9 +4,11 @@ namespace totalwebcreations\b2bcommerce\modules\departments\services;
 
 use Craft;
 use craft\db\Query;
+use craft\elements\User;
 use craft\helpers\Db;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\BudgetPeriod;
+use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
 use yii\base\InvalidArgumentException;
@@ -157,6 +159,46 @@ class Departments extends Component
             ->column();
 
         return array_map('intval', $ids);
+    }
+
+    /**
+     * The preferred department-scoped approvers for a member's department, for phase-18 routing: the
+     * department's designated approverUserId (when set) plus every department member whose role can
+     * approve orders (admin or approver). De-duplicated and sorted ascending. Returns an empty array
+     * when the member has no department, so the caller falls back to company-level approvers.
+     *
+     * @return array<int, int>
+     */
+    public function eligibleApproversForUser(User $user): array
+    {
+        $department = $this->getDepartmentForUser($user->id);
+
+        if ($department === null) {
+            return [];
+        }
+
+        $ids = [];
+
+        if ($department['approverUserId'] !== null) {
+            $ids[] = (int) $department['approverUserId'];
+        }
+
+        $rows = (new Query())
+            ->select(['userId', 'role'])
+            ->from('{{%b2b_company_users}}')
+            ->where(['departmentId' => (int) $department['id']])
+            ->all();
+
+        foreach ($rows as $row) {
+            if (CompanyRole::from((string) $row['role'])->canApproveOrders()) {
+                $ids[] = (int) $row['userId'];
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        sort($ids);
+
+        return $ids;
     }
 
     private function assertApproverIsMember(Company $company, ?int $approverUserId): void

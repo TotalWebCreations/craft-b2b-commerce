@@ -125,3 +125,44 @@ it('nulls member assignment when a department is deleted (SET NULL, no orphan)',
     expect(Plugin::getInstance()->departments->getDepartment($id))->toBeNull()
         ->and(Plugin::getInstance()->departments->getDepartmentForUser($user->id))->toBeNull();
 });
+
+it('returns the department approver plus approver-role members', function () {
+    [$admin, $company] = deptMember();
+    $approver = createTestUser('deptappr_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($approver->id, $company->id, CompanyRole::Approver);
+    $purchaser = createTestUser('deptpur_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($purchaser->id, $company->id, CompanyRole::Purchaser);
+
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', null, BudgetPeriod::Monthly, $approver->id);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id);       // admin: canApproveOrders
+    Plugin::getInstance()->departments->assignMember($company, $approver->id, $id);    // approver: canApproveOrders
+    Plugin::getInstance()->departments->assignMember($company, $purchaser->id, $id);   // purchaser: cannot approve
+
+    $ids = Plugin::getInstance()->departments->eligibleApproversForUser($admin);
+
+    $expected = [$admin->id, $approver->id];
+    sort($expected);
+
+    expect($ids)->toBe($expected)
+        ->and($ids)->not->toContain($purchaser->id);
+});
+
+it('returns an empty approver list for a member with no department (company-level fallback)', function () {
+    [$admin] = deptMember();
+
+    expect(Plugin::getInstance()->departments->eligibleApproversForUser($admin))->toBe([]);
+});
+
+it('includes an out-of-department approverUserId as the preferred approver', function () {
+    [$admin, $company] = deptMember();
+    $externalApprover = createTestUser('deptext_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($externalApprover->id, $company->id, CompanyRole::Approver);
+
+    $id = Plugin::getInstance()->departments->createDepartment($company, 'Sales', null, BudgetPeriod::Monthly, $externalApprover->id);
+    Plugin::getInstance()->departments->assignMember($company, $admin->id, $id); // admin also can approve
+
+    $ids = Plugin::getInstance()->departments->eligibleApproversForUser($admin);
+
+    expect($ids)->toContain($externalApprover->id)
+        ->and($ids)->toContain($admin->id);
+});
