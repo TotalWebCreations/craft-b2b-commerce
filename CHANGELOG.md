@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- **Order on behalf of (sales reps).** A sales rep can act as a member of a company they are
+  assigned to and place orders in that member's name, without gaining any of their own elevated
+  rights: the active identity becomes the member, so every existing storefront guard (budget,
+  credit limit, approval, PO number, account status) is enforced against the member — a rep can
+  never place an order the member could not place themselves. Built on Craft's native user
+  impersonation, so a rep needs **both** the B2B `Order on behalf of a company`
+  (`b2b-commerce:orderOnBehalf`) permission **and** Craft's native `Impersonate users`
+  permission; the plugin's own assignment scope decides *which* companies a rep may act for,
+  independently of the impersonate permission. Assign or remove reps and review a per-company
+  impersonation audit log on the company's **Sales reps** page in the control panel. Completed
+  on-behalf orders are stamped with the placing rep and logged. New `b2b_rep_companies` and
+  `b2b_impersonation_log` tables plus a `placedByRepId` column (schema 1.1.4).
 - **Merchant-initiated quotes.** A merchant or sales-rep can build a cart in Commerce's native
   order editor and click **Send as B2B quote** to send a price-frozen quote to a customer —
   linking the customer's company automatically (or via a picker), emailing the accept/decline

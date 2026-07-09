@@ -15,7 +15,9 @@ B2B Commerce is organised around five pillars, all live in this release:
    frontend and are approved by a store manager in the control panel. Company admins
    manage their own team and a shared address book from the frontend, completed orders
    are linked to their company, and the control panel offers per-company member and
-   order overviews plus a configurable custom-field layout.
+   order overviews plus a configurable custom-field layout. **Sales reps** can also be
+   assigned to a company to order on behalf of its members — see *Order on behalf of
+   (sales reps)* below.
 2. **Quotes** — *available now.* Request-for-quote flow with a full status lifecycle
    (requested → sent → accepted / declined / expired). An approved buyer turns a cart
    into a quote request; a merchant prices it in the control panel and sends it with an
@@ -376,6 +378,39 @@ no company. `remaining` is the room left this period, never below zero. See
     <p>{{ 'Remaining'|t('b2b-commerce') }}: {{ budget.remaining|currency }}</p>
 {% endif %}
 ```
+
+### Order on behalf of (sales reps)
+
+A **sales rep** can act as a member of a company they are assigned to and place orders in that
+member's name — useful when a rep takes an order by phone or manages an account's purchasing.
+The flow is built on Craft's native user impersonation: when a rep starts acting as a member,
+the **active session identity becomes that member**, so every storefront guard already in place
+(spending budget, credit limit, order approval, required PO number, account status) is enforced
+**against the member, exactly as if the member had signed in themselves**. A rep therefore gains
+no elevated rights: they can never place an order the member could not place on their own —
+including an order that exceeds the member's own spending budget, which is refused just as it
+would be for the member.
+
+**Two permissions are required**, and they are orthogonal:
+
+- **`b2b-commerce:orderOnBehalf`** (*Order on behalf of a company*) — the B2B permission that
+  marks a user as eligible to be a sales rep.
+- Craft's native **`impersonateUsers`** (*Impersonate users*) — the mechanical permission Craft
+  requires to switch identity. Because the flow reuses Craft's own impersonation, a rep without
+  it cannot act as anyone.
+
+Assignment is a separate, third gate handled entirely by the plugin: the server-side
+`canActFor` check confirms the rep holds `orderOnBehalf` **and** carries an assignment row for
+the target's company before impersonation is allowed. Assignment scope is independent of the
+impersonate permission — holding `impersonateUsers` (or being an admin) grants **no** B2B rep
+scope on its own; a rep can act only for the companies they are explicitly assigned to, and only
+for members of those companies.
+
+Assign or remove reps and review a **per-company, read-only impersonation audit log** on the
+company's **Sales reps** page in the control panel (**B2B → Companies →** a company **→ Sales
+reps**), gated behind the `manageCompanies` permission. The page also flags any assigned rep who
+is still missing one of the two required permissions. Every act-as, end-act-as, and completed
+on-behalf order is recorded in the log, and completed orders are stamped with the placing rep.
 
 ### Address book
 
