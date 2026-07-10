@@ -808,6 +808,38 @@ managed set.
 > permissions. Use a permission-free group dedicated to pricing; grant any real permissions through
 > separate groups the plugin never manages.
 
+## Company-specific catalog
+
+Restrict which products a company's members may see and buy — a per-company **product condition**
+you set in the control panel. Open the company (*B2B → Companies*) and build the condition in the
+**Product catalog** field, using Commerce's own product condition builder (product type, SKU, and the
+rest). Leave it empty to give the company the **full catalog** — that is the default, so the feature
+is dormant until you configure a condition, and it rides `enableCompanies` like the rest of the
+company pillar.
+
+### The add-to-cart veto is the authoritative boundary
+
+Enforcement is server-side. A veto on Commerce's `Order::EVENT_BEFORE_ADD_LINE_ITEM` refuses any
+purchasable outside the company's catalog **across every add path** — add-to-cart, quick order (SKU
+paste and CSV), re-order, order lists, quote-accept adoption, and order-on-behalf — because they all
+funnel through that single choke point. A member who tries to add a restricted product gets *"This
+product is not available for your account."* and nothing enters the cart. An empty condition vetoes
+nothing (full catalog).
+
+### `craft.b2b.catalogCriteria` is convenience filtering only
+
+For storefronts, `craft.b2b.catalogCriteria` returns product-query criteria you can spread into a
+product query to hide non-catalog products from a listing:
+
+```twig
+{% set products = craft.products(craft.b2b.catalogCriteria).all() %}
+```
+
+It returns an empty array (no narrowing) for a visitor with no company or a company on the full
+catalog. This helper is **convenience only — not a security boundary.** It merely keeps restricted
+products out of sight; the add-to-cart veto above is what actually enforces the catalog. Never rely
+on the helper for enforcement.
+
 ## VAT ID validation & reverse charge
 
 B2B Commerce builds directly on Craft Commerce's native EU VAT support (Commerce 5.3+):

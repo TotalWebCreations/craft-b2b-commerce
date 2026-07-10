@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Company-specific catalog: restrict which products a company's members may see and buy via a per-company product condition (control panel). Enforced server-side by an add-to-cart veto across every add path; `craft.b2b.catalogCriteria` provides convenience storefront filtering. Empty condition = full catalog (dormant until configured; rides `enableCompanies`).
 - **Order on behalf of (sales reps).** A sales rep can act as a member of a company they are
   assigned to and place orders in that member's name, without gaining any of their own elevated
   rights: the active identity becomes the member, so every existing storefront guard (budget,
