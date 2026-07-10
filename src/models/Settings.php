@@ -33,6 +33,18 @@ class Settings extends Model
     public bool $validateTaxIds = false;
 
     /**
+     * Whether the dunning command may email overdue-invoice payment reminders. Off by default: it is
+     * the only feature that autonomously emails customers, so sending is a deliberate opt-in.
+     */
+    public bool $enableDunning = false;
+
+    /**
+     * Optional Twig template path override for the statement PDF. Empty = the shipped b2b/pdf/statement
+     * example template.
+     */
+    public string $statementPdfTemplate = '';
+
+    /**
      * Site template path used to render the quote PDF. Empty falls back to the bundled example
      * template (b2b/pdf/quote.twig). Copy the example into your own templates folder to restyle it.
      */
@@ -64,12 +76,22 @@ class Settings extends Model
     private array $excludedOrderStatusHandles = ['cancelled', 'refunded'];
 
     /**
-     * Registers the virtual, getter/setter-backed excludedOrderStatusHandles attribute so Craft's
-     * settings save reaches its normaliser and the settings template can read it back.
+     * Day-offsets after an invoice due date at which a dunning reminder is sent. Stored as sorted,
+     * unique, positive ints. The settings screen edits it as a comma-separated text field and
+     * {@see setDunningOffsets()} normalises that string back into this array.
+     *
+     * @var int[]
+     */
+    private array $dunningOffsets = [7, 14, 30];
+
+    /**
+     * Registers the virtual, getter/setter-backed excludedOrderStatusHandles and dunningOffsets
+     * attributes so Craft's settings save reaches their normalisers and the settings template can
+     * read them back.
      */
     public function attributes(): array
     {
-        return array_merge(parent::attributes(), ['excludedOrderStatusHandles']);
+        return array_merge(parent::attributes(), ['excludedOrderStatusHandles', 'dunningOffsets']);
     }
 
     public function defineRules(): array
@@ -80,6 +102,8 @@ class Settings extends Model
             ['honeypotFieldName', 'validateHoneypotFieldName'],
             ['excludedOrderStatusHandles', 'validateExcludedOrderStatusHandles'],
             ['taxIdValidationPolicy', 'in', 'range' => [self::TAX_ID_POLICY_LENIENT, self::TAX_ID_POLICY_STRICT]],
+            ['dunningOffsets', 'validateDunningOffsets'],
+            ['enableDunning', 'boolean'],
         ];
     }
 
@@ -119,6 +143,65 @@ class Settings extends Model
     {
         if (in_array($this->{$attribute}, self::RESERVED_FIELD_NAMES, true)) {
             $this->addError($attribute, Craft::t('b2b-commerce', 'The honeypot field name cannot match a real registration field.'));
+        }
+    }
+
+    /** @return int[] */
+    public function getDunningOffsets(): array
+    {
+        return $this->dunningOffsets;
+    }
+
+    /**
+     * Accepts the normalised int array or the raw comma-separated string the settings text field posts.
+     * Drops blanks, non-numerics and non-positive values, then sorts and de-duplicates so the stored
+     * offsets are always a clean ascending set.
+     *
+     * @param int[]|string $value
+     */
+    public function setDunningOffsets(array|string $value): void
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        $offsets = [];
+
+        foreach ($value as $offset) {
+            $offset = trim((string) $offset);
+
+            if ($offset === '' || !is_numeric($offset)) {
+                continue;
+            }
+
+            $offset = (int) $offset;
+
+            if ($offset > 0) {
+                $offsets[] = $offset;
+            }
+        }
+
+        $offsets = array_values(array_unique($offsets));
+        sort($offsets);
+
+        $this->dunningOffsets = $offsets;
+    }
+
+    public function validateDunningOffsets(string $attribute): void
+    {
+        foreach ($this->{$attribute} as $offset) {
+            if (!is_int($offset) || $offset <= 0) {
+                // Craft::class does not trigger autoloading (it is a compile-time string), so this stays
+                // safe to call from the Craft-free Unit suite, which exercises this validator directly
+                // without booting the app. Runtime (Craft always loaded) still gets the translated message.
+                $message = class_exists(Craft::class)
+                    ? Craft::t('b2b-commerce', 'Dunning offsets must be positive whole numbers of days.')
+                    : 'Dunning offsets must be positive whole numbers of days.';
+
+                $this->addError($attribute, $message);
+
+                return;
+            }
         }
     }
 }

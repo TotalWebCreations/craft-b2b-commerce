@@ -83,6 +83,28 @@
         value: settings.excludedOrderStatusHandles|join(', '),
         first: true,
     }) }}
+
+    {{ forms.lightswitchField({
+        label: 'Send payment reminders (dunning)'|t('b2b-commerce'),
+        instructions: 'Let the b2b-commerce/dunning/run console command email overdue-invoice payment reminders. Off by default because it emails customers automatically; turn it on only when you have scheduled the command.'|t('b2b-commerce'),
+        name: 'enableDunning',
+        on: settings.enableDunning,
+    }) }}
+
+    {{ forms.textField({
+        label: 'Dunning offsets (days)'|t('b2b-commerce'),
+        instructions: 'Comma-separated days after an invoice due date at which a reminder is sent, for example 7, 14, 30. Each offset is dunned at most once per invoice.'|t('b2b-commerce'),
+        name: 'dunningOffsets',
+        value: settings.dunningOffsets|join(', '),
+    }) }}
+
+    {{ forms.textField({
+        label: 'Statement PDF template'|t('b2b-commerce'),
+        instructions: 'Optional Twig template path for the downloadable account statement PDF. Leave empty to use the built-in template.'|t('b2b-commerce'),
+        name: 'statementPdfTemplate',
+        value: settings.statementPdfTemplate,
+        placeholder: 'b2b/pdf/statement',
+    }) }}
 </div>
 
 <div class="b2b-settings-pane hidden" data-b2b-pane="vat">
