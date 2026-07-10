@@ -22,6 +22,7 @@ use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\ModelEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\RegisterEmailMessagesEvent;
+use craft\events\RegisterGqlMutationsEvent;
 use craft\events\RegisterGqlQueriesEvent;
 use craft\events\RegisterGqlSchemaComponentsEvent;
 use craft\events\RegisterGqlTypesEvent;
@@ -54,6 +55,7 @@ use totalwebcreations\b2bcommerce\fieldlayoutelements\RequirePoNumberField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\gql\interfaces\elements\Company as GqlCompanyInterface;
+use totalwebcreations\b2bcommerce\gql\mutations\Checkout as GqlCheckoutMutations;
 use totalwebcreations\b2bcommerce\gql\queries\B2bContext as GqlB2bContextQueries;
 use totalwebcreations\b2bcommerce\gql\queries\Company as GqlCompanyQueries;
 use totalwebcreations\b2bcommerce\models\Settings;
@@ -175,6 +177,17 @@ class Plugin extends BasePlugin
 
         Event::on(
             Gql::class,
+            Gql::EVENT_REGISTER_GQL_MUTATIONS,
+            static function(RegisterGqlMutationsEvent $event): void {
+                $event->mutations = array_merge(
+                    $event->mutations,
+                    GqlCheckoutMutations::getMutations(),
+                );
+            }
+        );
+
+        Event::on(
+            Gql::class,
             Gql::EVENT_REGISTER_GQL_SCHEMA_COMPONENTS,
             static function(RegisterGqlSchemaComponentsEvent $event): void {
                 $label = Craft::t('b2b-commerce', 'B2B Commerce');
@@ -187,6 +200,9 @@ class Plugin extends BasePlugin
                 ];
                 $event->queries[$label]['b2bContext.self:read'] = [
                     'label' => Craft::t('b2b-commerce', 'View the current user’s B2B context'),
+                ];
+                $event->mutations[$label]['b2bContext.write:edit'] = [
+                    'label' => Craft::t('b2b-commerce', 'Perform B2B write mutations (PO number, quotes, approvals, order lists)'),
                 ];
             }
         );

@@ -46,4 +46,15 @@ class Gql extends BaseGqlHelper
     {
         return self::canSchema('b2bCompanies.financials', 'read', $schema);
     }
+
+    /**
+     * Whether the active (or given) schema may perform B2B write mutations. Gated by the separate,
+     * opt-in `b2bContext.write` mutation component, which is OFF by default: enabling any read scope
+     * never enables writes. The mutation resolvers re-check this and additionally require an
+     * authenticated member, so a schema token alone can never write another company's data.
+     */
+    public static function canWriteB2bContext(?GqlSchema $schema = null): bool
+    {
+        return self::canSchema('b2bContext.write', 'edit', $schema);
+    }
 }
