@@ -52,6 +52,10 @@ class Quote
                     'type' => Type::string(),
                     'description' => 'The order currency.',
                 ],
+                'poNumber' => [
+                    'type' => Type::string(),
+                    'description' => 'The buyer purchase-order number on the quote’s order (phase 15), if set.',
+                ],
                 'acceptToken' => [
                     'type' => Type::string(),
                     'description' => 'The accept token, present only while the quote is still sent.',

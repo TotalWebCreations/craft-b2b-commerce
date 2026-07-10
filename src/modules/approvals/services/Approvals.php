@@ -976,6 +976,7 @@ class Approvals extends Component
      *     reference: ?string,
      *     total: ?float,
      *     currency: ?string,
+     *     poNumber: ?string,
      *     requesterName: ?string,
      *     dateCreated: ?DateTime
      * }>
@@ -1004,6 +1005,7 @@ class Approvals extends Component
      *     reference: ?string,
      *     total: ?float,
      *     currency: ?string,
+     *     poNumber: ?string,
      *     requesterName: ?string,
      *     dateCreated: ?DateTime
      * }>
@@ -1063,6 +1065,7 @@ class Approvals extends Component
      *     reference: ?string,
      *     total: ?float,
      *     currency: ?string,
+     *     poNumber: ?string,
      *     requesterName: ?string,
      *     dateCreated: ?DateTime
      * }>
@@ -1094,6 +1097,7 @@ class Approvals extends Component
                 'reference' => $order !== null ? ($order->reference ?: $order->getShortNumber()) : null,
                 'total' => $order?->getTotalPrice(),
                 'currency' => $order?->currency,
+                'poNumber' => $order?->b2bPoNumber,
                 'requesterName' => $requester !== null ? ($requester->fullName ?: $requester->email) : null,
                 'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
             ];
@@ -1111,6 +1115,7 @@ class Approvals extends Component
      *     reference: ?string,
      *     total: ?float,
      *     currency: ?string,
+     *     poNumber: ?string,
      *     reason: ?string,
      *     dateCreated: ?DateTime
      * }>
@@ -1142,6 +1147,7 @@ class Approvals extends Component
                 'reference' => $order !== null ? ($order->reference ?: $order->getShortNumber()) : null,
                 'total' => $order?->getTotalPrice(),
                 'currency' => $order?->currency,
+                'poNumber' => $order?->b2bPoNumber,
                 'reason' => $row['reason'] !== null ? (string) $row['reason'] : null,
                 'dateCreated' => $this->toUtcDateTime($row['dateCreated']),
             ];

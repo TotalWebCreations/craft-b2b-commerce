@@ -474,6 +474,7 @@ class Quotes extends Component
      *     reference: ?string,
      *     total: ?float,
      *     currency: ?string,
+     *     poNumber: ?string,
      *     acceptToken: ?string
      * }>
      */
@@ -507,6 +508,7 @@ class Quotes extends Component
                 'reference' => $order !== null ? ($order->reference ?: $order->getShortNumber()) : null,
                 'total' => $order?->getTotalPrice(),
                 'currency' => $order?->currency,
+                'poNumber' => $order?->b2bPoNumber,
                 'acceptToken' => $status === QuoteStatus::Sent->value ? (string) $row['acceptToken'] : null,
             ];
         }, $rows);

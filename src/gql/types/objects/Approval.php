@@ -58,6 +58,10 @@ class Approval
                     'type' => DateTime::getType(),
                     'description' => 'The date the request was raised.',
                 ],
+                'poNumber' => [
+                    'type' => Type::string(),
+                    'description' => 'The buyer purchase-order number on the order (phase 15), if set.',
+                ],
                 'steps' => [
                     'type' => Type::listOf(ApprovalStep::getType()),
                     'description' => 'The approval’s sequential step ladder (phase 18); empty for a tier-less approval.',
