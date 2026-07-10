@@ -488,3 +488,35 @@ function impersonationTestUser(): craft\console\User
 
     return $userComponent;
 }
+
+/**
+ * A tracked, approved company that pays on account, with a generous credit limit and the given
+ * payment term (drives order.b2bPaymentDueDate = dateOrdered + paymentTermDays).
+ */
+function statementCompany(int $paymentTermDays): Company
+{
+    $company = createTestCompany(Company::STATUS_APPROVED);
+    $company->allowInvoicePayment = true;
+    $company->creditLimit = 100000.0;
+    $company->paymentTermDays = $paymentTermDays;
+
+    if (!craftApp()->getElements()->saveElement($company)) {
+        throw new RuntimeException('Could not save statement test company: ' . implode(', ', $company->getFirstErrors()));
+    }
+
+    return $company;
+}
+
+/**
+ * Backdates a completed order's dateOrdered by $daysAgo days straight in the table, so its derived
+ * b2bPaymentDueDate lands in the past. The statement/dunning services reload the order fresh via
+ * getOrderById, so a raw update is enough and sidesteps a full re-save with its recalculation.
+ */
+function backdateOrder(\craft\commerce\elements\Order $order, int $daysAgo): void
+{
+    $date = (new DateTimeImmutable("-{$daysAgo} days"))->format('Y-m-d H:i:s');
+
+    craftApp()->getDb()->createCommand()
+        ->update('{{%commerce_orders}}', ['dateOrdered' => $date], ['id' => $order->id])
+        ->execute();
+}

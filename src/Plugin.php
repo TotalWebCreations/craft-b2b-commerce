@@ -78,6 +78,7 @@ use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
 use totalwebcreations\b2bcommerce\modules\pdf\services\PdfDocuments;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
+use totalwebcreations\b2bcommerce\modules\invoicing\services\Statements;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\OrderLists;
 use totalwebcreations\b2bcommerce\modules\quickorder\services\QuickOrder;
 use totalwebcreations\b2bcommerce\modules\quotes\services\Quotes;
@@ -115,6 +116,7 @@ use yii\base\Event;
  * @property-read Quotes $quotes
  * @property-read Registration $registration
  * @property-read SalesReps $salesReps
+ * @property-read Statements $statements
  * @property-read TaxIdValidation $taxIdValidation
  */
 class Plugin extends BasePlugin
@@ -272,6 +274,7 @@ class Plugin extends BasePlugin
             'quotes' => Quotes::class,
             'registration' => Registration::class,
             'salesReps' => SalesReps::class,
+            'statements' => Statements::class,
             'taxIdValidation' => TaxIdValidation::class,
         ]);
 
