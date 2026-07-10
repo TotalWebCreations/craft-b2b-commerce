@@ -11,6 +11,7 @@ use craft\commerce\models\ProductTypeSite;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use craft\elements\User;
+use craft\helpers\App;
 use craft\helpers\Json;
 use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
@@ -311,6 +312,90 @@ function newestMailBody(): string
 }
 
 /**
+ * A test-only Mailer subclass whose file-transport save step can be made to throw for messages
+ * addressed to specific recipients, so a test can force a genuine "the reminder mail send failed"
+ * outcome deterministically -- without depending on real network/SMTP conditions. The dev site's
+ * mailer config always sets useFileTransport = true (see ../../../b2b-dev/config/app.php), so
+ * BaseMailer::send() normally calls saveMessage() -- never the Symfony transport -- to write the
+ * .eml files mailDir()/mailCount() read; that is the one method that must be intercepted. Everything
+ * else (subject/body rendering, from/replyTo/template handling) is inherited unchanged from the
+ * real, correctly configured Mailer.
+ */
+class FailingSaveMailer extends \craft\mail\Mailer
+{
+    /** @var callable(string[] $toAddresses): bool */
+    public $shouldFail;
+
+    /**
+     * @param \yii\mail\MessageInterface $message
+     */
+    protected function saveMessage($message): bool
+    {
+        $to = $message->getTo();
+        $toAddresses = is_array($to) ? array_keys($to) : (array) $to;
+
+        if (($this->shouldFail)($toAddresses)) {
+            throw new RuntimeException('Forced test mail failure');
+        }
+
+        return parent::saveMessage($message);
+    }
+}
+
+/**
+ * Runs the callback with Craft's mailer swapped for a {@see FailingSaveMailer} that throws for any
+ * outgoing message whose "To" addresses satisfy $shouldFail, and otherwise behaves exactly like the
+ * real, correctly configured mailer (including actually writing the .eml file, so
+ * mailCount()/mailSnapshot() stay meaningful for non-targeted sends). Lets a test force a precise,
+ * targeted mail failure -- e.g. "only the reminder to this one recipient fails" -- regardless of the
+ * order in which the dev site's (possibly noisy) companies happen to be processed. The real mailer is
+ * restored afterwards, even if the callback throws.
+ *
+ * @param callable(string[] $toAddresses): bool $shouldFail
+ */
+function withMailerFailingWhen(callable $shouldFail, callable $callback): void
+{
+    $app = craftApp();
+    $original = $app->getMailer();
+
+    $config = App::mailerConfig();
+    $config['class'] = FailingSaveMailer::class;
+    $config['useFileTransport'] = true;
+    $config['shouldFail'] = $shouldFail;
+
+    $app->set('mailer', Craft::createObject($config));
+
+    try {
+        $callback();
+    } finally {
+        $app->set('mailer', $original);
+    }
+}
+
+/**
+ * Runs the callback with Craft's mailer swapped for one whose send() always fails. See
+ * {@see withMailerFailingWhen()}.
+ */
+function withMailerForcedToFail(callable $callback): void
+{
+    withMailerFailingWhen(fn(): bool => true, $callback);
+}
+
+/**
+ * Runs the callback with Craft's mailer swapped for one that fails ONLY the send(s) addressed to
+ * $email, sending every other recipient normally. Lets a test force one specific reminder in a batch
+ * to fail, deterministically, regardless of which order the recipients are otherwise processed in.
+ * See {@see withMailerFailingWhen()}.
+ */
+function withMailerFailingForRecipient(string $email, callable $callback): void
+{
+    withMailerFailingWhen(
+        fn(array $toAddresses): bool => in_array($email, $toAddresses, true),
+        $callback,
+    );
+}
+
+/**
  * Creates and saves a tracked User with a unique username and the given email.
  */
 function createTestUser(string $email, bool $active = true): User
@@ -397,6 +482,23 @@ function asSiteRequest(callable $callback): void
     } finally {
         $request->setIsConsoleRequest(true);
     }
+}
+
+/**
+ * The email address of a company's first admin member, resolved exactly the way
+ * {@see totalwebcreations\b2bcommerce\modules\invoicing\services\Dunning::sendReminder()} resolves
+ * its recipients -- so a test can target a mail-transport failure at one specific company's
+ * reminder, deterministically, without depending on internally generated test-user email formats.
+ */
+function companyAdminEmail(Company $company): string
+{
+    foreach (Plugin::getInstance()->companyMembers->getMemberUsers($company->id) as $row) {
+        if ($row['role'] === CompanyRole::Admin && $row['user']->email) {
+            return $row['user']->email;
+        }
+    }
+
+    throw new RuntimeException("No admin email found for company {$company->id}.");
 }
 
 /**

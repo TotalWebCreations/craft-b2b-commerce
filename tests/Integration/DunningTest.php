@@ -82,3 +82,24 @@ it('never duns an overpaid invoice', function () {
 
     expect(Plugin::getInstance()->dunning->dueReminders($company, new DateTimeImmutable('now')))->toBeEmpty();
 });
+
+it('does not log a failed send, so a later run retries the same reminder', function () {
+    withDunning([7]);
+    $company = statementCompany(0);
+    $order = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 100.0);
+    backdateOrder($order, 10);
+
+    $dunning = Plugin::getInstance()->dunning;
+
+    withMailerForcedToFail(function () use ($dunning, $company, $order) {
+        expect($dunning->sendReminder($company, $order, 7, 10))->toBeFalse();
+    });
+
+    expect($dunning->hasReminderBeenSent((int) $order->id, 7))->toBeFalse()
+        ->and($dunning->dueReminders($company, new DateTimeImmutable('now')))->toHaveCount(1);
+
+    // A later run, once the mailer is healthy again, retries and succeeds instead of having
+    // silently recorded the failed attempt as sent.
+    expect($dunning->sendReminder($company, $order, 7, 10))->toBeTrue()
+        ->and($dunning->hasReminderBeenSent((int) $order->id, 7))->toBeTrue();
+});

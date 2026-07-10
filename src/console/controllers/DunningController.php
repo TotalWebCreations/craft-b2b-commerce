@@ -2,6 +2,7 @@
 
 namespace totalwebcreations\b2bcommerce\console\controllers;
 
+use Craft;
 use craft\console\Controller;
 use DateTimeImmutable;
 use totalwebcreations\b2bcommerce\elements\Company;
@@ -15,6 +16,12 @@ use yii\helpers\Console;
 class DunningController extends Controller
 {
     /**
+     * The named mutex lock guarding a run, so two overlapping invocations (e.g. an overrunning cron
+     * job) can never both compute and send reminders for the same companies at once.
+     */
+    private const MUTEX_LOCK_NAME = 'b2b-commerce:dunning:run';
+
+    /**
      * Sends overdue-invoice payment reminders for every company, once per configured day-offset.
      *
      * Cron-friendly. Opt-in via the enableDunning setting; a no-op when it is off. For each
@@ -22,7 +29,8 @@ class DunningController extends Controller
      * offset, it emails the company's administrators and records the send so it never repeats. Send
      * failures are reported and counted but never abort the run: {@see \totalwebcreations\b2bcommerce\modules\invoicing\services\Dunning::sendReminder()}
      * never throws, and a per-company failure here is also caught so one company's problem never
-     * stops the rest of the run.
+     * stops the rest of the run. The whole run is guarded by a short-timeout named mutex, so an
+     * overlapping invocation skips cleanly instead of racing the first one and double-sending.
      */
     public function actionRun(): int
     {
@@ -34,6 +42,23 @@ class DunningController extends Controller
             return ExitCode::OK;
         }
 
+        $mutex = Craft::$app->getMutex();
+
+        if (!$mutex->acquire(self::MUTEX_LOCK_NAME, 3)) {
+            $this->stdout("Another dunning run is already in progress; skipping.\n", Console::FG_YELLOW);
+
+            return ExitCode::OK;
+        }
+
+        try {
+            return $this->runDunning();
+        } finally {
+            $mutex->release(self::MUTEX_LOCK_NAME);
+        }
+    }
+
+    private function runDunning(): int
+    {
         $dunning = Plugin::getInstance()->dunning;
         $asOf = new DateTimeImmutable('now');
 

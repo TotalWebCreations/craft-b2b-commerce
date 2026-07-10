@@ -12,6 +12,7 @@ use totalwebcreations\b2bcommerce\enums\AgingBucket;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\base\Component;
+use yii\db\IntegrityException;
 
 /**
  * Computes and sends overdue-invoice payment reminders (dunning). For every outstanding invoice
@@ -76,7 +77,8 @@ class Dunning extends Component
      * Emails the company's administrators a payment reminder for one overdue invoice at one offset,
      * then logs the send so it never fires again for that (order, offset). Returns false and logs a
      * warning — without writing the log row, so a later run can retry — when the reminder was already
-     * sent, when the company has no administrator to notify, or when the mail send fails.
+     * sent, when the company has no administrator to notify, when the mail send fails, or when the log
+     * insert itself fails for any reason other than the benign duplicate-key race with a concurrent run.
      */
     public function sendReminder(Company $company, Order $order, int $offset, int $daysPastDue): bool
     {
@@ -127,12 +129,22 @@ class Dunning extends Component
                 'offset' => $offset,
                 'dateSent' => Db::prepareDateForDb(new DateTimeImmutable('now')),
             ]);
+        } catch (IntegrityException $e) {
+            // The unique (orderId, offset) index is the hard de-dup backstop: a concurrent run already
+            // logged this exact reminder between our check and this insert, and the constraint rejects
+            // the duplicate row. The email above may have gone out twice in that narrow race, but the
+            // log is not corrupted, the other runner already recorded it, and nothing here is allowed
+            // to throw -- so this one, specific, expected race is benign and still counts as sent.
+            Craft::warning("Payment reminder log insert skipped for order {$order->id} at offset {$offset} (already logged by a concurrent run): {$e->getMessage()}", 'b2b-commerce');
+
+            return true;
         } catch (\Throwable $e) {
-            // The unique (orderId, offset) index is the hard de-dup backstop: if a concurrent run
-            // already logged this exact reminder between our check and this insert, the constraint
-            // rejects the duplicate row. The email above may have gone out twice in that narrow race,
-            // but the log is not corrupted and nothing here is allowed to throw, so swallow it.
-            Craft::warning("Payment reminder log insert failed for order {$order->id} at offset {$offset} (likely a concurrent run): {$e->getMessage()}", 'b2b-commerce');
+            // Any OTHER insert failure (e.g. a persistent DB problem) must NOT be reported as sent: the
+            // row was never written, so a later run needs to see this as still due and retry it. Unlike
+            // the benign race above, this is a real failure -- log it as an error and tell the caller.
+            Craft::error("Payment reminder log insert failed for order {$order->id} at offset {$offset}: {$e->getMessage()}", 'b2b-commerce');
+
+            return false;
         }
 
         return true;
