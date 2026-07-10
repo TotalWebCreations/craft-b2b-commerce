@@ -58,6 +58,19 @@ class Approval
                     'type' => DateTime::getType(),
                     'description' => 'The date the request was raised.',
                 ],
+                'steps' => [
+                    'type' => Type::listOf(ApprovalStep::getType()),
+                    'description' => 'The approval’s sequential step ladder (phase 18); empty for a tier-less approval.',
+                    'resolve' => static function (array $approval): array {
+                        $orderId = $approval['orderId'] ?? null;
+
+                        if ($orderId === null) {
+                            return [];
+                        }
+
+                        return \totalwebcreations\b2bcommerce\Plugin::getInstance()->approvals->getStepsForApproval((int) $orderId);
+                    },
+                ],
             ],
         ]));
     }

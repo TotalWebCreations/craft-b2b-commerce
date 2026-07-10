@@ -916,6 +916,58 @@ class Approvals extends Component
     }
 
     /**
+     * The ordered step ladder of the approval backing the given order, for the buyer-facing read API
+     * (GraphQL). Keyed on the orderId the b2b_approvals row carries — the business key the read
+     * layer already holds — rather than the internal approval id. Empty for an order with no approval
+     * or a tier-less (legacy) approval that never built steps. Read-only; resolver names are
+     * batch-loaded with no N+1.
+     *
+     * @return array<int, array{
+     *     level: int,
+     *     status: string,
+     *     resolvedByName: ?string,
+     *     reason: ?string,
+     *     dateResolved: ?DateTime
+     * }>
+     */
+    public function getStepsForApproval(int $orderId): array
+    {
+        $row = $this->approvalRow($orderId);
+
+        if ($row === null) {
+            return [];
+        }
+
+        $steps = (new Query())
+            ->from('{{%b2b_approval_steps}}')
+            ->where(['approvalId' => (int) $row['id']])
+            ->orderBy(['level' => SORT_ASC])
+            ->all();
+
+        if ($steps === []) {
+            return [];
+        }
+
+        $resolverIds = array_values(array_filter(array_column($steps, 'resolvedById')));
+        $resolvers = $resolverIds !== []
+            ? User::find()->id($resolverIds)->status(null)->indexBy('id')->all()
+            : [];
+
+        return array_map(function (array $step) use ($resolvers): array {
+            $resolverId = $step['resolvedById'] !== null ? (int) $step['resolvedById'] : null;
+            $resolver = $resolverId !== null ? ($resolvers[$resolverId] ?? null) : null;
+
+            return [
+                'level' => (int) $step['level'],
+                'status' => (string) $step['status'],
+                'resolvedByName' => $resolver !== null ? ($resolver->fullName ?: $resolver->email) : null,
+                'reason' => $step['reason'] !== null ? (string) $step['reason'] : null,
+                'dateResolved' => $this->toUtcDateTime($step['dateResolved']),
+            ];
+        }, $steps);
+    }
+
+    /**
      * Every pending approval of the company for its approver queue, newest first, batch-loaded with
      * no N+1: one row query, then the orders and requesters are each loaded once and stitched on.
      *

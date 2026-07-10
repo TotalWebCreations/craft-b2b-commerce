@@ -69,6 +69,10 @@ class B2bContext
                     'type' => MemberBudget::getType(),
                     'description' => 'The current user’s department spend budget, or null when they have no department or it is unlimited.',
                 ],
+                'approvalTiers' => [
+                    'type' => Type::listOf(ApprovalTier::getType()),
+                    'description' => 'The company’s amount-tiered approval bands (phase 18); empty for a tier-less company.',
+                ],
             ],
         ]));
     }
