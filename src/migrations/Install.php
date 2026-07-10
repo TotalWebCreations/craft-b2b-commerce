@@ -356,6 +356,21 @@ class Install extends Migration
             $this->addForeignKey(null, '{{%b2b_order_company}}', ['placedByRepId'], Table::USERS, ['id'], 'SET NULL');
         }
 
+        if (!$this->db->tableExists('{{%b2b_dunning_log}}')) {
+            $this->createTable('{{%b2b_dunning_log}}', [
+                'id' => $this->primaryKey(),
+                'orderId' => $this->integer()->notNull(),
+                'offset' => $this->integer()->notNull(),
+                'dateSent' => $this->dateTime()->notNull(),
+                'dateCreated' => $this->dateTime()->notNull(),
+                'dateUpdated' => $this->dateTime()->notNull(),
+                'uid' => $this->uid(),
+            ]);
+
+            $this->createIndex(null, '{{%b2b_dunning_log}}', ['orderId', 'offset'], true);
+            $this->addForeignKey(null, '{{%b2b_dunning_log}}', ['orderId'], '{{%commerce_orders}}', ['id'], 'CASCADE');
+        }
+
         return true;
     }
 }
