@@ -76,6 +76,33 @@ class CompanyCatalog extends Component
     }
 
     /**
+     * A human-readable one-line summary of the company's catalog restriction, or null when the full
+     * catalog is available. A convenience hint for the read API only — the add-to-cart veto
+     * ({@see isPurchasableAllowed()}) remains the security boundary. Built from the same rehydrated
+     * condition {@see getConditionForCompany()} returns, so a present-but-unusable stored condition
+     * reads as null (no restriction summary) rather than throwing.
+     */
+    public function getCatalogCriteria(Company $company): ?string
+    {
+        $condition = $this->getConditionForCompany($company);
+
+        if ($condition === null) {
+            return null;
+        }
+
+        $labels = array_map(
+            static fn($rule): string => $rule->getLabel(),
+            $condition->getConditionRules()
+        );
+
+        if ($labels === []) {
+            return null;
+        }
+
+        return implode(', ', $labels);
+    }
+
+    /**
      * The enforcement path behind {@see isPurchasableAllowed()}. Left to throw on any unusable
      * input; the caller turns every exception into a denial.
      */

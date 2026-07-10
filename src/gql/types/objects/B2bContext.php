@@ -73,6 +73,10 @@ class B2bContext
                     'type' => Type::listOf(ApprovalTier::getType()),
                     'description' => 'The company’s amount-tiered approval bands (phase 18); empty for a tier-less company.',
                 ],
+                'catalogCriteria' => [
+                    'type' => Type::string(),
+                    'description' => 'The company’s catalog restriction summary (phase 21), or null when the full catalog is available. This is a convenience hint; the add-to-cart veto is the security boundary.',
+                ],
             ],
         ]));
     }
