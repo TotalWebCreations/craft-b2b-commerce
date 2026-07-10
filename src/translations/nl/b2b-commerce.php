@@ -455,4 +455,5 @@ return [
     'Quote #{id}' => 'Offerte #{id}',
     'Product catalog' => 'Productcatalogus',
     'Restrict which products this company’s members may see and buy. Leave empty to allow the full catalog.' => 'Beperk welke producten de leden van dit bedrijf kunnen zien en bestellen. Laat leeg om de volledige catalogus toe te staan.',
+    'This product is not available for your account.' => 'Dit product is niet beschikbaar voor je account.',
 ];

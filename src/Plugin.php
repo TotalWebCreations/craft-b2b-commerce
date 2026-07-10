@@ -461,15 +461,41 @@ class Plugin extends BasePlugin
                     return;
                 }
 
-                $canPurchase = $this->priceVisibility->canPurchase(
-                    Craft::$app->getUser()->getIdentity()
-                );
+                $identity = Craft::$app->getUser()->getIdentity();
 
-                if ($canPurchase) {
+                if (!$this->priceVisibility->canPurchase($identity)) {
+                    $message = Craft::t('b2b-commerce', 'You need an approved business account to order.');
+
+                    $event->isValid = false;
+                    $event->lineItem->addError('purchasableId', $message);
+
+                    if ($event->sender instanceof Order) {
+                        $event->sender->addError('purchasableId', $message);
+                    }
+
                     return;
                 }
 
-                $message = Craft::t('b2b-commerce', 'You need an approved business account to order.');
+                // Company catalog backstop (rides enableCompanies). The buyer's company is resolved
+                // from the EFFECTIVE identity, so a sales rep acting on behalf via native
+                // impersonation is judged against the impersonated member's catalog — no elevation.
+                if (!$this->getSettings()->enableCompanies || $identity === null) {
+                    return;
+                }
+
+                $company = $this->companyMembers->getCompanyForUser($identity->id);
+
+                if ($company === null) {
+                    return;
+                }
+
+                $purchasable = $event->lineItem->getPurchasable();
+
+                if ($purchasable === null || $this->companyCatalog->isPurchasableAllowed($purchasable, $company)) {
+                    return;
+                }
+
+                $message = Craft::t('b2b-commerce', 'This product is not available for your account.');
 
                 $event->isValid = false;
                 $event->lineItem->addError('purchasableId', $message);
