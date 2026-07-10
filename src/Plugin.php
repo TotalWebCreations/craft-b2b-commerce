@@ -924,6 +924,18 @@ class Plugin extends BasePlugin
                         "Unfortunately your quote request was declined.\n\n" .
                         "Reason: {{reason}}"),
                 ];
+
+                $event->messages[] = [
+                    'key' => 'b2b_payment_reminder',
+                    'heading' => Craft::t('b2b-commerce', 'B2B: payment reminder'),
+                    'subject' => Craft::t('b2b-commerce', 'Payment reminder for invoice {reference}'),
+                    'body' => Craft::t('b2b-commerce', "Hi,\n\n" .
+                        "This is a reminder that invoice {{reference}} for {{company.title}} is overdue. " .
+                        "It was due on {{dueDate}} and is now {{daysOverdue}} day(s) past due.\n\n" .
+                        "Amount still due: {{amountDue}}\n\n" .
+                        "Please arrange payment at your earliest convenience.\n\n" .
+                        "{{siteUrl}}"),
+                ];
             }
         );
     }
