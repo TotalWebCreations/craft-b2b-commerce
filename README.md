@@ -200,6 +200,9 @@ hard-enforced.
 | VIES outage policy | `taxIdValidationPolicy` | `'lenient'` | What to do when VIES is unreachable during validation: `lenient` accepts and logs a warning, `strict` refuses the save. A definitively invalid VAT ID is refused under both. |
 | Quote PDF template | `quotePdfTemplate` | `''` | Site template path used to render the quote PDF. Leave blank to use the bundled example (`b2b/pdf/quote.twig`). See [PDF documents](#pdf-documents). |
 | Invoice PDF template | `invoicePdfTemplate` | `''` | Site template path used to render the order/invoice PDF. Leave blank to use the bundled example (`b2b/pdf/invoice.twig`). See [PDF documents](#pdf-documents). |
+| Statement PDF template | `statementPdfTemplate` | `''` | Site template path used to render the account-statement PDF. Leave blank to use the bundled example (`b2b/pdf/statement.twig`). See [Account statements & dunning](#account-statements--dunning). |
+| Send payment reminders (dunning) | `enableDunning` | `false` | Lets the `b2b-commerce/dunning/run` console command email overdue-invoice payment reminders. **Off by default** — it is the only feature that emails customers autonomously; turn it on only once the command is scheduled. See [Account statements & dunning](#account-statements--dunning). |
+| Dunning offsets (days) | `dunningOffsets` | `7, 14, 30` | Comma-separated days past an invoice's due date at which a reminder is sent. Each offset is dunned at most once per invoice. See [Account statements & dunning](#account-statements--dunning). |
 
 ### Security notes
 
@@ -691,6 +694,38 @@ and `order.b2bPoNumber` — so a custom template gets them for free.
   the order is a completed invoice order belonging to the caller's own company, so the link
   itself cannot be used to leak another company's invoice.
 
+### Account statements & dunning
+
+A company's **statement** is its outstanding invoice orders bucketed by how far past due they
+are — current, 1–30, 31–60, 61–90 and 90+ days — computed on demand from the same
+outstanding-balance logic behind [credit balances](#credit-balance). There is no statement
+database table.
+
+- **Storefront:** `craft.b2b.statement` returns the signed-in user's company statement (`null`
+  for a visitor without a company): `{ companyId, currency, asOf, totalOutstanding, buckets, lines }`.
+- **Control panel:** the company's **Statement** page (linked from **Orders**, `Manage companies`
+  permission) shows the aging summary and the outstanding invoice lines, read-only.
+- **PDF download:** a **Download PDF** link on the Statement page renders the statement through
+  the same PDF service as quotes and invoices ([PDF documents](#pdf-documents)), via the
+  order-agnostic `PdfDocuments::streamPdf()` — a statement isn't a Commerce order. The bundled
+  default template ships at `src/templates/pdf/statement.twig`; copy
+  `examples/templates/b2b/pdf/statement.twig` into your own templates folder and point the
+  `statementPdfTemplate` setting at it to restyle.
+
+**Dunning** (overdue-invoice payment reminders) is opt-in via the `enableDunning` setting
+(**off by default**, since it is the only feature that emails customers autonomously). When on,
+run the console command on a cron:
+
+```cron
+0 6 * * * cd /path/to/project && php craft b2b-commerce/dunning/run >> /dev/null 2>&1
+```
+
+For every company and every outstanding invoice, the command checks each configured
+`dunningOffsets` day-offset (default `7, 14, 30` days past due) against a `b2b_dunning_log` table
+and emails the `b2b_payment_reminder` system message to the company's admin-role members the
+first time an invoice crosses an offset — never twice for the same invoice/offset pair. A send
+failure or a per-company error is logged and counted but never aborts the rest of the run.
+
 ### Order approvals
 
 Each company sets an `approvalThreshold`. A **purchaser** whose order total clears that
@@ -994,6 +1029,11 @@ The plugin ships these Craft console commands:
   warning) VAT IDs it cannot check because VIES is unreachable and then exits `75` (`TEMPFAIL`)
   so schedulers can retry; exits `0` otherwise. Cron-able, for example weekly. See
   [VAT ID validation & reverse charge](#vat-id-validation--reverse-charge).
+- `php craft b2b-commerce/dunning/run` — emails overdue-invoice payment reminders, one per
+  configured day-offset per invoice. No-op (with a message) unless `enableDunning` is turned on.
+  Guarded by a run-level mutex so an overlapping invocation skips cleanly instead of double-sending;
+  a per-company or per-send failure is reported and counted but never aborts the rest of the run.
+  Cron-able, for example daily. See [Account statements & dunning](#account-statements--dunning).
 
 ## Uninstalling
 

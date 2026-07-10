@@ -24,6 +24,24 @@
 - Quote and order/invoice PDF documents, rendered via Commerce's native dompdf service, with
   overridable templates, permission-gated CP downloads and token/member-guarded storefront
   downloads. No schema change.
+- **Account statements & dunning.** A company's account statement — its outstanding invoice
+  orders bucketed by aging (current, 1–30, 31–60, 61–90, 90+ days) — is computed on demand from
+  the existing outstanding-balance logic; there is no statement table. Exposed via
+  `craft.b2b.statement` on the storefront (null for a visitor without a company) and a read-only
+  **Statement** page on the company's control-panel screen (`Manage companies` permission), with
+  a **Download PDF** link rendered through the Phase-16 PDF service (`statementPdfTemplate`
+  setting; bundled default ships at `src/templates/pdf/statement.twig`, overridable copy at
+  `examples/templates/b2b/pdf/statement.twig`).
+  A new **`b2b-commerce/dunning/run`** console command emails overdue-invoice payment reminders,
+  gated by the **`enableDunning`** setting (**off by default** — it is the only feature that
+  autonomously emails customers) and a **`dunningOffsets`** day-offset list (default `7, 14, 30`
+  days past due). Each offset is dunned at most once per invoice, guarded by a new
+  `b2b_dunning_log` table (schema 1.1.6) and a run-level mutex; a per-company or per-send failure
+  is logged and counted but never aborts the rest of the run. Cron-able, for example daily:
+
+  ```cron
+  0 6 * * * cd /path/to/project && php craft b2b-commerce/dunning/run >> /dev/null 2>&1
+  ```
 
 ## 1.0.0-beta.3 - 2026-07-09
 
