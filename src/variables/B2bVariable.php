@@ -60,6 +60,31 @@ class B2bVariable
     }
 
     /**
+     * The signed-in user's company account statement: outstanding invoice orders bucketed by aging,
+     * or null when the visitor has no company. Read-only and scoped to the user's own company, so a
+     * template can never read another company's statement.
+     *
+     * @return array{
+     *     companyId: int,
+     *     currency: ?string,
+     *     asOf: DateTimeImmutable,
+     *     totalOutstanding: float,
+     *     buckets: array<string, float>,
+     *     lines: array<int, array<string, mixed>>
+     * }|null
+     */
+    public function getStatement(): ?array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return null;
+        }
+
+        return Plugin::getInstance()->statements->getStatement($company->id);
+    }
+
+    /**
      * The current user's own spending budget for their company as
      * `{amount, period, spent, remaining}`, or null when they have no budget (unlimited), no company,
      * or are a guest. `spent` is this member's spend in the current period; `remaining` is the room
