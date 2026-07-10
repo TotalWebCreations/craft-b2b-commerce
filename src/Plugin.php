@@ -55,6 +55,7 @@ use totalwebcreations\b2bcommerce\fieldlayoutelements\RequirePoNumberField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\TaxIdField;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
 use totalwebcreations\b2bcommerce\gql\interfaces\elements\Company as GqlCompanyInterface;
+use totalwebcreations\b2bcommerce\gql\mutations\Approval as GqlApprovalMutations;
 use totalwebcreations\b2bcommerce\gql\mutations\Checkout as GqlCheckoutMutations;
 use totalwebcreations\b2bcommerce\gql\mutations\Quote as GqlQuoteMutations;
 use totalwebcreations\b2bcommerce\gql\queries\B2bContext as GqlB2bContextQueries;
@@ -184,6 +185,7 @@ class Plugin extends BasePlugin
                     $event->mutations,
                     GqlCheckoutMutations::getMutations(),
                     GqlQuoteMutations::getMutations(),
+                    GqlApprovalMutations::getMutations(),
                 );
             }
         );
