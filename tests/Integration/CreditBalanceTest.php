@@ -302,6 +302,21 @@ it('makes the invoice gateway unavailable once a new order would exceed the cred
         ->and($gateway->availableForUseWithOrder($withinLimitCart))->toBeTrue();
 });
 
+it('exposes the outstanding orders behind the balance, excluding settled and paid ones', function () {
+    $company = creditTestCompany(500.0);
+    $active = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 40.0);
+    $refunded = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 100.0);
+    $paid = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 70.0);
+
+    setOrderStatusHandle($refunded, 'refunded');
+    recordCreditPurchase($paid, $paid->getTotalPrice());
+
+    $orders = Plugin::getInstance()->creditBalance->getOutstandingOrders($company->id);
+    $ids = array_map(fn($o) => (int) $o->id, $orders);
+
+    expect($ids)->toBe([(int) $active->id]);
+});
+
 it('keeps the invoice gateway available to record payment on a completed over-limit order', function () {
     // Completing in console skips enforcement, so this over-limit invoice order lands completed and
     // drives the company's outstanding balance (60) past its 50 limit. Commerce re-checks

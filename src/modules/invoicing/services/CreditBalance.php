@@ -3,6 +3,7 @@
 namespace totalwebcreations\b2bcommerce\modules\invoicing\services;
 
 use craft\commerce\db\Table;
+use craft\commerce\elements\Order;
 use craft\commerce\Plugin as Commerce;
 use craft\db\Query;
 use totalwebcreations\b2bcommerce\gateways\InvoiceGateway;
@@ -19,32 +20,27 @@ use yii\base\Component;
 class CreditBalance extends Component
 {
     /**
-     * The company's total unpaid balance across its completed invoice-gateway orders.
+     * The company's completed invoice orders that still carry a positive outstanding balance,
+     * as Order elements. This is the single source of truth for "what a company still owes",
+     * consumed by the credit-balance sum, the account statement and dunning.
+     *
+     * Candidate orders are narrowed in SQL (linked to this company, completed, on account via the
+     * b2b_order_company.isInvoice snapshot — never the live gatewayId, which archiving a gateway
+     * nulls). The balance itself is read from each Order element: commerce_orders.totalPaid is a
+     * stale snapshot for out-of-band invoice captures, whereas Order::getOutstandingBalance()
+     * derives the true figure live. Cancelled/refunded orders are settled — their receivable is
+     * gone — and are dropped via the shared SettledOrderStatuses scope. A paid or overpaid order
+     * (balance <= 0) creates no debt and is dropped here so it can never offset another unpaid
+     * order.
+     *
+     * @return array<int, Order>
      */
-    public function getOutstandingBalance(int $companyId): float
+    public function getOutstandingOrders(int $companyId): array
     {
-        // Candidate orders are narrowed in SQL (linked to this company, completed, placed on
-        // account), but the balance itself is summed from the Order elements. The
-        // commerce_orders.totalPaid column is only a snapshot written on the last order save
-        // (Order::afterSave), whereas Order::getTotalPaid() derives the true figure live from
-        // successful purchase/capture transactions minus refunds. An invoice gateway captures
-        // funds out of band -- a later payment inserts a transaction without necessarily
-        // re-saving the order -- so the column goes stale exactly for this use case. Summing the
-        // getter is therefore the only correct measure of what is still owed.
-        //
-        // Invoice orders are recognised by the b2b_order_company.isInvoice snapshot, written once
-        // at completion, rather than by the live orders.gatewayId. Archiving a gateway nulls
-        // gatewayId on every order that used it, so a gatewayId filter would silently drop archived
-        // invoice orders and hand out phantom credit room; the snapshot is immune to that.
-        // Cancelled/refunded orders (by their Commerce order-status handle) are settled: their
-        // receivable is gone. Counting them would be phantom debt that eats into the company's real
-        // credit room, so they are excluded here via the shared SettledOrderStatuses scope (the same
-        // exclusion the spending-budget sum applies).
         $query = (new Query())
             ->select('orders.id')
-            // A defensive DISTINCT: the inner join is one-to-one on orderId (b2b_order_company
-            // keys on orderId), so duplicates cannot occur today, but a duplicated candidate id
-            // would double-count an order's balance -- guard against it rather than trust the join.
+            // Defensive DISTINCT: the join is one-to-one on orderId today, but a duplicate id would
+            // double-count an order's balance -- guard against it rather than trust the join.
             ->distinct()
             ->from(['orders' => Table::ORDERS])
             ->innerJoin(['oc' => '{{%b2b_order_company}}'], '[[oc.orderId]] = [[orders.id]]')
@@ -59,7 +55,7 @@ class CreditBalance extends Component
         $orderIds = $query->column();
 
         $orders = Commerce::getInstance()->getOrders();
-        $outstanding = 0.0;
+        $outstanding = [];
 
         foreach ($orderIds as $orderId) {
             $order = $orders->getOrderById((int) $orderId);
@@ -68,15 +64,27 @@ class CreditBalance extends Component
                 continue;
             }
 
-            $balance = $order->getOutstandingBalance();
-
-            // An overpaid order has a negative outstanding balance; it does not create credit for
-            // the company, so skip it rather than let it offset other unpaid orders.
-            if ($balance <= 0) {
+            // An overpaid order has a negative outstanding balance; a paid order has zero. Neither
+            // is debt, so skip both.
+            if ($order->getOutstandingBalance() <= 0) {
                 continue;
             }
 
-            $outstanding += $balance;
+            $outstanding[] = $order;
+        }
+
+        return $outstanding;
+    }
+
+    /**
+     * The company's total unpaid balance across its completed invoice-gateway orders.
+     */
+    public function getOutstandingBalance(int $companyId): float
+    {
+        $outstanding = 0.0;
+
+        foreach ($this->getOutstandingOrders($companyId) as $order) {
+            $outstanding += $order->getOutstandingBalance();
         }
 
         return $outstanding;
