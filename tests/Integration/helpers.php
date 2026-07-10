@@ -683,3 +683,80 @@ function backdateOrder(\craft\commerce\elements\Order $order, int $daysAgo): voi
         ->update('{{%commerce_orders}}', ['dateOrdered' => $date], ['id' => $order->id])
         ->execute();
 }
+
+/**
+ * Runs the callback with the application's `request` component temporarily swapped for a real
+ * craft\web\Request instance. GraphQL write mutations are served over HTTP in production, so a
+ * resolver that reads Commerce's "current cart" (Carts::getCart(), which touches the request IP and
+ * the cart cookie) needs a web-flavoured request to run at all; the console harness's own request
+ * component (craft\console\Request) lacks those web-only methods. The previous request component is
+ * restored afterwards so unrelated tests keep running under the console request they expect.
+ */
+function asWebRequest(callable $callback): void
+{
+    $app = craftApp();
+    $previous = $app->get('request');
+
+    $app->set('request', Craft::createObject(['class' => \craft\web\Request::class]));
+
+    try {
+        $callback();
+    } finally {
+        $app->set('request', $previous);
+    }
+}
+
+/**
+ * Creates a fresh purchasable variant for a GraphQL write-mutation test and forgets any memoized
+ * "current cart" left over by an earlier test in the same process, so addLineItemToCurrentCart()
+ * below starts from a clean cart.
+ */
+function seedPurchasableProduct(): Variant
+{
+    Commerce::getInstance()->getCarts()->forgetCart();
+
+    return createTestVariant('GQL-' . substr(uniqid(), -8));
+}
+
+/**
+ * Adds qty of $variant to the caller's "current cart" — the same Commerce::getCarts()->getCart()
+ * call the GraphQL write-mutation resolvers make — under a swapped web request (see asWebRequest()).
+ * Must run inside asGqlIdentity()/asIdentity() so the cart resolves to the intended customer.
+ */
+function addLineItemToCurrentCart(Variant $variant, int $qty): void
+{
+    asWebRequest(function () use ($variant, $qty) {
+        $cart = Commerce::getInstance()->getCarts()->getCart();
+        Plugin::getInstance()->quickOrder->addResolvedPurchasable($cart, $variant->id, $qty, $variant->sku);
+        craftApp()->getElements()->saveElement($cart);
+    });
+}
+
+/**
+ * Seeds a Sent quote (its token usable with the acceptQuote/declineQuote mutations) for the given
+ * company, mirroring the phase-5 quote-flow fixtures (quoteCartWithItem + insertQuoteRow +
+ * markSent). Returns the accept/decline token.
+ */
+function seedSentQuoteForCompany(Company $company, User $requestedBy): string
+{
+    $order = quoteCartWithItem();
+    $token = insertQuoteRow($order->id, \totalwebcreations\b2bcommerce\enums\QuoteStatus::Requested->value, $company->id, $requestedBy->id);
+
+    Plugin::getInstance()->quotes->markSent($order, new DateTime('+14 days'));
+
+    return $token;
+}
+
+/**
+ * Seeds a Pending approval request (resolvable via the approveOrder/declineOrder mutations) for the
+ * given company and requester, mirroring the phase-6 approval fixtures (approvalCart +
+ * insertApprovalRow). Returns the order id.
+ */
+function seedPendingApproval(Company $company, User $requester): int
+{
+    $order = approvalCart($requester, 500.0);
+
+    insertApprovalRow($order->id, $company->id, \totalwebcreations\b2bcommerce\enums\ApprovalStatus::Pending->value, $requester->id, 500.0);
+
+    return $order->id;
+}
