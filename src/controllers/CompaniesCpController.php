@@ -182,6 +182,27 @@ class CompaniesCpController extends Controller
         ]);
     }
 
+    public function actionStatementPdf(int $companyId): Response
+    {
+        $company = $this->findCompany($companyId);
+        $statement = Plugin::getInstance()->statements->getStatement($company->id);
+        $pdfDocuments = Plugin::getInstance()->pdfDocuments;
+
+        // Reuse the Phase 16 PDF service (dompdf via Commerce). A statement is order-less, so this
+        // goes through the order-agnostic streamPdf() rather than the order-bound render methods.
+        // The template path mirrors quoteTemplatePath()/invoiceTemplatePath(): a merchant override
+        // via the statementPdfTemplate setting, or the bundled default shipped at
+        // src/templates/pdf/statement.twig (PdfDocuments::DEFAULT_STATEMENT_TEMPLATE).
+        return $pdfDocuments->streamPdf(
+            $pdfDocuments->statementTemplatePath(),
+            [
+                'company' => $company,
+                'statement' => $statement,
+            ],
+            "statement-{$company->id}.pdf",
+        );
+    }
+
     public function actionApprovalTiers(int $companyId): Response
     {
         $company = $this->findCompany($companyId);

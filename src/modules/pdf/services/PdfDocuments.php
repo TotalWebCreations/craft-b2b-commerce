@@ -28,6 +28,7 @@ class PdfDocuments extends Component
     // renderInvoicePdf work out of the box with no merchant template override configured.
     public const DEFAULT_QUOTE_TEMPLATE = 'b2b-commerce/pdf/quote';
     public const DEFAULT_INVOICE_TEMPLATE = 'b2b-commerce/pdf/invoice';
+    public const DEFAULT_STATEMENT_TEMPLATE = 'b2b-commerce/pdf/statement';
 
     public function quoteTemplatePath(): string
     {
@@ -41,6 +42,13 @@ class PdfDocuments extends Component
         $override = Plugin::getInstance()->getSettings()->invoicePdfTemplate;
 
         return $override !== '' ? $override : self::DEFAULT_INVOICE_TEMPLATE;
+    }
+
+    public function statementTemplatePath(): string
+    {
+        $override = Plugin::getInstance()->getSettings()->statementPdfTemplate;
+
+        return $override !== '' ? $override : self::DEFAULT_STATEMENT_TEMPLATE;
     }
 
     /**

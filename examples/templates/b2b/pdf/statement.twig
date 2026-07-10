@@ -1,0 +1,85 @@
+{#
+    Customization starting point for the B2B account-statement PDF. The plugin already ships a
+    working default at src/templates/pdf/statement.twig (resolved as `b2b-commerce/pdf/statement`),
+    so copying this file is OPTIONAL — only do it if you want to restyle the PDF.
+
+    To use this copy instead of the shipped default:
+      1. Copy this file into your own templates folder, e.g. templates/b2b/pdf/statement.twig.
+      2. Set the "Statement PDF template" plugin setting to `b2b/pdf/statement` (or wherever you put
+         it). A non-empty setting always wins over the shipped default
+         (see PdfDocuments::statementTemplatePath()).
+      3. Restyle freely — this is standalone HTML (dompdf renders raw HTML, no site layout),
+         self-contained inline CSS.
+
+    Variables:
+      company   — the B2B company element the statement belongs to
+      statement — the Statements::getStatement() shape: buckets, lines, totalOutstanding, currency, asOf
+#}
+{% set currency = statement.currency %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #111; }
+        h1 { font-size: 18px; margin: 0 0 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; }
+        .totals th { text-align: right; }
+        .right { text-align: right; }
+    </style>
+</head>
+<body>
+    <h1>{{ 'Statement'|t('b2b-commerce') }}</h1>
+    <p>{{ company.title }}<br>
+        {{ 'As of'|t('b2b-commerce') }}: {{ statement.asOf|date('short') }}</p>
+
+    <table class="totals">
+        <thead>
+            <tr>
+                <th>{{ 'Current'|t('b2b-commerce') }}</th>
+                <th>{{ '1–30 days'|t('b2b-commerce') }}</th>
+                <th>{{ '31–60 days'|t('b2b-commerce') }}</th>
+                <th>{{ '61–90 days'|t('b2b-commerce') }}</th>
+                <th>{{ '90+ days'|t('b2b-commerce') }}</th>
+                <th>{{ 'Total outstanding'|t('b2b-commerce') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>{{ statement.buckets['current']|currency(currency) }}</td>
+                <td>{{ statement.buckets['1-30']|currency(currency) }}</td>
+                <td>{{ statement.buckets['31-60']|currency(currency) }}</td>
+                <td>{{ statement.buckets['61-90']|currency(currency) }}</td>
+                <td>{{ statement.buckets['90+']|currency(currency) }}</td>
+                <td><strong>{{ statement.totalOutstanding|currency(currency) }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% if statement.lines is not empty %}
+        <table>
+            <thead>
+                <tr>
+                    <th>{{ 'Invoice'|t('b2b-commerce') }}</th>
+                    <th>{{ 'Order date'|t('b2b-commerce') }}</th>
+                    <th>{{ 'Due date'|t('b2b-commerce') }}</th>
+                    <th class="right">{{ 'Days overdue'|t('b2b-commerce') }}</th>
+                    <th class="right">{{ 'Balance'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in statement.lines %}
+                    <tr>
+                        <td>{{ line.reference }}</td>
+                        <td>{{ line.dateOrdered ? line.dateOrdered|date('short') : '' }}</td>
+                        <td>{{ line.dueDate ? line.dueDate|date('short') : '' }}</td>
+                        <td class="right">{{ line.daysPastDue }}</td>
+                        <td class="right">{{ line.balance|currency(currency) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</body>
+</html>

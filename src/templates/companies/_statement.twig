@@ -13,6 +13,7 @@
 {% block content %}
     <div class="pane" style="margin-bottom: 24px;">
         <h2>{{ 'Aging summary'|t('b2b-commerce') }}</h2>
+        <p><a class="btn" href="{{ url('b2b/companies/' ~ company.id ~ '/statement/pdf') }}">{{ 'Download PDF'|t('b2b-commerce') }}</a></p>
         <table class="data fullwidth">
             <thead>
                 <tr>
