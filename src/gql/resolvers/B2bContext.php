@@ -49,6 +49,36 @@ class B2bContext
             'orderLists' => $plugin->getSettings()->enableQuickOrder
                 ? $plugin->orderLists->getLists($company->id)
                 : [],
+            'departments' => $plugin->departments->getDepartmentsForCompany($company->id),
+            'departmentBudget' => self::departmentBudget($user->id),
+        ];
+    }
+
+    /**
+     * The current user's department spend budget, or null when they have no department or their
+     * department has no budget cap. Mirrors memberBudget() below, but aggregates the spend of every
+     * CURRENT member of the department (DepartmentBudget::getSpent) rather than one member's own
+     * spend, and measures the department's own period rather than a per-member one.
+     *
+     * @return array{amount: float, period: string, spent: float, remaining: float}|null
+     */
+    private static function departmentBudget(int $userId): ?array
+    {
+        $plugin = Plugin::getInstance();
+        $department = $plugin->departments->getDepartmentForUser($userId);
+
+        if ($department === null || $department['budgetAmount'] === null) {
+            return null;
+        }
+
+        $amount = (float) $department['budgetAmount'];
+        $spent = $plugin->departmentBudget->getSpent($department, new DateTimeImmutable('now'));
+
+        return [
+            'amount' => $amount,
+            'period' => (string) $department['budgetPeriod'],
+            'spent' => $spent,
+            'remaining' => max(0.0, $amount - $spent),
         ];
     }
 

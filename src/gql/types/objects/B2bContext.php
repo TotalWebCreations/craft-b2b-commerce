@@ -61,6 +61,14 @@ class B2bContext
                     'type' => Type::listOf(OrderList::getType()),
                     'description' => 'The company’s saved order lists.',
                 ],
+                'departments' => [
+                    'type' => Type::listOf(Department::getType()),
+                    'description' => 'The company’s departments (phase 19), each with its own budget.',
+                ],
+                'departmentBudget' => [
+                    'type' => MemberBudget::getType(),
+                    'description' => 'The current user’s department spend budget, or null when they have no department or it is unlimited.',
+                ],
             ],
         ]));
     }
