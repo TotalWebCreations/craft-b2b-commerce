@@ -1,5 +1,6 @@
 <?php
 
+use craft\commerce\base\PurchasableInterface;
 use craft\commerce\elements\Product;
 use craft\commerce\elements\Variant;
 use craft\commerce\elements\conditions\products\CatalogPricingRuleProductCondition;
@@ -154,6 +155,47 @@ it('returns null for an empty or rule-less stored condition', function () {
     $company->catalogCondition = '{"class":"craft\\\\commerce\\\\elements\\\\conditions\\\\products\\\\CatalogPricingRuleProductCondition","conditionRules":[]}';
 
     expect(Plugin::getInstance()->companyCatalog->getConditionForCompany($company))->toBeNull();
+});
+
+it('denies a non-Product purchasable when the company has a catalog condition set', function () {
+    $company = createTestCompany('approved', 'Catalog NonProduct Co');
+    $company->catalogCondition = catalogConditionForType(quickOrderProductType());
+    craftApp()->getElements()->saveElement($company);
+
+    /** @var PurchasableInterface $purchasable */
+    $purchasable = test()->createStub(PurchasableInterface::class);
+
+    expect(Plugin::getInstance()->companyCatalog->isPurchasableAllowed($purchasable, $company))->toBeFalse();
+});
+
+it('denies a variant with a null/unresolvable owner product when a catalog condition is set', function () {
+    $company = createTestCompany('approved', 'Catalog OrphanVariant Co');
+    $company->catalogCondition = catalogConditionForType(quickOrderProductType());
+    craftApp()->getElements()->saveElement($company);
+
+    $orphan = new Variant();
+
+    expect(Plugin::getInstance()->companyCatalog->isPurchasableAllowed($orphan, $company))->toBeFalse();
+});
+
+it('denies (fails closed) when the stored catalog condition is corrupt JSON', function () {
+    $company = createTestCompany('approved', 'Catalog Corrupt Co');
+    $company->catalogCondition = '{not json';
+    craftApp()->getElements()->saveElement($company);
+
+    $variant = createTestVariant('CAT-CORRUPT-' . substr(uniqid(), -6));
+
+    expect(Plugin::getInstance()->companyCatalog->isPurchasableAllowed($variant, $company))->toBeFalse();
+});
+
+it('denies (fails closed) when the stored catalog condition decodes to a non-array scalar', function () {
+    $company = createTestCompany('approved', 'Catalog Scalar Co');
+    $company->catalogCondition = '"just a string"';
+    craftApp()->getElements()->saveElement($company);
+
+    $variant = createTestVariant('CAT-SCALAR-' . substr(uniqid(), -6));
+
+    expect(Plugin::getInstance()->companyCatalog->isPurchasableAllowed($variant, $company))->toBeFalse();
 });
 
 it('normalizes a posted condition-builder array into stored JSON, and an empty builder to null', function () {

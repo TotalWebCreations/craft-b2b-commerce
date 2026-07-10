@@ -9,6 +9,8 @@ use craft\commerce\elements\db\ProductQuery;
 use craft\commerce\elements\Product;
 use craft\commerce\elements\Variant;
 use craft\helpers\Json;
+use RuntimeException;
+use Throwable;
 use totalwebcreations\b2bcommerce\elements\Company;
 use yii\base\Component;
 
@@ -20,6 +22,11 @@ use yii\base\Component;
  * across every add path — the security boundary. That veto is wired in a later batch; this service is
  * the evaluator it will call. applyToProductQuery()/any storefront visibility filtering built on top
  * are convenience-only and must never be relied on for enforcement.
+ *
+ * isPurchasableAllowed() fails CLOSED: a present-but-unusable stored condition (corrupt JSON, a
+ * non-array payload, a missing/invalid rule structure) or any exception raised while building or
+ * matching the condition denies the purchasable rather than opening the full catalog. Only a
+ * genuinely absent condition (column NULL, empty string, whitespace) grants the full catalog.
  */
 class CompanyCatalog extends Component
 {
@@ -28,10 +35,59 @@ class CompanyCatalog extends Component
      * has the full catalog (returns true). When a condition IS set, the purchasable must resolve to
      * a Commerce Product that matches it; a purchasable with no owning Product (a custom, non-Product
      * purchasable) is outside a product-defined catalog and is refused — fail-closed.
+     *
+     * Never throws: any failure while resolving/matching the condition (corrupt stored condition,
+     * a tampered element type, a construction error, ...) is logged and treated as a denial, so
+     * callers can rely on the return value unconditionally.
      */
     public function isPurchasableAllowed(PurchasableInterface $purchasable, Company $company): bool
     {
-        $condition = $this->getConditionForCompany($company);
+        try {
+            return $this->evaluatePurchasableAllowed($purchasable, $company);
+        } catch (Throwable $e) {
+            Craft::warning(
+                "Denying purchasable for company {$company->id}: catalog condition could not be evaluated ({$e->getMessage()}).",
+                __METHOD__
+            );
+
+            return false;
+        }
+    }
+
+    /**
+     * Rehydrates the company's stored condition, or null when there is none / it carries no rules
+     * (an empty builder must read as "full catalog", not "match nothing"). A present-but-unusable
+     * stored condition also reads as null here, since this method backs convenience-only filtering
+     * (see class docblock) and is not the enforcement path.
+     */
+    public function getConditionForCompany(Company $company): ?CatalogPricingRuleProductCondition
+    {
+        $stored = $company->catalogCondition;
+
+        if ($stored === null || trim($stored) === '') {
+            return null;
+        }
+
+        try {
+            return $this->buildConditionFromStoredValue($stored);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The enforcement path behind {@see isPurchasableAllowed()}. Left to throw on any unusable
+     * input; the caller turns every exception into a denial.
+     */
+    private function evaluatePurchasableAllowed(PurchasableInterface $purchasable, Company $company): bool
+    {
+        $stored = $company->catalogCondition;
+
+        if ($stored === null || trim($stored) === '') {
+            return true;
+        }
+
+        $condition = $this->buildConditionFromStoredValue($stored);
 
         if ($condition === null) {
             return true;
@@ -47,20 +103,25 @@ class CompanyCatalog extends Component
     }
 
     /**
-     * Rehydrates the company's stored condition, or null when there is none / it carries no rules
-     * (an empty builder must read as "full catalog", not "match nothing").
+     * Builds the matching-capable condition for a known non-null, non-empty stored value. Returns
+     * null only when the stored value is well-formed and explicitly carries no rules (full catalog).
+     * Any other unusable shape (unparseable JSON, a non-array payload, a missing/invalid
+     * `conditionRules` structure, or a construction failure) throws, so present-but-corrupt input
+     * never resolves to "no restriction".
      */
-    public function getConditionForCompany(Company $company): ?CatalogPricingRuleProductCondition
+    private function buildConditionFromStoredValue(string $stored): ?CatalogPricingRuleProductCondition
     {
-        $stored = $company->catalogCondition;
-
-        if ($stored === null || trim($stored) === '') {
-            return null;
-        }
-
         $config = Json::decodeIfJson($stored);
 
-        if (!is_array($config) || ($config['conditionRules'] ?? []) === []) {
+        if (!is_array($config)) {
+            throw new RuntimeException('Stored catalog condition is not a usable array.');
+        }
+
+        if (!array_key_exists('conditionRules', $config) || !is_array($config['conditionRules'])) {
+            throw new RuntimeException('Stored catalog condition is missing a usable conditionRules structure.');
+        }
+
+        if ($config['conditionRules'] === []) {
             return null;
         }
 
