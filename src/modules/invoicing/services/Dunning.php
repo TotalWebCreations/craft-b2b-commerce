@@ -130,14 +130,27 @@ class Dunning extends Component
                 'dateSent' => Db::prepareDateForDb(new DateTimeImmutable('now')),
             ]);
         } catch (IntegrityException $e) {
-            // The unique (orderId, offset) index is the hard de-dup backstop: a concurrent run already
-            // logged this exact reminder between our check and this insert, and the constraint rejects
-            // the duplicate row. The email above may have gone out twice in that narrow race, but the
-            // log is not corrupted, the other runner already recorded it, and nothing here is allowed
-            // to throw -- so this one, specific, expected race is benign and still counts as sent.
-            Craft::warning("Payment reminder log insert skipped for order {$order->id} at offset {$offset} (already logged by a concurrent run): {$e->getMessage()}", 'b2b-commerce');
+            // An IntegrityException here is NOT trusted at face value: it could be the benign
+            // concurrent-duplicate race on the unique (orderId, offset) index, or it could be a real
+            // failure such as a foreign-key violation (e.g. the order was deleted between the send
+            // above and this insert). The only reliable way to tell them apart is to re-check whether
+            // a row now actually exists for this (order, offset).
+            if ($this->hasReminderBeenSent((int) $order->id, $offset)) {
+                // A concurrent run's insert won this race and already logged the exact same reminder.
+                // The email above may have gone out twice in that narrow window, but the log is not
+                // corrupted, the other runner already recorded it, and nothing here is allowed to
+                // throw -- so this one, specific, expected race is benign and still counts as sent.
+                Craft::warning("Payment reminder log insert skipped for order {$order->id} at offset {$offset} (already logged by a concurrent run): {$e->getMessage()}", 'b2b-commerce');
 
-            return true;
+                return true;
+            }
+
+            // No row was written by anyone: this is a real failure (e.g. a foreign-key violation
+            // because the order vanished), not the benign duplicate race. The row was never recorded,
+            // so a later run needs to see this as still due and retry it.
+            Craft::error("Payment reminder log insert failed for order {$order->id} at offset {$offset}: {$e->getMessage()}", 'b2b-commerce');
+
+            return false;
         } catch (\Throwable $e) {
             // Any OTHER insert failure (e.g. a persistent DB problem) must NOT be reported as sent: the
             // row was never written, so a later run needs to see this as still due and retry it. Unlike

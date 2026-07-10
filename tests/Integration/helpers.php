@@ -396,6 +396,67 @@ function withMailerFailingForRecipient(string $email, callable $callback): void
 }
 
 /**
+ * A test-only Mailer subclass that sends exactly like the real mailer (the .eml file is genuinely
+ * written, so mailCount()/mailSnapshot() see a real successful send) but, as a side effect of that
+ * success, runs an arbitrary callback. Used to reproduce the narrow race
+ * {@see totalwebcreations\b2bcommerce\modules\invoicing\services\Dunning::sendReminder()}'s log-insert
+ * error handling must survive: something changing between the mail actually going out and the log row
+ * being written.
+ */
+class SideEffectMailer extends \craft\mail\Mailer
+{
+    /** @var callable(): void */
+    public $onSend;
+
+    /**
+     * @param \yii\mail\MessageInterface $message
+     */
+    protected function saveMessage($message): bool
+    {
+        $result = parent::saveMessage($message);
+
+        ($this->onSend)();
+
+        return $result;
+    }
+}
+
+/**
+ * Runs the callback with Craft's mailer swapped for one that sends normally but hard-deletes $order
+ * the instant the send succeeds -- reproducing the order vanishing between the reminder mail going out
+ * and Dunning::sendReminder()'s subsequent log insert, so that insert hits a genuine foreign-key
+ * IntegrityException (b2b_dunning_log.orderId -> commerce_orders.id) rather than the benign
+ * concurrent-duplicate race on the unique (orderId, offset) index. Removes $order from the
+ * tracked-element list first, so the afterEach hard-delete pass does not try to delete it again. The
+ * real mailer is restored afterwards, even if the callback throws.
+ */
+function withOrderDeletedOnSend(Order $order, callable $callback): void
+{
+    $app = craftApp();
+    $original = $app->getMailer();
+
+    $config = App::mailerConfig();
+    $config['class'] = SideEffectMailer::class;
+    $config['useFileTransport'] = true;
+    $config['onSend'] = function () use ($order) {
+        $GLOBALS['b2bTrackedElements'] = array_values(array_filter(
+            $GLOBALS['b2bTrackedElements'],
+            fn ($tracked) => $tracked->id !== $order->id,
+        ));
+
+        craftApp()->getElements()->deleteElement($order, true);
+    };
+
+    $app->set('mailer', Craft::createObject($config));
+
+    try {
+        $callback();
+    } finally {
+        $app->set('mailer', $original);
+    }
+}
+
+/**
  * Creates and saves a tracked User with a unique username and the given email.
  */
 function createTestUser(string $email, bool $active = true): User

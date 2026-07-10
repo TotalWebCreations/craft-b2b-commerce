@@ -103,3 +103,24 @@ it('does not log a failed send, so a later run retries the same reminder', funct
     expect($dunning->sendReminder($company, $order, 7, 10))->toBeTrue()
         ->and($dunning->hasReminderBeenSent((int) $order->id, 7))->toBeTrue();
 });
+
+it('does not treat a non-duplicate log-insert failure as sent', function () {
+    withDunning([7]);
+    $company = statementCompany(0);
+    $order = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 100.0);
+    backdateOrder($order, 10);
+    $orderId = (int) $order->id;
+
+    $dunning = Plugin::getInstance()->dunning;
+
+    // The order vanishes between the reminder mail actually going out and the log insert (e.g. it
+    // was deleted by something else while the send was in flight). The insert then hits a genuine
+    // foreign-key IntegrityException -- not the benign concurrent-duplicate race on the unique
+    // (orderId, offset) index -- so sendReminder() must re-check, find no row was written, and
+    // report a real failure instead of masking it as sent.
+    withOrderDeletedOnSend($order, function () use ($dunning, $company, $order) {
+        expect($dunning->sendReminder($company, $order, 7, 10))->toBeFalse();
+    });
+
+    expect($dunning->hasReminderBeenSent($orderId, 7))->toBeFalse();
+});

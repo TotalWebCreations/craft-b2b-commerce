@@ -1,5 +1,6 @@
 <?php
 
+use Craft;
 use totalwebcreations\b2bcommerce\console\controllers\DunningController;
 use totalwebcreations\b2bcommerce\Plugin;
 use yii\console\ExitCode;
@@ -111,4 +112,31 @@ it('still sends the second reminder after the first fails, counting one success 
     expect($matches)->toHaveCount(3)
         ->and((int) $matches[1])->toBeGreaterThanOrEqual(1)
         ->and((int) $matches[2])->toBeGreaterThanOrEqual(1);
+});
+
+it('skips cleanly and sends nothing when another run already holds the mutex', function () {
+    $settings = Plugin::getInstance()->getSettings();
+    $settings->enableDunning = true;
+    $settings->dunningOffsets = [7];
+
+    $company = statementCompany(0);
+    $order = completedOrderOnGateway($company, creditTestInvoiceGateway()->id, 100.0);
+    backdateOrder($order, 30);
+
+    $mutex = Craft::$app->getMutex();
+    $lockName = 'b2b-commerce:dunning:run';
+
+    expect($mutex->acquire($lockName, 3))->toBeTrue();
+    $mailBefore = mailCount();
+
+    try {
+        [$exitCode, $output] = runDunningCommandCapturingOutput();
+
+        expect($exitCode)->toBe(ExitCode::OK)
+            ->and($output)->toMatch('/Another dunning run is already in progress; skipping\./')
+            ->and(mailCount())->toBe($mailBefore)
+            ->and(Plugin::getInstance()->dunning->hasReminderBeenSent((int) $order->id, 7))->toBeFalse();
+    } finally {
+        $mutex->release($lockName);
+    }
 });
