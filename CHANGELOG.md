@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **GraphQL read expansion and opt-in write mutations.** `b2bContext` gains `departments` /
+  `departmentBudget`, `approvalTiers` (plus a per-request `steps` ladder on
+  `myApprovalRequests`), `catalogCriteria` and `statement`; `quotes` and
+  `myApprovalRequests`/`pendingApprovals` gain `poNumber`. A new, **opt-in and off-by-default**
+  `b2bContext.write` schema component registers `setPoNumber`; `requestQuote` / `acceptQuote` /
+  `declineQuote`; `submitForApproval` / `approveOrder` / `declineOrder`; and `createOrderList` /
+  `renameOrderList` / `addOrderListItem`. Every mutation requires an authenticated member, accepts
+  no company id, and is a thin wrapper over the existing service — four-eyes, cross-company and
+  budget/credit guards apply unchanged. No schema/table change.
 - Company-specific catalog: restrict which products a company's members may see and buy via a per-company product condition (control panel). Enforced server-side by an add-to-cart veto across every add path; `craft.b2b.catalogCriteria` provides convenience storefront filtering. Empty condition = full catalog (dormant until configured; rides `enableCompanies`).
 - **Order on behalf of (sales reps).** A sales rep can act as a member of a company they are
   assigned to and place orders in that member's name, without gaining any of their own elevated

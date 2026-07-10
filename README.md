@@ -940,10 +940,11 @@ manually — the command reports, it never blocks a company.
 
 ## GraphQL API
 
-The plugin exposes its B2B data through GraphQL for headless / decoupled storefronts. The schema is
-**read-only**: every write still goes through the existing action controllers (registration, team
-management, quotes, approvals, order lists, checkout) — there are no GraphQL mutations. GraphQL only
-lets a storefront *render* B2B context.
+The plugin exposes its B2B data through GraphQL for headless / decoupled storefronts. Reads are the
+primary surface; a small, **opt-in** set of write mutations additionally lets an authenticated
+storefront act on the caller's own cart or company without a full page load. Company settings
+(credit limit, approval threshold, catalog restriction) remain control-panel only — there is no
+mutation that changes them.
 
 Nothing is queryable until you opt in per schema. Under **GraphQL → Schemas** (or the public schema)
 in the control panel, enable the **B2B Commerce** scopes:
@@ -958,6 +959,8 @@ in the control panel, enable the **B2B Commerce** scopes:
   Off by default. Do not enable it on a public schema.
 - **View the current user's B2B context** (`b2bContext.self`) — enables the top-level `b2bContext`
   query.
+- **Perform B2B write mutations** (`b2bContext.write`) — enables the mutations described below.
+  **Off by default.** See "Write mutations" further down.
 
 ```graphql
 query {
@@ -967,20 +970,88 @@ query {
         memberBudget { amount period spent remaining }
         creditSummary { outstanding creditLimit available }
         members { role user { id email fullName } }
-        quotes { status total currency validUntil }
+        quotes { status total currency validUntil poNumber }
         pendingApprovals { orderId reference total requesterName }
-        myApprovalRequests { orderId status reason }
+        myApprovalRequests { orderId status reason poNumber steps { level status resolvedByName } }
         orderLists { id name itemCount }
+        departments { id name budgetAmount budgetPeriod approverUserId }
+        departmentBudget { amount period spent remaining }
+        approvalTiers { level minAmount approverRole departmentScoped }
+        catalogCriteria
+        statement {
+            current due1To30 due31To60 due61To90 due90Plus
+            lines { orderNumber outstanding daysPastDue reference }
+        }
     }
 }
 ```
 
+- `departments` / `departmentBudget` — the company's departments and the current user's own
+  department spend budget (null with no department, or an unlimited one).
+- `approvalTiers` — the company's amount-tiered approval ladder; empty for a tier-less company.
+  `myApprovalRequests[].steps` exposes the per-request step ladder the same way.
+- `catalogCriteria` — a convenience summary string of the company's catalog restriction, or `null`
+  for the full catalog; the add-to-cart veto remains the actual security boundary (see "Company-specific
+  catalog" above).
+- `statement` — the company's account statement with aging buckets, identical to
+  `craft.b2b.statement` on the storefront.
+- `poNumber` on `quotes`/`myApprovalRequests`/`pendingApprovals` — the buyer purchase-order number
+  stamped on that order, if any. Commerce 5 ships no GraphQL `Order` type or top-level `order` query,
+  so the PO number is read where B2B already surfaces orders (quotes and approval requests) rather
+  than as a bespoke field on an order type.
+
 **Security.** `b2bContext` takes no arguments: it always resolves from the authenticated user and is
 scoped to *their own* company, so one company can never read another's members, quotes, approvals,
-budgets or order lists — there is no id by which to cross company boundaries. `pendingApprovals` is
-returned only to approvers (admins and approvers); everyone else gets an empty list. For a request
-with no signed-in user (for example a public token), `b2bContext` resolves to `null` rather than an
-error.
+budgets, departments, approval tiers, catalog criteria, statement, PO numbers or order lists — there
+is no id by which to cross company boundaries. `pendingApprovals` is returned only to approvers
+(admins and approvers); everyone else gets an empty list. For a request with no signed-in user (for
+example a public token), `b2bContext` resolves to `null` rather than an error.
+
+### Write mutations
+
+Gated by the separate **`b2bContext.write`** schema component, **off by default** — enabling any of
+the read scopes above never enables writes. Every mutation requires an authenticated member (a
+signed-in user belonging to a company); a guest is refused with a clean error. None of them accept a
+company id: the acting company is always derived from the caller, so a token can never write another
+company's data. Each mutation is a thin wrapper over the same service the equivalent storefront
+action controller calls, so every existing guard (four-eyes, department scoping, cross-company
+checks, credit/budget enforcement) applies unchanged.
+
+```graphql
+mutation {
+    setPoNumber(poNumber: "PO-1234")
+}
+
+mutation {
+    requestQuote(notes: "Please quote for 500 units")
+    acceptQuote(token: "…")
+    declineQuote(token: "…", reason: "No longer needed")
+}
+
+mutation {
+    submitForApproval
+    approveOrder(orderId: 123)
+    declineOrder(orderId: 123, reason: "Over budget")
+}
+
+mutation {
+    createOrderList(name: "Weekly restock")
+    renameOrderList(listId: 1, name: "Fortnightly restock")
+    addOrderListItem(listId: 1, purchasableId: 456, qty: 3)
+}
+```
+
+- **`setPoNumber`** — sets the PO number on the caller's active cart (`OrderReferences::setPoNumber`).
+- **`requestQuote` / `acceptQuote` / `declineQuote`** — the quote request/accept/decline flow
+  (`Quotes::requestQuote` / `acceptByToken` / `declineByToken`); accept/decline are authorized by
+  their token, not the caller's company.
+- **`submitForApproval` / `approveOrder` / `declineOrder`** — the approval flow
+  (`Approvals::submitForApproval` / `approve` / `decline`); four-eyes (a submitter can never approve
+  their own order), sequential step order and same-company membership are enforced by the service,
+  unchanged from the storefront controller.
+- **`createOrderList` / `renameOrderList` / `addOrderListItem`** — saved order lists
+  (`OrderLists::createList` / `renameList` / `setItem`), always scoped to the caller's own company; a
+  `listId` naming another company's list is refused, not silently ignored.
 
 The `Company` element type behaves like any other Craft element type: once the **View companies**
 scope is enabled on a schema, that schema can read **all** companies — but only their identity
@@ -1047,8 +1118,8 @@ reinstall picks up exactly where you left off — no manual SQL required.
 ## Roadmap
 
 The five pillars, per-member budgets, the two-layer payment/completion enforcement and
-the read-only GraphQL API all ship in this release. Genuinely planned for future
-releases:
+the GraphQL read API plus its opt-in write mutations all ship in this release. Genuinely
+planned for future releases:
 
 - **Project-config storage** for the company field layout (see [Known limitations](#known-limitations)).
 - **Configurable roles** beyond the built-in admin / purchaser / approver set.
