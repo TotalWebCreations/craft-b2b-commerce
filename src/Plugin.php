@@ -44,6 +44,7 @@ use totalwebcreations\b2bcommerce\elements\Company;
 use totalwebcreations\b2bcommerce\elements\Quote;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\AllowInvoicePaymentField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\ApprovalThresholdField;
+use totalwebcreations\b2bcommerce\fieldlayoutelements\CatalogConditionField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CompanyTitleField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CreditLimitField;
 use totalwebcreations\b2bcommerce\fieldlayoutelements\CustomerGroupField;
@@ -212,6 +213,7 @@ class Plugin extends BasePlugin
                 $event->fields[] = RequirePoNumberField::class;
                 $event->fields[] = ApprovalThresholdField::class;
                 $event->fields[] = CustomerGroupField::class;
+                $event->fields[] = CatalogConditionField::class;
             }
         );
     }

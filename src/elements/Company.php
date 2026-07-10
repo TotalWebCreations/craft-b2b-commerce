@@ -251,6 +251,12 @@ class Company extends Element
             }
         }
 
+        if (array_key_exists('catalogCondition', $values)) {
+            $values['catalogCondition'] = Plugin::getInstance()
+                ->companyCatalog
+                ->normalizeStoredCondition($values['catalogCondition']);
+        }
+
         parent::setAttributesFromRequest($values);
     }
 

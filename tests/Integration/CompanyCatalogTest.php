@@ -155,3 +155,18 @@ it('returns null for an empty or rule-less stored condition', function () {
 
     expect(Plugin::getInstance()->companyCatalog->getConditionForCompany($company))->toBeNull();
 });
+
+it('normalizes a posted condition-builder array into stored JSON, and an empty builder to null', function () {
+    $company = createTestCompany('approved', 'Catalog Request Co');
+
+    $posted = Json::decodeIfJson(catalogConditionForType(quickOrderProductType()));
+
+    $company->setAttributesFromRequest(['catalogCondition' => $posted]);
+
+    expect($company->catalogCondition)->toBeString()
+        ->and(Plugin::getInstance()->companyCatalog->getConditionForCompany($company))->not->toBeNull();
+
+    $company->setAttributesFromRequest(['catalogCondition' => ['conditionRules' => []]]);
+
+    expect($company->catalogCondition)->toBeNull();
+});
