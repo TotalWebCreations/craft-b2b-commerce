@@ -480,6 +480,5 @@ return [
     '31–60 days' => '31–60 dagen',
     '61–90 days' => '61–90 dagen',
     '90+ days' => '90+ dagen',
-    'Download PDF' => 'PDF downloaden',
     'As of' => 'Per',
 ];
