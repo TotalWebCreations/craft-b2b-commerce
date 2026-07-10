@@ -76,6 +76,7 @@ use totalwebcreations\b2bcommerce\modules\checkout\services\OrderReferences;
 use totalwebcreations\b2bcommerce\modules\checkout\services\PaymentGate;
 use totalwebcreations\b2bcommerce\modules\dashboard\services\Overview;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditBalance;
+use totalwebcreations\b2bcommerce\modules\invoicing\services\Dunning;
 use totalwebcreations\b2bcommerce\modules\pdf\services\PdfDocuments;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\CreditEnforcer;
 use totalwebcreations\b2bcommerce\modules\invoicing\services\Statements;
@@ -102,6 +103,7 @@ use yii\base\Event;
  * @property-read CustomerGroupSync $customerGroupSync
  * @property-read CreditBalance $creditBalance
  * @property-read CreditEnforcer $creditEnforcer
+ * @property-read Dunning $dunning
  * @property-read DepartmentBudget $departmentBudget
  * @property-read DepartmentBudgetEnforcer $departmentBudgetEnforcer
  * @property-read Departments $departments
@@ -260,6 +262,7 @@ class Plugin extends BasePlugin
             'customerGroupSync' => CustomerGroupSync::class,
             'creditBalance' => CreditBalance::class,
             'creditEnforcer' => CreditEnforcer::class,
+            'dunning' => Dunning::class,
             'departmentBudget' => DepartmentBudget::class,
             'departmentBudgetEnforcer' => DepartmentBudgetEnforcer::class,
             'departments' => Departments::class,
