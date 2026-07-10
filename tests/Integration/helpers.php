@@ -691,11 +691,19 @@ function backdateOrder(\craft\commerce\elements\Order $order, int $daysAgo): voi
  * the cart cookie) needs a web-flavoured request to run at all; the console harness's own request
  * component (craft\console\Request) lacks those web-only methods. The previous request component is
  * restored afterwards so unrelated tests keep running under the console request they expect.
+ *
+ * A real web request also makes Craft resolve the current site for the first time in this process
+ * (the console harness never does), which flips Craft::$app->language to that site's language as a
+ * side effect. In production this is harmless -- every HTTP request is a fresh process -- but this
+ * suite reuses a single process for the whole run, so the flip would otherwise silently leak into
+ * every later test (e.g. English error-message assertions start failing against Dutch translations).
+ * The language is saved and restored here for the same reason the request component is.
  */
 function asWebRequest(callable $callback): void
 {
     $app = craftApp();
     $previous = $app->get('request');
+    $previousLanguage = $app->language;
 
     $app->set('request', Craft::createObject(['class' => \craft\web\Request::class]));
 
@@ -703,6 +711,7 @@ function asWebRequest(callable $callback): void
         $callback();
     } finally {
         $app->set('request', $previous);
+        $app->language = $previousLanguage;
     }
 }
 
