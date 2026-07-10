@@ -4,6 +4,7 @@ namespace totalwebcreations\b2bcommerce\variables;
 
 use Craft;
 use craft\commerce\elements\Order;
+use craft\commerce\elements\Product;
 use craft\elements\Address;
 use craft\elements\User;
 use DateTime;
@@ -349,5 +350,37 @@ class B2bVariable
         } catch (InvalidArgumentException) {
             return [];
         }
+    }
+
+    /**
+     * Convenience criteria for hiding non-catalog products in a listing template — spread into a
+     * product query, e.g. `{% set products = craft.products(craft.b2b.catalogCriteria).all() %}`.
+     * Returns an empty array (no restriction) for a visitor with no company or a company on the full
+     * catalog; otherwise `{id: <allowed product ids>}`.
+     *
+     * CONVENIENCE ONLY — this is NOT a security boundary. The add-to-cart veto
+     * (Order::EVENT_BEFORE_ADD_LINE_ITEM) is the authoritative catalog gate; this helper merely keeps
+     * restricted products out of sight. Resolving the id set runs the condition once, so cache the
+     * result in hot templates.
+     *
+     * @return array<string, mixed>
+     */
+    public function getCatalogCriteria(): array
+    {
+        $company = $this->getCompany();
+
+        if ($company === null) {
+            return [];
+        }
+
+        $catalog = Plugin::getInstance()->companyCatalog;
+
+        if ($catalog->getConditionForCompany($company) === null) {
+            return [];
+        }
+
+        $ids = $catalog->applyToProductQuery(Product::find(), $company)->ids();
+
+        return ['id' => $ids ?: [0]];
     }
 }

@@ -320,3 +320,47 @@ it('does not veto anything for an unrestricted (null-condition) company', functi
     expect($result['added'])->toBe(1)
         ->and($cart->getLineItems())->toHaveCount(1);
 });
+
+it('exposes catalog criteria that scope a product query to the allowed products', function () {
+    $company = createTestCompany('approved', 'Catalog Criteria Co');
+    $company->catalogCondition = catalogConditionForType(quickOrderProductType());
+    craftApp()->getElements()->saveElement($company);
+
+    $member = createTestUser('criteria_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $allowed = createTestVariant('CRIT-ALLOW-' . substr(uniqid(), -6));
+    $denied = createTestVariantOfType(catalogOtherProductType(), 'CRIT-DENY-' . substr(uniqid(), -6));
+
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity($member);
+
+    try {
+        $criteria = (new \totalwebcreations\b2bcommerce\variables\B2bVariable())->getCatalogCriteria();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    expect($criteria)->toHaveKey('id')
+        ->and($criteria['id'])->toContain($allowed->getProduct()->id)
+        ->and($criteria['id'])->not->toContain($denied->getProduct()->id);
+});
+
+it('returns empty catalog criteria for a full-catalog company (no restriction)', function () {
+    $company = createTestCompany('approved', 'Catalog Criteria Full Co');
+    $member = createTestUser('criteriafull_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($member->id, $company->id, CompanyRole::Purchaser);
+
+    $userSession = craftApp()->getUser();
+    $previous = $userSession->getIdentity();
+    $userSession->setIdentity($member);
+
+    try {
+        $criteria = (new \totalwebcreations\b2bcommerce\variables\B2bVariable())->getCatalogCriteria();
+    } finally {
+        $userSession->setIdentity($previous);
+    }
+
+    expect($criteria)->toBe([]);
+});
