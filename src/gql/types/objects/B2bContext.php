@@ -77,6 +77,10 @@ class B2bContext
                     'type' => Type::string(),
                     'description' => 'The company’s catalog restriction summary (phase 21), or null when the full catalog is available. This is a convenience hint; the add-to-cart veto is the security boundary.',
                 ],
+                'statement' => [
+                    'type' => Statement::getType(),
+                    'description' => 'The company’s account statement with aging buckets (phase 22).',
+                ],
             ],
         ]));
     }

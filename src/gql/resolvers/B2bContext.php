@@ -53,6 +53,7 @@ class B2bContext
             'departmentBudget' => self::departmentBudget($user->id),
             'approvalTiers' => $plugin->approvalTiers->getTiers($company->id),
             'catalogCriteria' => $plugin->companyCatalog->getCatalogCriteria($company),
+            'statement' => $plugin->statements->getStatement($company->id),
         ];
     }
 

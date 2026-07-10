@@ -65,6 +65,7 @@ class Statements extends Component
                 'dateOrdered' => $order->dateOrdered,
                 'dueDate' => $dueDate,
                 'daysPastDue' => $daysPastDue,
+                'total' => $order->getTotalPrice(),
                 'balance' => $balance,
                 'bucket' => $bucket->value,
             ];
