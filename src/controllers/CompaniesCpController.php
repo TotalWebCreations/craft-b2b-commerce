@@ -12,6 +12,7 @@ use craft\web\Controller;
 use DateTimeImmutable;
 use totalwebcreations\b2bcommerce\controllers\concerns\ReadsStringBodyParams;
 use totalwebcreations\b2bcommerce\elements\Company;
+use totalwebcreations\b2bcommerce\enums\AgingBucket;
 use totalwebcreations\b2bcommerce\enums\BudgetPeriod;
 use totalwebcreations\b2bcommerce\enums\CompanyRole;
 use totalwebcreations\b2bcommerce\Plugin;
@@ -158,6 +159,26 @@ class CompaniesCpController extends Controller
             'creditLimit' => $summary['creditLimit'],
             'available' => $summary['available'],
             'currency' => $currency,
+        ]);
+    }
+
+    public function actionStatement(int $companyId): Response
+    {
+        $company = $this->findCompany($companyId);
+        $statement = Plugin::getInstance()->statements->getStatement($company->id);
+
+        $bucketLabels = [
+            AgingBucket::Current->value => AgingBucket::Current->label(),
+            AgingBucket::Days1To30->value => AgingBucket::Days1To30->label(),
+            AgingBucket::Days31To60->value => AgingBucket::Days31To60->label(),
+            AgingBucket::Days61To90->value => AgingBucket::Days61To90->label(),
+            AgingBucket::Days90Plus->value => AgingBucket::Days90Plus->label(),
+        ];
+
+        return $this->renderTemplate('b2b-commerce/companies/_statement', [
+            'company' => $company,
+            'statement' => $statement,
+            'bucketLabels' => $bucketLabels,
         ]);
     }
 

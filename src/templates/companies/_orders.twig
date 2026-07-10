@@ -13,6 +13,7 @@
     {% if creditLimit is not null or outstanding > 0 %}
         <div class="pane" style="margin-bottom: 24px;">
             <h2>{{ 'Credit summary'|t('b2b-commerce') }}</h2>
+            <p><a class="btn" href="{{ url('b2b/companies/' ~ company.id ~ '/statement') }}">{{ 'View statement'|t('b2b-commerce') }}</a></p>
             <table class="data">
                 <tr>
                     <th scope="row">{{ 'Outstanding balance'|t('b2b-commerce') }}</th>

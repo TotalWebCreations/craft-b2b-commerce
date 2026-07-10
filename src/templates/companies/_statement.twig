@@ -1,0 +1,64 @@
+{% extends '_layouts/cp' %}
+
+{% set title = 'Statement'|t('b2b-commerce') %}
+
+{% set crumbs = [
+    { label: 'B2B'|t('b2b-commerce'), url: url('b2b') },
+    { label: 'Companies'|t('b2b-commerce'), url: url('b2b/companies') },
+    { label: company.title, url: company.cpEditUrl },
+] %}
+
+{% set currency = statement.currency %}
+
+{% block content %}
+    <div class="pane" style="margin-bottom: 24px;">
+        <h2>{{ 'Aging summary'|t('b2b-commerce') }}</h2>
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    {% for value, label in bucketLabels %}
+                        <th scope="col">{{ label }}</th>
+                    {% endfor %}
+                    <th scope="col">{{ 'Total outstanding'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {% for value, label in bucketLabels %}
+                        <td>{{ statement.buckets[value]|currency(currency) }}</td>
+                    {% endfor %}
+                    <td><strong>{{ statement.totalOutstanding|currency(currency) }}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    {% if statement.lines is empty %}
+        <p class="zilch">{{ 'No outstanding invoices.'|t('b2b-commerce') }}</p>
+    {% else %}
+        <table class="data fullwidth">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Invoice'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Order date'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Due date'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Days overdue'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Aging'|t('b2b-commerce') }}</th>
+                    <th scope="col">{{ 'Balance'|t('b2b-commerce') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in statement.lines %}
+                    <tr>
+                        <td><a href="{{ cpUrl('commerce/orders/' ~ line.orderId) }}">{{ line.reference }}</a></td>
+                        <td>{{ line.dateOrdered ? line.dateOrdered|datetime('short') : '' }}</td>
+                        <td>{{ line.dueDate ? line.dueDate|date('short') : '' }}</td>
+                        <td>{{ line.daysPastDue }}</td>
+                        <td>{{ bucketLabels[line.bucket] }}</td>
+                        <td>{{ line.balance|currency(currency) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock %}
