@@ -37,3 +37,34 @@ it('refuses setPoNumber for a guest even when the write scope is enabled', funct
             ->and($result['errors'][0]['message'])->toContain('signed in');
     });
 });
+
+// The same requireMember() guard backs every write mutation, so a guest is refused before the
+// underlying service (Quotes / Approvals / OrderLists) is ever reached — no cart, order or list
+// lookup happens for an unauthenticated caller.
+
+it('refuses requestQuote for a guest even when the write scope is enabled', function () {
+    asGqlIdentity(null, function () {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_WRITE_SCOPE), 'mutation { requestQuote }');
+
+        expect($result['errors'] ?? [])->not->toBeEmpty()
+            ->and($result['errors'][0]['message'])->toContain('signed in');
+    });
+});
+
+it('refuses submitForApproval for a guest even when the write scope is enabled', function () {
+    asGqlIdentity(null, function () {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_WRITE_SCOPE), 'mutation { submitForApproval }');
+
+        expect($result['errors'] ?? [])->not->toBeEmpty()
+            ->and($result['errors'][0]['message'])->toContain('signed in');
+    });
+});
+
+it('refuses createOrderList for a guest even when the write scope is enabled', function () {
+    asGqlIdentity(null, function () {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_WRITE_SCOPE), 'mutation { createOrderList(name: "Guest List") }');
+
+        expect($result['errors'] ?? [])->not->toBeEmpty()
+            ->and($result['errors'][0]['message'])->toContain('signed in');
+    });
+});

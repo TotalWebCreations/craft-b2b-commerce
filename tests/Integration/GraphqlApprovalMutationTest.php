@@ -43,3 +43,45 @@ it('refuses to approve an order belonging to another company (cross-company writ
         expect($result['errors'] ?? [])->not->toBeEmpty();
     });
 });
+
+it('approves a pending order for an eligible approver of the same company through the approveOrder mutation', function () {
+    [$company, $admin] = gqlCompanyWithAdmin(['approvalThreshold' => 0.0]);
+    $purchaser = createTestUser('gql_appr_happy_purchaser_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($purchaser->id, $company->id, CompanyRole::Purchaser);
+
+    $approver = createTestUser('gql_appr_happy_approver_' . uniqid() . '@example.test');
+    Plugin::getInstance()->companyMembers->addUserToCompany($approver->id, $company->id, CompanyRole::Approver);
+
+    $orderId = seedPendingApproval($company, $purchaser);
+
+    asGqlIdentity($approver, function () use ($orderId) {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_WRITE_SCOPE), <<<GQL
+            mutation { approveOrder(orderId: {$orderId}) }
+        GQL);
+
+        expect($result['errors'] ?? null)->toBeNull()
+            ->and($result['data']['approveOrder'])->toBeTrue();
+    });
+
+    // The approval resolved: it no longer sits in the company's pending queue.
+    expect(Plugin::getInstance()->approvals->getPendingForCompany($company->id))->toBe([]);
+});
+
+it('refuses the submitter approving their own submission through the approveOrder mutation (four-eyes)', function () {
+    [$company, $admin] = gqlCompanyWithAdmin();
+    // Seeded directly (bypassing submitForApproval's role gate) so the requester is an Admin who
+    // would otherwise be an eligible approver — isolating the four-eyes check under test.
+    $orderId = seedPendingApproval($company, $admin);
+
+    asGqlIdentity($admin, function () use ($orderId) {
+        $result = runB2bGql(b2bGqlSchema(B2B_GQL_WRITE_SCOPE), <<<GQL
+            mutation { approveOrder(orderId: {$orderId}) }
+        GQL);
+
+        expect($result['errors'] ?? [])->not->toBeEmpty()
+            ->and($result['errors'][0]['message'])->toContain('own order');
+    });
+
+    // The refused self-approval attempt must not have resolved the request.
+    expect(Plugin::getInstance()->approvals->getPendingForCompany($company->id))->toHaveCount(1);
+});
