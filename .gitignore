@@ -3,3 +3,6 @@
 composer.lock
 .DS_Store
 .phpunit.result.cache
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

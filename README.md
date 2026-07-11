@@ -1123,8 +1123,6 @@ planned for future releases:
 
 - **Project-config storage** for the company field layout (see [Known limitations](#known-limitations)).
 - **Configurable roles** beyond the built-in admin / purchaser / approver set.
-- **Departments** — sub-groups within a company, with **department-level budgets**
-  layered above the per-member budgets shipping now.
 - **PunchOut and accounting integrations** (cXML/OCI procurement punchout, and
   export to accounting packages).
 - **Per-store credit** — credit limits and outstanding balances tracked per Commerce
