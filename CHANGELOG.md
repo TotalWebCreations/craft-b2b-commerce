@@ -1,6 +1,6 @@
 # Release Notes for B2B Commerce
 
-## Unreleased
+## 1.0.0 - 2026-07-11
 
 ### Added
 - **GraphQL read expansion and opt-in write mutations.** `b2bContext` gains `departments` /

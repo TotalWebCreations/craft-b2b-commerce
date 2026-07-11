@@ -2,7 +2,7 @@
     "name": "totalwebcreations/craft-b2b-commerce",
     "description": "B2B suite for Craft Commerce: company accounts, quotes, order approvals, pay on account, and quick ordering",
     "type": "craft-plugin",
-    "version": "1.0.0-beta.3",
+    "version": "1.0.0",
     "license": "proprietary",
     "keywords": ["craft", "craftcms", "craft-plugin", "craft-commerce", "commerce", "b2b", "wholesale", "companies", "quotes", "order-approvals", "pay-on-account", "quick-order"],
     "authors": [
@@ -14,7 +14,7 @@
     "support": {
         "email": "bryan@totalwebcreations.nl",
         "issues": "https://github.com/TotalWebCreations/craft-b2b-commerce/issues",
-        "docs": "https://github.com/TotalWebCreations/craft-b2b-commerce/blob/main/README.md",
+        "docs": "https://totalwebcreations.github.io/craft-b2b-commerce/",
         "source": "https://github.com/TotalWebCreations/craft-b2b-commerce"
     },
     "require": {
@@ -43,7 +43,7 @@
         "handle": "b2b-commerce",
         "developer": "TotalWebCreations",
         "developerUrl": "https://totalwebcreations.nl",
-        "documentationUrl": "https://github.com/TotalWebCreations/craft-b2b-commerce",
+        "documentationUrl": "https://totalwebcreations.github.io/craft-b2b-commerce/",
         "class": "totalwebcreations\\b2bcommerce\\Plugin"
     }
 }
