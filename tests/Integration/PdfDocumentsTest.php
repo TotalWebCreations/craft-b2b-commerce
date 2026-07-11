@@ -154,7 +154,7 @@ it('renders a real quote PDF from a merchant-configured override path, confirmin
     // Uses the shipped examples/templates/b2b/pdf/quote.twig copy as the "merchant" override,
     // registered under the dev site's `b2b` root — proves the override setting actually renders
     // (not just that quoteTemplatePath() returns its string).
-    $templatesDir = dirname(getcwd()) . '/b2b-dev/templates';
+    $templatesDir = b2bTestSitePath() . '/templates';
 
     if (!is_dir($templatesDir)) {
         test()->markTestSkipped('dev-site templates folder not found');
@@ -213,7 +213,7 @@ it('renders an arbitrary site template to a PDF response via streamPdf', functio
     // streamPdf renders in SITE template mode, so the template must live in the dev site's templates
     // folder. Write a throwaway template that echoes a marker variable, then remove it. Assert on the
     // response (content-type + disposition) and that dompdf produced a real PDF — never diff bytes.
-    $templatesDir = dirname(getcwd()) . '/b2b-dev/templates';
+    $templatesDir = b2bTestSitePath() . '/templates';
 
     if (!is_dir($templatesDir)) {
         test()->markTestSkipped('dev-site templates folder not found');
