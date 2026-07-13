@@ -1,67 +1,109 @@
----
-layout: home
+# B2B Commerce
 
-hero:
-  name: B2B Commerce
-  text: A wholesale storefront for Craft Commerce
-  tagline: Company accounts, quotes, order approvals, pay on account and quick ordering — all on top of native Craft Commerce.
-  actions:
-    - theme: brand
-      text: Get started
-      link: /getting-started/installation
-    - theme: alt
-      text: Guides
-      link: /guides/companies-teams
-    - theme: alt
-      text: Reference
-      link: /reference/settings
+A wholesale storefront for Craft Commerce — company accounts, quotes, order approvals, pay on
+account and quick ordering, all on top of native Craft Commerce.
 
-features:
-  - title: Company accounts
-    details: Companies are first-class elements with statuses (pending, approved, blocked), roles (admin, purchaser, approver) and a shared team & address book. Businesses register from the frontend and are approved by a store manager in the control panel.
-  - title: Quotes
-    details: Request-for-quote flow with a full status lifecycle. An approved buyer turns a cart into a quote request, or a merchant sends one proactively — either way prices freeze and the buyer checks out at exactly what was quoted.
-  - title: Order approvals
-    details: Spending thresholds and amount-tiered, multi-level approval ladders with an approve/decline flow for purchasers and approvers, enforced at both payment time and completion time.
-  - title: Pay on account
-    details: An offline invoice gateway lets approved companies check out on account, with credit limits enforced on the storefront and outstanding-balance overviews everywhere.
-  - title: Quick order
-    details: Paste SKUs, upload a CSV, re-order a past order, or keep shared company-wide order lists to drop into the cart in one go.
-  - title: Departments & budgets
-    details: Per-member and per-department spending budgets layer on top of the company credit limit, with amount-tiered, department-scoped approval routing.
-  - title: Sales reps
-    details: A rep can act as a company's member and place orders on their behalf, built on Craft's native impersonation — with no elevated rights and a full audit log.
-  - title: Company-specific pricing & catalog
-    details: Assign a company to a Craft user group for native Commerce catalog pricing, and restrict which products a company may buy with a per-company product condition.
-  - title: PDF documents & statements
-    details: Quote, invoice and account-statement PDFs render through Commerce's own dompdf service, with overridable templates and an opt-in dunning command for overdue-invoice reminders.
----
+![The B2B overview dashboard in the Craft control panel: companies by status, pending registrations, open quotes, pending approvals, members and outstanding balance on account.](/img/01-dashboard-overview.png)
 
-## What it does
+## Why B2B Commerce
 
-B2B Commerce turns a standard Craft Commerce store into a wholesale/business storefront.
-Businesses register and are approved by a store manager, their team orders on behalf of the
-company, and merchants sell the way B2B works: negotiated quotes, spending approvals, invoicing
-on account and fast repeat ordering.
+Craft Commerce is built for B2C: one shopper, one card, one checkout. Selling to businesses works
+differently. A company buys as a **team**, spends against a **budget** and an **approval chain**,
+wants to pay **on invoice** instead of upfront, and reorders the same things again and again.
 
-The plugin is organised around five pillars, all live in this release:
+B2B Commerce adds exactly that on top of native Craft Commerce — without replacing it. Your
+catalog, checkout, taxes and payments stay standard Commerce; the plugin layers the B2B
+behaviour around them. Everything is managed from one **B2B** section in the control panel, so you
+see companies, quotes, approvals and outstanding balances at a glance.
 
-1. **[Company accounts](/guides/companies-teams)** — control-panel approval, roles, team
-   management, a shared address book, [sales reps](/guides/sales-reps), and
-   [company-specific pricing & catalog restriction](/guides/company-catalog).
-2. **[Quotes](/guides/quotes)** — request-for-quote (customer-initiated) and merchant-initiated
-   quotes, both with frozen prices and PDF documents.
-3. **[Order approvals](/guides/approvals)** — single-threshold and amount-tiered, multi-level
-   approval ladders, with [department budgets](/guides/departments-budgets) layered on top.
-4. **[Pay on account](/guides/pay-on-account)** — an offline invoice gateway with enforced credit
-   limits, [account statements and opt-in dunning](/guides/statements-dunning).
-5. **[Quick order](/guides/quick-order)** — SKU paste, CSV upload, re-order and shared order
-   lists.
+### What it does for you
 
-It also validates company **EU VAT IDs** against VIES and applies the intra-EU reverse charge
-automatically at checkout, ships example storefront templates for every flow, adds a
-`craft.b2b` template variable and an opt-in [GraphQL API](/reference/graphql), and includes
-Dutch translations for all control-panel and frontend strings.
+- **As a merchant** — less manual work. Businesses register and are vetted from the control
+  panel, quotes and invoices become PDFs for you, and credit limits are watched automatically so
+  an unpaid balance never catches you out.
+- **As a company admin** — control. Roles, per-department budgets and multi-level approval
+  ladders let your team order freely while spend stays inside the rules you set.
+- **As a buyer** — speed. Reorder in seconds, check out on account, and pay exactly the price you
+  were quoted.
+
+## Company accounts
+
+Companies are first-class elements with their own statuses (pending, approved, blocked) and
+roles (admin, purchaser, approver). Businesses register from the storefront and are approved by a
+store manager in the control panel — so you decide who gets to buy, and every member orders under
+one shared company account with a shared team and address book.
+
+**What you gain:** a clean intake and vetting flow, and one place to see and manage every business
+buying from you. See [Companies & teams](/guides/companies-teams).
+
+![The Companies element index showing seven companies with green, orange and red status colours for approved, pending and blocked.](/img/02-companies-index.png)
+
+## Quotes
+
+An approved buyer turns a cart into a quote request, or you send one proactively from any order.
+Either way the agreed prices **freeze**, and the buyer checks out at exactly what was quoted — with
+a quote PDF attached.
+
+**What you gain:** negotiated pricing without spreadsheets or email threads, and no risk of a
+buyer paying a different amount than you agreed. See [Quotes](/guides/quotes).
+
+![The Quotes element index showing five quotes across requested, sent, accepted and declined statuses.](/img/07-quotes-index.png)
+
+## Order approvals
+
+Set a spending threshold or an amount-tiered, multi-level approval ladder. Orders above a limit
+route to the right approver and are held until they approve or decline — enforced both at payment
+time and at completion.
+
+**What you gain:** companies keep spend under control, and you only fulfil orders that are
+actually authorised. See [Order approvals](/guides/approvals).
+
+![The Approvals index showing an in-progress three-tier approval ladder alongside single-approval requests in pending, approved and declined states.](/img/08-approvals-index.png)
+
+## Pay on account
+
+An offline invoice gateway lets approved companies check out on account. Credit limits are
+enforced on the storefront, outstanding balances are visible everywhere, and account statements
+give a full aging breakdown — with an opt-in dunning command for overdue-invoice reminders.
+
+**What you gain:** you sell on invoice the way B2B expects, while never extending more credit than
+you are comfortable with. See [Pay on account](/guides/pay-on-account) and
+[Statements & dunning](/guides/statements-dunning).
+
+![A company statement showing an aging summary across Current, 1-30, 31-60, 61-90 and 90+ day buckets, plus the itemised invoice table.](/img/09-company-statement.png)
+
+## Departments & budgets
+
+Layer per-member and per-department spending budgets on top of the company credit limit, with
+amount-tiered, department-scoped approval routing. Track real spend against each budget as orders
+complete.
+
+**What you gain:** large buyers can delegate purchasing across teams without losing oversight of
+where the money goes. See [Departments & budgets](/guides/departments-budgets).
+
+![The Departments screen for a company: three departments with budgets and real spend, plus member department assignment.](/img/06-company-departments.png)
+
+## Quick order
+
+Buyers paste SKUs, upload a CSV, re-order a past order, or keep shared company-wide order lists to
+drop into the cart in one go.
+
+**What you gain:** repeat purchasing that takes seconds instead of clicking through the catalog
+every time. See [Quick order & order lists](/guides/quick-order).
+
+## Also included
+
+- **[Sales reps](/guides/sales-reps)** — a rep can place orders on a company's behalf via Craft's
+  native impersonation, with no elevated rights and a full audit log.
+- **[Company-specific pricing & catalog](/guides/company-catalog)** — assign a company to a Craft
+  user group for native Commerce catalog pricing, and restrict which products it may buy.
+- **PDF documents** — quote, invoice and statement PDFs render through Commerce's own dompdf
+  service, with overridable templates.
+- **EU VAT handling** — company VAT IDs are validated against VIES and the intra-EU reverse charge
+  is applied automatically at checkout (requires Commerce 5.3+).
+- **Developer surface** — a `craft.b2b` template variable, example storefront templates for every
+  flow, and an opt-in [GraphQL API](/reference/graphql).
+- **Dutch translations** for all control-panel and frontend strings.
 
 ## Requirements
 
@@ -80,5 +122,5 @@ straight to the [quick start](/getting-started/quick-start).
 ## Where to get it
 
 This is commercial software. Once it is available on the [Craft Plugin
-Store](https://plugins.craftcms.com/), a licence must be purchased through the store for each
-production install.
+Store](https://plugins.craftcms.com/b2b-commerce), a licence must be purchased through the store
+for each production install.

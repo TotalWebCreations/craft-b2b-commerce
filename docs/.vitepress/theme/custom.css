@@ -1,0 +1,42 @@
+/*
+ * B2B Commerce docs theme.
+ * Purple accent (#5C46A9) on a near-black dark surface.
+ */
+
+:root {
+  --vp-c-brand-1: #5c46a9;
+  --vp-c-brand-2: #4d3a8f;
+  --vp-c-brand-3: #5c46a9;
+  --vp-c-brand-soft: rgba(92, 70, 169, 0.14);
+
+  /* Home hero / brand button gradient (kept for any brand-themed buttons) */
+  --vp-button-brand-bg: var(--vp-c-brand-3);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-2);
+}
+
+/* Screenshots: soften the light control-panel captures against the page. */
+.vp-doc img {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+
+.dark .vp-doc img {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.dark {
+  /* Surfaces: content #1c1c1c, chrome (nav/sidebar) #121212 */
+  --vp-c-bg: #1c1c1c;
+  --vp-c-bg-alt: #121212;
+  --vp-c-bg-elv: #242424;
+  --vp-c-bg-soft: #242424;
+
+  /* Lighter lavender for links/text so they read on the dark surface,
+     while solid buttons keep the full-strength brand purple. */
+  --vp-c-brand-1: #a99ce0;
+  --vp-c-brand-2: #bcb0ec;
+  --vp-c-brand-3: #5c46a9;
+  --vp-c-brand-soft: rgba(92, 70, 169, 0.26);
+}
